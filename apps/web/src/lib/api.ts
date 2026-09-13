@@ -624,7 +624,7 @@ export class ApiClient {
   }
 
   static async getJobSourceHealth() {
-    return this.request<any>("/api/jobs/sources/health");
+    return this.request<any>("/api/jobs/source-health");
   }
 
   static async triggerJobSync() {

@@ -1147,8 +1147,8 @@ export default function JobsPage() {
             <FilterSection title="Platform (Source)">
               <PillGroup
                 options={(jobSourcesData?.sources || []).map((s: any) => ({ 
-                  value: s.name.toLowerCase(), 
-                  label: s.name 
+                  value: s.key?.toLowerCase() || s.name?.toLowerCase(), 
+                  label: s.label || s.name 
                 }))}
                 selected={sources}
                 onChange={v => { setSources(v); setPage(1); }}

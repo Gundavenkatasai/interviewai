@@ -65,6 +65,7 @@ export type StoppedReason =
   | "ERROR"           // non-retryable error
   | "CONFIGURED_MAX"  // reached max pages configuration
   | "CAPTCHA"         // CAPTCHA detected
+  | "RESTRICTED"      // Source restricted
   | "NO_RESULTS";     // source returned no jobs
 
 export interface JobSearchPage {

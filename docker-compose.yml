@@ -48,6 +48,13 @@ services:
     depends_on:
       - api
 
+  jobspy-sidecar:
+    build: ./services/jobspy-sidecar
+    container_name: interviewai-jobspy
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+
   piston:
     image: ghcr.io/engineer-man/piston
     container_name: interviewai-piston

@@ -105,11 +105,7 @@ export class JobsController {
   static async getSources(request: FastifyRequest, reply: FastifyReply) {
     // Only return the list of registered sources for the frontend filter dropdown
     // Avoid calling getHealthStatus() here because it triggers Puppeteer browsers and timeouts (30s+)
-    const adapters = JobSourceRegistry.getAllAdapters();
-    const sourcesArray = adapters.map(adapter => ({
-      name: adapter.source,
-      status: "HEALTHY" 
-    }));
+    const sourcesArray = JobSourceRegistry.getCapabilitiesInfo();
     return reply.send({ success: true, sources: sourcesArray });
   }
   static async getJobs(request: FastifyRequest, reply: FastifyReply) {
@@ -606,11 +602,65 @@ export class JobsController {
 
   static async getSourceHealth(request: FastifyRequest, reply: FastifyReply) {
     // For admin/debugging view of ingestion
-    const runs = await JobIngestionRun.find().sort({ startedAt: -1 }).limit(50);
+    const runs = await JobIngestionRun.find().sort({ startedAt: -1 }).limit(200);
     
+    const latestRunsMap = new Map<string, any>();
+    
+    // Process runs, keep only the latest one per source
+    for (const run of runs) {
+      if (!latestRunsMap.has(run.source)) {
+        latestRunsMap.set(run.source, run);
+      }
+    }
+    
+    let active_sources = 0;
+    let failing_sources = 0;
+    const total_jobs = await Job.countDocuments({});
+    
+    const sourcesData = Array.from(latestRunsMap.values()).map(run => {
+      const isOk = run.status === "completed" || run.status === "ok";
+      if (isOk) active_sources++;
+      else failing_sources++;
+      
+      const durationMs = run.completedAt && run.startedAt ? 
+        new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime() : null;
+        
+      return {
+        source_id: run.source.toLowerCase(),
+        name: run.source,
+        status: isOk ? "active" : "failing",
+        jobs_count: run.jobsAccepted,
+        last_run: run.completedAt || run.startedAt,
+        duration_ms: durationMs,
+        error: run.metadata?.error || run.metadata?.lastError || run.metadata?.reason || (run.errorCount > 0 ? `${run.errorCount} errors during run` : null)
+      };
+    });
+    
+    // Add any configured sources that don't have a run yet
+    const allAdapters = JobSourceRegistry.getAllAdapters();
+    for (const adapter of allAdapters) {
+      if (!latestRunsMap.has(adapter.source)) {
+        sourcesData.push({
+          source_id: adapter.source.toLowerCase(),
+          name: adapter.source,
+          status: "pending",
+          jobs_count: 0,
+          last_run: null,
+          duration_ms: null,
+          error: "No sync executed yet"
+        });
+      }
+    }
+
     return {
       success: true,
-      runs
+      summary: {
+        total_sources: sourcesData.length,
+        active_sources,
+        failing_sources,
+        total_jobs
+      },
+      sources: sourcesData
     };
   }
 
