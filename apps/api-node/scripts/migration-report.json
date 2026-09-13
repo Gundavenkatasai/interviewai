@@ -1,0 +1,27 @@
+{
+  "users": {
+    "source": 4,
+    "destination": 4,
+    "failed": 0
+  },
+  "profiles": {
+    "source": 0,
+    "destination": 0,
+    "failed": 0
+  },
+  "resumes": {
+    "source": 1,
+    "destination": 1,
+    "failed": 0
+  },
+  "jobs": {
+    "source": 382,
+    "destination": 382,
+    "failed": 0
+  },
+  "interviews": {
+    "source": 0,
+    "destination": 0,
+    "failed": 0
+  }
+}

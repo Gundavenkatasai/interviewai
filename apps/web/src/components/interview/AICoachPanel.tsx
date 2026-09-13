@@ -1,4 +1,3 @@
-"use client";
 
 import { useState } from "react";
 import {
@@ -13,8 +12,11 @@ import {
   Award
 } from "lucide-react";
 import { AnswerEvaluation, Question } from "@/types";
-import { getScoreColor } from "@/lib/utils";
-
+const getScoreColor = (score: number) => {
+  if (score >= 8) return "text-emerald-400";
+  if (score >= 5) return "text-amber-400";
+  return "text-rose-400";
+};
 interface AICoachPanelProps {
   evaluation: AnswerEvaluation | null;
   currentQuestion: Question | null;

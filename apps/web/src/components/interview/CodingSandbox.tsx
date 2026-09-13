@@ -1,7 +1,6 @@
-"use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
+
 import {
   Play,
   CheckCircle2,
@@ -15,8 +14,7 @@ import {
 import { ApiClient } from "@/lib/api";
 import { CodeExecutionResponse, CodeReviewResponse } from "@/types";
 
-// Dynamic import of Monaco Editor to avoid SSR hydration issues
-const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+import Editor from "@monaco-editor/react";
 
 interface CodingSandboxProps {
   problemStatement: string;

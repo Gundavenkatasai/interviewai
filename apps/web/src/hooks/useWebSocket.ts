@@ -1,24 +1,30 @@
-"use client";
-
 import { useEffect, useRef, useState, useCallback } from "react";
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8001";
+const WS_BASE = import.meta.env.VITE_WS_URL || "ws://localhost:8001";
 
 export interface WebSocketEvent {
+  sequence: number;
   type: string;
-  [key: string]: any;
+  timestamp: string;
+  correlationId?: string;
+  payload?: any;
 }
+
+export type ConnectionState = "CONNECTING" | "CONNECTED" | "RECONNECTING" | "DISCONNECTED";
 
 export function useWebSocket(
   sessionId: string | null,
   onEvent?: (event: WebSocketEvent) => void
 ) {
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>("DISCONNECTED");
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttempts = useRef(0);
 
   const connect = useCallback(() => {
     if (!sessionId) return;
+    
+    setConnectionState(prev => prev === "DISCONNECTED" ? "CONNECTING" : "RECONNECTING");
 
     try {
       const wsUrl = `${WS_BASE}/ws/interview/${sessionId}`;
@@ -26,7 +32,11 @@ export function useWebSocket(
       socketRef.current = ws;
 
       ws.onopen = () => {
-        setIsConnected(true);
+        setConnectionState("CONNECTED");
+        reconnectAttempts.current = 0;
+        
+        // Always request state sync upon successful connection
+        sendEvent("STATE_SYNC_REQUEST", {});
       };
 
       ws.onmessage = (event) => {
@@ -37,15 +47,21 @@ export function useWebSocket(
       };
 
       ws.onclose = () => {
-        setIsConnected(false);
-        // Automatic reconnection attempt after 3s
+        setConnectionState("DISCONNECTED");
+        
+        // Exponential backoff reconnect
+        const baseDelay = 1000;
+        const maxDelay = 30000;
+        const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempts.current), maxDelay);
+        reconnectAttempts.current++;
+
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
-        }, 3000);
+        }, delay);
       };
 
       ws.onerror = () => {
-        setIsConnected(false);
+        // close will be fired immediately after error
       };
     } catch {}
   }, [sessionId, onEvent]);
@@ -62,13 +78,18 @@ export function useWebSocket(
     };
   }, [connect]);
 
-  const send = useCallback((message: any) => {
+  const sendEvent = useCallback((type: string, payload: any) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(
-        typeof message === "string" ? message : JSON.stringify(message)
-      );
+      const envelope = {
+        eventId: crypto.randomUUID(),
+        type,
+        interviewId: sessionId,
+        timestamp: new Date().toISOString(),
+        payload
+      };
+      socketRef.current.send(JSON.stringify(envelope));
     }
-  }, []);
+  }, [sessionId]);
 
-  return { isConnected, send };
+  return { connectionState, sendEvent };
 }
