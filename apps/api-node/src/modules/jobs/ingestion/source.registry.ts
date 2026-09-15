@@ -7,6 +7,8 @@ import { CutshortAdapter } from "./adapters/cutshort.adapter";
 import { HiristAdapter } from "./adapters/hirist.adapter";
 import { ShineAdapter } from "./adapters/shine.adapter";
 import { TimesJobsAdapter } from "./adapters/timesjobs.adapter";
+import { LinkedInAdapter } from "./adapters/linkedin.adapter";
+import { NaukriAdapter } from "./adapters/naukri.adapter";
 
 export interface SourceInfo {
   key: string;
@@ -28,19 +30,20 @@ export class JobSourceRegistry {
   private static instances: Map<string, JobSourceAdapter> = new Map();
 
   static {
-    // JobSpy Sources
-    this.register(new JobSpyAdapter("LinkedIn"));
+    // JobSpy Sources (for platforms without native adapters)
     this.register(new JobSpyAdapter("Indeed"));
-    this.register(new JobSpyAdapter("Naukri"));
     this.register(new JobSpyAdapter("Glassdoor"));
     this.register(new JobSpyAdapter("GoogleJobs"));
     this.register(new JobSpyAdapter("ZipRecruiter"));
     this.register(new JobSpyAdapter("Bayt"));
     this.register(new JobSpyAdapter("BDJobs"));
+    this.register(new JobSpyAdapter("LinkedIn")); // Switch LinkedIn to JobSpy
 
-    // Specialized Sources
-    this.register(new FounditAdapter());
+    // Specialized Native Sources
+    // this.register(new LinkedInAdapter());
+    this.register(new NaukriAdapter());
     this.register(new InternshalaAdapter());
+    this.register(new FounditAdapter());
     this.register(new WellfoundAdapter());
     this.register(new CutshortAdapter());
     this.register(new HiristAdapter());
@@ -94,6 +97,7 @@ export class JobSourceRegistry {
 
   static getCapabilitiesInfo(): SourceInfo[] {
     const jobspySources = ["LinkedIn", "Indeed", "Naukri", "Glassdoor", "GoogleJobs", "ZipRecruiter", "Bayt", "BDJobs"];
+    const restrictedSources = ["Foundit", "Wellfound", "Cutshort", "Hirist", "Shine", "TimesJobs"];
     const info: SourceInfo[] = [];
 
     for (const adapter of this.getAllAdapters()) {
@@ -104,14 +108,14 @@ export class JobSourceRegistry {
         provider: jobspySources.includes(adapter.source) ? "JOBSPY" : "SPECIALIZED",
         acquisitionMethod: "API",
         enabled: true,
-        supportsIndia: true, // Assuming default true, could map specifically
+        supportsIndia: !["ZipRecruiter", "Bayt", "BDJobs"].includes(adapter.source),
         supportsRemote: caps.supportsRemote,
         supportsPagination: caps.supportsPagination,
         supportsKeywordSearch: caps.supportsSearch,
         supportsLocation: true,
         supportsJobType: true,
         supportsSalary: caps.supportsSalary,
-        status: "active"
+        status: restrictedSources.includes(adapter.source) ? "restricted" : "active"
       });
     }
     return info;

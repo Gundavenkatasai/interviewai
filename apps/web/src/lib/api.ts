@@ -48,6 +48,39 @@ export class ApiClient {
     return res.json();
   }
 
+  /** Download a binary blob (for file exports) */
+  private static async requestBlob(endpoint: string, options: RequestInit = {}): Promise<Blob> {
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
+    };
+
+    const token = localStorage.getItem("interviewai_token");
+    if (token && !headers["Authorization"]) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      let errorMsg = `Request failed (${res.status})`;
+      try {
+        const errorData = await res.json();
+        errorMsg = errorData.detail || errorData.message || errorMsg;
+      } catch {}
+      throw new Error(errorMsg);
+    }
+
+    return res.blob();
+  }
+
   // Generic helper used by JobCard for fire-and-forget tracking
   static async post<T>(endpoint: string, data: any = {}): Promise<T> {
     return this.request<T>(endpoint, {
@@ -414,7 +447,7 @@ export class ApiClient {
   }
 
   static async getAnalyticsSummary() {
-    const res = await this.request<any>("/api/analytics/summary");
+    const res = await this.request<any>("/api/analytics/overview");
     return res?.data || res?.summary || res;
   }
 
@@ -712,6 +745,31 @@ export class ApiClient {
     });
   }
 
+  /**
+   * Download the format-preserved DOCX of an imported resume.
+   * The backend uses StructurePreservingDocxGenerator to re-inject
+   * any edited text back into the original document's XML, preserving
+   * all fonts, colors, margins and formatting exactly.
+   */
+  static async downloadResumeDocx(id: string): Promise<Blob> {
+    return this.requestBlob(`/api/resumes/${id}/export/docx`, { method: "POST" });
+  }
+
+  /**
+   * Fetch the original uploaded PDF file for the Read-Only PDF Viewer (Option 2)
+   */
+  static async downloadOriginalResume(id: string): Promise<Blob> {
+    return this.requestBlob(`/api/resumes/${id}/download/original`, { method: "GET" });
+  }
+
+  /** Save (update) a resume's profileData to the backend */
+  static async saveResume(id: string, data: { profileData?: any; name?: string; template?: string }) {
+    return this.request<any>(`/api/resumes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data)
+    });
+  }
+
   static async analyzeResume(id: string) {
     return this.request<any>(`/api/resumes/${id}/analyze`, { method: "POST" });
   }
@@ -955,12 +1013,12 @@ export class ApiClient {
   // ================= Format-Preserving AI Resume Optimization =================
   static async generateOptimizationPlan(payload: FormData | any): Promise<{ success: boolean; plan: IOptimizationPlan; data: IOptimizationPlan }> {
     if (payload instanceof FormData) {
-      return this.request<any>("/api/resumes/ats-optimize-plan", {
+      return this.request<any>("/api/resumes/tailoring/plan", {
         method: "POST",
         body: payload
       });
     }
-    return this.request<any>("/api/resumes/ats-optimize-plan", {
+    return this.request<any>("/api/resumes/tailoring/plan", {
       method: "POST",
       body: JSON.stringify(payload)
     });
@@ -976,12 +1034,12 @@ export class ApiClient {
     bulletCountAfter?: number;
   }> {
     if (payload instanceof FormData) {
-      return this.request<any>("/api/resumes/ats-apply-optimizations", {
+      return this.request<any>("/api/resumes/tailoring/apply", {
         method: "POST",
         body: payload
       });
     }
-    return this.request<any>("/api/resumes/ats-apply-optimizations", {
+    return this.request<any>("/api/resumes/tailoring/apply", {
       method: "POST",
       body: JSON.stringify(payload)
     });
@@ -1002,7 +1060,7 @@ export class ApiClient {
 
   static async downloadOptimizedDocx(fileNameOrId: string): Promise<Blob> {
     const token = localStorage.getItem("interviewai_token");
-    const res = await fetch(`${API_BASE}/api/resumes/ats-download-optimized/${encodeURIComponent(fileNameOrId)}`, {
+    const res = await fetch(`${API_BASE}/api/resumes/tailoring/artifacts/${encodeURIComponent(fileNameOrId)}/download`, {
       method: "GET",
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
@@ -1098,15 +1156,6 @@ export class ApiClient {
     });
   }
 
-  static async downloadOriginalResume(id: string): Promise<Blob> {
-    const token = localStorage.getItem("interviewai_token");
-    const res = await fetch(`${API_BASE}/api/resumes/${id}/download/original`, {
-      method: "GET",
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    });
-    if (!res.ok) throw new Error("Failed to download original resume");
-    return res.blob();
-  }
 
   static async downloadOptimizedResume(id: string): Promise<Blob> {
     const token = localStorage.getItem("interviewai_token");

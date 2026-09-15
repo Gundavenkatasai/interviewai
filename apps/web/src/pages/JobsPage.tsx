@@ -390,12 +390,13 @@ function PillGroup({
   onChange,
   counts,
 }: {
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; disabled?: boolean }[];
   selected: string[];
   onChange: (v: string[]) => void;
   counts?: Record<string, number>;
 }) {
-  const toggle = (v: string) => {
+  const toggle = (v: string, disabled?: boolean) => {
+    if (disabled) return;
     onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]);
   };
   return (
@@ -403,20 +404,24 @@ function PillGroup({
       {options.map(opt => {
         const active = selected.includes(opt.value);
         const count = counts?.[opt.value];
+        const disabled = opt.disabled;
         return (
           <button
             key={opt.value}
             type="button"
-            onClick={() => toggle(opt.value)}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-              active
-                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400"
-                : "bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-750 border border-slate-700/60"
+            onClick={() => toggle(opt.value, disabled)}
+            disabled={disabled}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              disabled 
+                ? "bg-slate-800/40 text-slate-600 border border-slate-800 cursor-not-allowed"
+                : active
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400 cursor-pointer"
+                  : "bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-750 border border-slate-700/60 cursor-pointer"
             }`}
           >
-            {active && <Check className="w-3 h-3 text-white" />}
+            {active && !disabled && <Check className="w-3 h-3 text-white" />}
             {opt.label}
-            {count != null && (
+            {count != null && !disabled && (
               <span className={`text-[10px] ${active ? "text-indigo-200" : "text-slate-500"}`}>
                 ({count})
               </span>
@@ -1148,7 +1153,8 @@ export default function JobsPage() {
               <PillGroup
                 options={(jobSourcesData?.sources || []).map((s: any) => ({ 
                   value: s.key?.toLowerCase() || s.name?.toLowerCase(), 
-                  label: s.label || s.name 
+                  label: s.status === 'restricted' ? `${s.label || s.name} (Restricted)` : (s.label || s.name),
+                  disabled: s.status === 'restricted'
                 }))}
                 selected={sources}
                 onChange={v => { setSources(v); setPage(1); }}

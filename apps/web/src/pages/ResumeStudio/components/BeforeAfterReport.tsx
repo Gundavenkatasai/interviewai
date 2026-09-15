@@ -37,7 +37,7 @@ export const BeforeAfterReport: React.FC<BeforeAfterReportProps> = ({
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = report.fileName.endsWith(".docx") ? report.fileName : `${report.fileName.replace(/\.[^/.]+$/, "")}.docx`;
+        a.download = report.fileName;
         a.click();
         URL.revokeObjectURL(url);
       } else {
@@ -45,7 +45,7 @@ export const BeforeAfterReport: React.FC<BeforeAfterReportProps> = ({
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = report.fileName.endsWith(".docx") ? report.fileName : `${report.fileName.replace(/\.[^/.]+$/, "")}.docx`;
+        a.download = report.fileName;
         a.click();
         URL.revokeObjectURL(url);
       }

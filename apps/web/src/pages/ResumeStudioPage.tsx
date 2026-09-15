@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Upload, FileText, CheckCircle2, AlertTriangle, AlertCircle, X,
   Sparkles, RefreshCw, Download, Copy, Check, Eye, ArrowRight,
@@ -9,7 +9,9 @@ import {
 import { ApiClient, ATSReport, ATSIssue, IOptimizationPlan, IBeforeAfterReport } from "../lib/api";
 import { OptimizationReviewModal } from "./ResumeStudio/components/OptimizationReviewModal";
 import { BeforeAfterReport } from "./ResumeStudio/components/BeforeAfterReport";
-import { ResumeTemplateWorkspace } from "./ResumeStudio/components/ResumeTemplateWorkspace";
+import { ResumeBuilderWorkspace } from "./ResumeStudio/components/ResumeBuilderWorkspace";
+import { ResumeDashboard } from "./ResumeStudio/components/ResumeDashboard";
+import { DocxXeroxWorkspace } from "./ResumeStudio/components/DocxXeroxWorkspace";
 import { CanonicalResumeWorkspace } from "./ResumeStudio/components/CanonicalResumeWorkspace";
 import { AtsDashboardWorkspace } from "./ResumeStudio/components/AtsDashboardWorkspace";
 
@@ -82,15 +84,25 @@ const SCAN_STEPS = [
 ];
 
 export default function ResumeStudioPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const modeParam = searchParams.get("mode");
+  const resumeId = searchParams.get("id") || "";
+  const importedId = searchParams.get("importedId") || "";
+
   // Workflow Mode: ATS Resume Templates (Workflow B) vs Format Preservation (Workflow A) vs Canonical (Day 7) vs ATS Dashboard (Day 8)
   const [workflowMode, setWorkflowMode] = useState<"templates" | "preservation" | "canonical" | "ats">(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("mode") === "ats") return "ats";
-    if (params.get("mode") === "preserve" || params.get("mode") === "checker") return "ats"; // Upgraded format preservation ATS checker
-    if (params.get("mode") === "canonical") return "canonical";
+    if (modeParam === "ats") return "ats";
+    if (modeParam === "preserve" || modeParam === "checker") return "ats";
+    if (modeParam === "canonical") return "canonical";
     return "templates";
   });
-  const resumeId = new URLSearchParams(window.location.search).get("id") || "";
+
+  useEffect(() => {
+    if (modeParam === "ats") setWorkflowMode("ats");
+    else if (modeParam === "preserve" || modeParam === "checker") setWorkflowMode("ats");
+    else if (modeParam === "canonical") setWorkflowMode("canonical");
+    else if (modeParam === "templates") setWorkflowMode("templates");
+  }, [modeParam]);
 
   // Navigation & Flow
   const [stage, setStage] = useState<"input" | "analyzing" | "report" | "before_after">("input");
@@ -483,8 +495,20 @@ export default function ResumeStudioPage() {
         </div>
       </div>
 
-      {workflowMode === "templates" ? (
-        <ResumeTemplateWorkspace resumeId={resumeId!} />
+      {workflowMode === "templates" && importedId ? (
+        <DocxXeroxWorkspace
+          workspaceId={importedId}
+          onBack={() => {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete("importedId");
+            nextParams.set("mode", "templates");
+            setSearchParams(nextParams);
+          }}
+        />
+      ) : workflowMode === "templates" && resumeId ? (
+        <ResumeBuilderWorkspace resumeId={resumeId} />
+      ) : workflowMode === "templates" && !resumeId && !importedId ? (
+        <ResumeDashboard />
       ) : (
         <>
           {/* Main Container */}

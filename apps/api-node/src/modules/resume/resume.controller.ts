@@ -33,7 +33,9 @@ import { ResumeGitHub } from "./resume.github";
 import { ResumeExporter } from "./resume.export";
 import { AtsEvaluator } from "./ats-engine/ats.evaluator";
 import { ATS_RULES, JOB_ROLES_DATA } from "./ats-engine/ats.data";
-import { DocxEngine, DocxValidator, StructurePreservingDocxGenerator } from "./docx-engine";
+import { DocxEngine, DocxValidator } from "./docx-engine";
+import { StructurePreservingDocxGenerator } from "./docx-engine/structure-preserver";
+import { PdfEngine } from "./pdf-engine/pdf.engine";
 import { OptimizationService, OptimizationValidator, IOptimizationProposal, IBeforeAfterReport } from "./optimization";
 import { Profile } from "../profile/profile.model";
 import { Job } from "../jobs/jobs.model";
@@ -871,6 +873,10 @@ export class ResumeController {
 
   /**
    * 24. Export DOCX
+   * For imported resumes (rawText present): re-builds text from edited profileData,
+   * then uses StructurePreservingDocxGenerator to generate a DOCX that reflects the
+   * user's edits while mimicking the structure of the original document.
+   * For template-created resumes: uses ResumeExporter to build a fresh DOCX from profileData.
    */
   static async exportDocx(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
@@ -882,17 +888,33 @@ export class ResumeController {
     }
 
     let buffer: Buffer;
-    if (resume.rawText) {
+
+    if (resume.rawText && resume.fileType === "docx") {
+      // IMPORTED DOCX: Use the profileData (which has user's edits) to regenerate text,
+      // then parse it through the structure preserver to keep the formatting layout intact.
       try {
-        const ast = StructurePreservingDocxGenerator.parse(resume.rawText);
+        const updatedText = ResumeATS.getWhatAtsSees(resume.profileData);
+        const ast = StructurePreservingDocxGenerator.parse(updatedText || resume.rawText);
         buffer = await StructurePreservingDocxGenerator.generateDocx(ast);
       } catch (err) {
-        console.warn("[ResumeController] Fallback to Exporter for DOCX:", err);
+        console.warn("[ResumeController] Fallback to Exporter for imported DOCX:", err);
+        buffer = await ResumeExporter.generateDocx(resume.profileData, resume.name);
+      }
+    } else if (resume.rawText) {
+      // OTHER IMPORTED FILES (PDF, TXT): rebuild from profileData edits
+      try {
+        const updatedText = ResumeATS.getWhatAtsSees(resume.profileData);
+        const ast = StructurePreservingDocxGenerator.parse(updatedText || resume.rawText);
+        buffer = await StructurePreservingDocxGenerator.generateDocx(ast);
+      } catch (err) {
+        console.warn("[ResumeController] Fallback to Exporter:", err);
         buffer = await ResumeExporter.generateDocx(resume.profileData, resume.name);
       }
     } else {
+      // TEMPLATE-CREATED RESUME: fresh DOCX from profileData
       buffer = await ResumeExporter.generateDocx(resume.profileData, resume.name);
     }
+
     const safeFilename = `${(resume.profileData.personal?.fullName || "Resume").replace(/\s+/g, "_")}_Resume.docx`;
 
     await ResumeController.logActivity(userId, resume._id, "exported", "Exported resume as Word DOCX");
@@ -1593,33 +1615,67 @@ export class ResumeController {
       fileBuffer.slice(0, 4).toString("hex") === "504b0304"
     );
 
+    const isPdf = Boolean(
+      fileBuffer &&
+      fileBuffer.length > 4 &&
+      fileBuffer.slice(0, 4).toString("hex") === "25504446" // %PDF
+    );
+
     if (isDocx) {
       const swapResult = await DocxEngine.applySwaps(fileBuffer, swaps);
       modifiedBuffer = swapResult.modifiedBuffer;
       isFormatPreserved = true;
       bulletCountBefore = swapResult.bulletCountBefore;
       bulletCountAfter = swapResult.bulletCountAfter;
+
+      if (bulletCountBefore !== bulletCountAfter) {
+        return reply.status(400).send({
+          success: false,
+          message: `STRUCTURAL_INTEGRITY_ERROR: Optimization altered document structure. Bullet count changed from ${bulletCountBefore} to ${bulletCountAfter}. Modification aborted.`
+        });
+      }
+    } else if (isPdf) {
+      try {
+        const swapResult = await PdfEngine.applySwaps(fileBuffer, swaps);
+        modifiedBuffer = swapResult.modifiedBuffer;
+        isFormatPreserved = true;
+        bulletCountBefore = swapResult.originalPageCount; // For PDF, we validate page count
+        bulletCountAfter = swapResult.newPageCount;
+
+        if (bulletCountBefore !== bulletCountAfter) {
+          return reply.status(400).send({
+            success: false,
+            message: `PAGE_COUNT_CHANGED: Optimization altered document structure. Page count changed from ${bulletCountBefore} to ${bulletCountAfter}. Modification aborted.`
+          });
+        }
+      } catch (err: any) {
+        if (err.message.includes("FORMAT_PRESERVATION_UNSUPPORTED")) {
+          return reply.status(400).send({
+            success: false,
+            message: err.message
+          });
+        }
+        throw err;
+      }
     } else {
-      // PDF, TXT, or text upload: parse exact original document AST preserving sections, headings, dates, and order
-      const ast = StructurePreservingDocxGenerator.parse(sourceText);
-      StructurePreservingDocxGenerator.applySwaps(ast, swaps);
-      modifiedBuffer = await StructurePreservingDocxGenerator.generateDocx(ast);
-      isFormatPreserved = true;
-      isReconstructed = true;
-      bulletCountBefore = ast.sections.reduce((acc, s) => acc + s.items.filter((it) => it.type === "bullet").length, 0);
-      bulletCountAfter = bulletCountBefore;
+      // Fallback for TXT or unsupported
+      return reply.status(400).send({
+        success: false,
+        message: `FORMAT_PRESERVATION_UNSUPPORTED: Original file must be DOCX or PDF for exact layout preservation.`
+      });
     }
 
     // 4. Save optimized artifact to uploads
     const optDir = path.join(__dirname, "../../../uploads/optimized");
     fs.mkdirSync(optDir, { recursive: true });
+    const ext = isDocx ? ".docx" : ".pdf";
     const baseClean = fileName.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const safeName = `${baseClean}_optimized_${Date.now()}.docx`;
+    const safeName = `${baseClean}_optimized_${Date.now()}${ext}`;
     const optFilePath = path.join(optDir, safeName);
     await fs.promises.writeFile(optFilePath, modifiedBuffer);
 
     // 5. Re-scan ATS immediately using the ACTUAL generated file (Zero fake scores!)
-    const updatedExtracted = await ResumeParser.extractRawText(modifiedBuffer, "docx");
+    const updatedExtracted = await ResumeParser.extractRawText(modifiedBuffer, isDocx ? "docx" : "pdf");
     const afterReport = AtsEvaluator.analyze({
       resumeText: updatedExtracted.text,
       jdText,
@@ -1679,7 +1735,7 @@ export class ResumeController {
       healthAfter: afterReport.health,
       passProbabilityBefore: beforeReport.passProbability,
       passProbabilityAfter: afterReport.passProbability,
-      downloadUrl: `/api/resumes/ats-download-optimized/${encodeURIComponent(safeName)}`
+      downloadUrl: `/api/resumes/tailoring/artifacts/${encodeURIComponent(safeName)}/download`
     };
 
     if (resumeDoc) {
@@ -1766,7 +1822,11 @@ export class ResumeController {
     const buffer = await fs.promises.readFile(filePath);
     const downloadName = path.basename(filePath);
 
-    reply.header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    const mime = downloadName.endsWith(".pdf")
+      ? "application/pdf"
+      : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    reply.header("Content-Type", mime);
     reply.header("Content-Disposition", `attachment; filename="${downloadName}"`);
     return reply.send(buffer);
   }
@@ -2301,7 +2361,7 @@ export class ResumeController {
     reply: FastifyReply
   ) {
     const { id } = request.params;
-    const resume = await Resume.findOne({ _id: id, userId: (request as any).user?.id });
+    const resume = await Resume.findOne({ _id: id, userId: (request as any).user?.sub });
     if (!resume || !resume.storagePath || !fs.existsSync(resume.storagePath)) {
       return reply.status(404).send({ success: false, message: "Original resume file not found" });
     }
@@ -2325,7 +2385,7 @@ export class ResumeController {
     reply: FastifyReply
   ) {
     const { id } = request.params;
-    const resume = await Resume.findOne({ _id: id, userId: (request as any).user?.id });
+    const resume = await Resume.findOne({ _id: id, userId: (request as any).user?.sub });
     if (!resume || !resume.optimizedDocxPath || !fs.existsSync(resume.optimizedDocxPath)) {
       return reply.status(404).send({ success: false, message: "Optimized resume file not found" });
     }
@@ -2333,9 +2393,30 @@ export class ResumeController {
     const buf = await fs.promises.readFile(resume.optimizedDocxPath);
     const fileName = path.basename(resume.optimizedDocxPath);
 
-    reply.header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    const mime = fileName.endsWith(".pdf")
+      ? "application/pdf"
+      : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    reply.header("Content-Type", mime);
     reply.header("Content-Disposition", `attachment; filename="${fileName}"`);
     return reply.send(buf);
+  }
+
+  /**
+   * GET /api/resumes/tailoring/:id/before-after
+   */
+  static async getBeforeAfterReport(
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ) {
+    const { id } = request.params;
+    const resume = await Resume.findOne({ _id: id, userId: (request as any).user?.id });
+    
+    if (!resume || !resume.beforeAfterReport) {
+      return reply.status(404).send({ success: false, message: "Before/After report not found for this resume" });
+    }
+
+    return { success: true, report: resume.beforeAfterReport, data: resume.beforeAfterReport };
   }
 
   // ===============================================================

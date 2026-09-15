@@ -27,6 +27,7 @@ import intelligenceRoutes from "./modules/interview-intelligence/intelligence.ro
 import storyRoutes from "./modules/story-bank/story.routes";
 import debriefRoutes from "./modules/interview-debrief/debrief.routes";
 import { websocketRoutes } from "./websocket/handlers";
+import { importedDocxRoutes } from "./modules/resume/imported-docx/imported-docx.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -138,7 +139,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(authRoutes, { prefix: "/api/auth" });
   app.register(profileRoutes, { prefix: "/api/profile" });
   app.register(resumeRoutes, { prefix: "/api/resumes" });
-  app.register(tailoringRoutes, { prefix: "/api/resume/tailor" });
   app.register(interviewRoutes, { prefix: "/api/interviews" });
   app.register(jobsRoutes, { prefix: "/api/jobs" });
   app.register(applicationsRoutes, { prefix: "/api/applications" });
@@ -151,6 +151,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(intelligenceRoutes, { prefix: "/api/interview-intelligence" });
   app.register(storyRoutes, { prefix: "/api/interview-stories" });
   app.register(debriefRoutes, { prefix: "/api/interview-debriefs" });
+  app.register(importedDocxRoutes, { prefix: "/api/resume/imported-docx" });
   app.register(websocketRoutes);
 
   return app;

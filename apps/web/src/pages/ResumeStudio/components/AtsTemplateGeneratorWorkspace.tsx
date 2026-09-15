@@ -31,6 +31,7 @@ import html2canvas from "html2canvas";
 import { ApiClient, ITemplateMetadata, IResumeExtractionResult, ATSReport } from "../../../lib/api";
 import { ResumeRenderer } from "./templates/ResumeRenderer";
 import { ExtractionReviewModal } from "./ExtractionReviewModal";
+import { ImportDocxWorkspace } from "./ImportDocxWorkspace";
 
 const CATEGORIES = [
   "All",
@@ -127,7 +128,7 @@ const SAMPLE_GALLERY_PROFILE = {
 
 export const AtsTemplateGeneratorWorkspace: React.FC = () => {
   // Workflow Navigation Stage
-  const [stage, setStage] = useState<"gallery" | "upload" | "review" | "studio">("gallery");
+  const [stage, setStage] = useState<"gallery" | "upload" | "review" | "studio" | "import">("gallery");
 
   // Template Catalog State
   const [templates, setTemplates] = useState<ITemplateMetadata[]>([]);
@@ -354,6 +355,13 @@ export const AtsTemplateGeneratorWorkspace: React.FC = () => {
       {/* =============================================================== */}
       {/* 1. STAGE: TEMPLATE GALLERY (Step 1 & 2)                          */}
       {/* =============================================================== */}
+      {stage === "import" && (
+        <ImportDocxWorkspace onBack={() => setStage("gallery")} />
+      )}
+
+      {/* =============================================================== */}
+      {/* 1. STAGE: TEMPLATE GALLERY (Step 1 & 2)                          */}
+      {/* =============================================================== */}
       {stage === "gallery" && (
         <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 py-8">
           {/* Header Banner */}
@@ -371,6 +379,21 @@ export const AtsTemplateGeneratorWorkspace: React.FC = () => {
               template is the{" "}
               <strong className="text-slate-200">source of truth for design</strong>.
             </p>
+          </div>
+
+          {/* Import Banner — bring your own DOCX */}
+          <div className="max-w-3xl mx-auto mb-8 p-4 bg-gradient-to-r from-violet-900/30 to-indigo-900/20 border border-violet-500/20 rounded-2xl flex items-center justify-between gap-6">
+            <div>
+              <p className="text-sm font-semibold text-violet-300 mb-1">Have an existing resume?</p>
+              <p className="text-xs text-slate-400">Import your own <strong className="text-slate-200">.docx</strong> file and edit it directly — original formatting preserved.</p>
+            </div>
+            <button
+              onClick={() => setStage("import")}
+              className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-violet-600/30"
+            >
+              <Upload className="w-4 h-4" />
+              Import DOCX
+            </button>
           </div>
 
           {/* Category Filter Pills */}
@@ -540,7 +563,7 @@ export const AtsTemplateGeneratorWorkspace: React.FC = () => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.docx,.txt,.json"
+                accept=".docx"
                 className="hidden"
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {

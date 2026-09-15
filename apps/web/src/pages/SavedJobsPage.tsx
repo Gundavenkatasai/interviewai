@@ -12,7 +12,7 @@ export default function SavedJobsPage() {
     queryFn: () => ApiClient.getSavedJobs(),
   });
 
-  const jobs: any[] = data?.jobs || data || [];
+  const jobs: any[] = data?.data || data?.jobs || (Array.isArray(data) ? data : []);
 
   const handleUnsave = async (id: string) => {
     try { await ApiClient.unsaveJob(id); refetch(); } catch (e) { console.error(e); }

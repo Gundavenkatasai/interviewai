@@ -31,11 +31,15 @@ export async function resumeRoutes(app: FastifyInstance) {
   app.get("/ats-meta", { preValidation: [optionalAuthenticate] }, ResumeController.getAtsMeta);
   // Format-Preserving AI Optimization Suite
   // @ts-ignore
-  app.post("/ats-optimize-plan", { preValidation: [optionalAuthenticate] }, ResumeController.generateOptimizationPlan);
+  app.post("/tailoring/plan", { preValidation: [optionalAuthenticate] }, ResumeController.generateOptimizationPlan);
   // @ts-ignore
-  app.post("/ats-apply-optimizations", { preValidation: [optionalAuthenticate] }, ResumeController.applyOptimizations);
+  app.post("/tailoring/apply", { preValidation: [optionalAuthenticate] }, ResumeController.applyOptimizations);
   // @ts-ignore
-  app.get("/ats-download-optimized/:id", { preValidation: [optionalAuthenticate] }, ResumeController.downloadOptimizedDocx);
+  app.get("/tailoring/:id", { preValidation: [optionalAuthenticate] }, ResumeController.getOptimizationRun);
+  // @ts-ignore
+  app.get("/tailoring/:id/before-after", { preValidation: [optionalAuthenticate] }, ResumeController.getBeforeAfterReport);
+  // @ts-ignore
+  app.get("/tailoring/artifacts/:id/download", { preValidation: [optionalAuthenticate] }, ResumeController.downloadOptimizedDocx);
   // @ts-ignore
   app.post("/ats-rescore", { preValidation: [optionalAuthenticate] }, ResumeController.rescoreDocument);
 

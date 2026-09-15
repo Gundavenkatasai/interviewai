@@ -172,22 +172,28 @@ export default function DashboardPage() {
         <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-2">
           <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">Demonstrated Strengths</span>
           <div className="flex flex-wrap gap-2 pt-1">
-            {s.strongest_skills.map((skill: string, idx: number) => (
-              <span key={idx} className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-950 border border-slate-800 text-slate-200">
-                {skill}
-              </span>
-            ))}
+            {s.strongest_skills.map((skill: any, idx: number) => {
+              const skillName = typeof skill === "string" ? skill : (typeof skill?.name === "string" ? skill.name : (skill?.name?.name || "Unknown"));
+              return (
+                <span key={idx} className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-950 border border-slate-800 text-slate-200">
+                  {skillName}
+                </span>
+              );
+            })}
           </div>
         </div>
 
         <div className="p-5 rounded-2xl bg-rose-500/5 border border-rose-500/20 space-y-2">
           <span className="text-xs font-bold text-rose-400 uppercase tracking-wider block">Areas Requiring Revision</span>
           <div className="flex flex-wrap gap-2 pt-1">
-            {s.weakest_skills.map((skill: string, idx: number) => (
-              <span key={idx} className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-950 border border-slate-800 text-slate-200">
-                {skill}
-              </span>
-            ))}
+            {s.weakest_skills.map((skill: any, idx: number) => {
+              const skillName = typeof skill === "string" ? skill : (typeof skill?.name === "string" ? skill.name : (skill?.name?.name || "Unknown"));
+              return (
+                <span key={idx} className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-950 border border-slate-800 text-slate-200">
+                  {skillName}
+                </span>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -64,11 +64,15 @@ export class JobSpyAdapter implements JobSourceAdapter {
     let totalFetched = 0;
     
     try {
+      let mappedSite = this.source.toLowerCase();
+      if (mappedSite === "googlejobs") mappedSite = "google";
+      if (mappedSite === "ziprecruiter") mappedSite = "zip_recruiter";
+
       const payload = {
-        sites: [this.source.toLowerCase()],
+        sites: [mappedSite],
         searchTerm: request.query || "software engineer",
         location: request.location || "India",
-        resultsWanted: request.limit || 20,
+        resultsWanted: 100, // Fetch more to ensure we get enough after any filtering
         hoursOld: request.postedWithinHours || 48,
         offset: request.page ? (request.page - 1) * (request.limit || 20) : 0,
         isRemote: false, // Could be parsed from request if supported
@@ -81,7 +85,7 @@ export class JobSpyAdapter implements JobSourceAdapter {
 
       const data = response.data;
       
-      const siteMeta = data.sites?.find((s: any) => s.site === this.source.toLowerCase());
+      const siteMeta = data.sites?.find((s: any) => s.site === mappedSite);
       
       if (siteMeta) {
         if (siteMeta.status === "rate_limited") stoppedReason = "RATE_LIMIT";
@@ -92,7 +96,7 @@ export class JobSpyAdapter implements JobSourceAdapter {
 
       if (data.jobs && Array.isArray(data.jobs)) {
         for (const job of data.jobs) {
-          if (job.site.toLowerCase() !== this.source.toLowerCase()) continue;
+          if (job.site.toLowerCase() !== mappedSite) continue;
           totalFetched++;
 
           jobs.push({

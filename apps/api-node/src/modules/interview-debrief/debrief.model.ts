@@ -13,10 +13,10 @@ export interface IQuestionReview {
 }
 
 export interface IInterviewDebrief extends Document {
-  userId: mongoose.Types.ObjectId;
-  interviewId: mongoose.Types.ObjectId;
-  jobSnapshotId?: mongoose.Types.ObjectId;
-  resumeVersionId?: mongoose.Types.ObjectId;
+  userId: string;
+  interviewId: string;
+  jobSnapshotId?: string;
+  resumeVersionId?: string;
 
   overallScore: number;
   whatWentWell: string[];
@@ -58,10 +58,10 @@ const QuestionReviewSchema = new Schema<IQuestionReview>({
 }, { _id: false });
 
 const InterviewDebriefSchema = new Schema<IInterviewDebrief>({
-  userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-  interviewId: { type: Schema.Types.ObjectId, ref: "InterviewSession", required: true, unique: true },
-  jobSnapshotId: { type: Schema.Types.ObjectId, ref: "Job" },
-  resumeVersionId: { type: Schema.Types.ObjectId, ref: "ResumeVersion" },
+  userId: { type: String, ref: "User", required: true, index: true },
+  interviewId: { type: String, ref: "InterviewSession", required: true, unique: true },
+  jobSnapshotId: { type: String, ref: "Job" },
+  resumeVersionId: { type: String, ref: "ResumeVersion" },
 
   overallScore: { type: Number, default: 0 },
   whatWentWell: [{ type: String }],
@@ -91,7 +91,7 @@ const InterviewDebriefSchema = new Schema<IInterviewDebrief>({
 export type WeaknessState = "NEW" | "RECURRING" | "IMPROVING" | "RESOLVED" | "RETEST";
 
 export interface IInterviewWeakness extends Document {
-  userId: mongoose.Types.ObjectId;
+  userId: string;
   category: string;
   topic: string;
   severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
@@ -105,7 +105,7 @@ export interface IInterviewWeakness extends Document {
 }
 
 const InterviewWeaknessSchema = new Schema<IInterviewWeakness>({
-  userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  userId: { type: String, ref: "User", required: true, index: true },
   category: { type: String, required: true },
   topic: { type: String, required: true },
   severity: { type: String, required: true },

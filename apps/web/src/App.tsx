@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import AnalyticsPage from './pages/Analytics/AnalyticsPage';
 
 import { ProtectedRoute } from './components/common/ProtectedRoute'
@@ -37,8 +37,12 @@ import ResumeStudioPage from './pages/ResumeStudioPage'
 import InterviewIntelligencePage from './pages/InterviewIntelligencePage'
 import StoryBankPage from './pages/StoryBankPage'
 import InterviewDebriefPage from './pages/InterviewDebriefPage'
+import ImportedDocxEditorPage from './pages/ImportedDocxEditorPage'
 
 export default function App() {
+  const location = useLocation();
+  const isBuilderRoute = location.pathname.includes('/resume') || location.pathname.includes('/ats') || location.pathname.includes('/studio');
+
   return (
     <div className="relative min-h-screen flex flex-col md:flex-row bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500/30 selection:text-indigo-200">
       {/* Ambient lighting */}
@@ -49,10 +53,10 @@ export default function App() {
       </div>
 
       {/* Responsive Sidebar (replaces old Navbar) */}
-      <Sidebar />
+      {!isBuilderRoute && <Sidebar />}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+      <div className={`flex-1 flex flex-col min-w-0 overflow-x-hidden ${isBuilderRoute ? 'w-screen h-screen' : ''}`}>
         <main className="flex-1 relative z-10">
           <Routes>
             {/* Public routes */}
@@ -85,6 +89,7 @@ export default function App() {
             <Route path="/auto-apply" element={<ProtectedRoute><AutoApplyPage /></ProtectedRoute>} />
             <Route path="/resume" element={<ProtectedRoute><ResumeStudioPage /></ProtectedRoute>} />
             <Route path="/resume/studio" element={<ProtectedRoute><ResumeStudioPage /></ProtectedRoute>} />
+            <Route path="/resume/imported/:id" element={<ProtectedRoute><ImportedDocxEditorPage /></ProtectedRoute>} />
             <Route path="/outreach" element={<ProtectedRoute><OutreachPage /></ProtectedRoute>} />
             <Route path="/linkedin" element={<ProtectedRoute><LinkedInPage /></ProtectedRoute>} />
             <Route path="/portfolio" element={<ProtectedRoute><PortfolioPage /></ProtectedRoute>} />

@@ -107,14 +107,17 @@ export default function PortfolioPage() {
         </h2>
         <div className="flex flex-wrap gap-2.5">
           {skills.length > 0 ? (
-            skills.map((skill: string, idx: number) => (
-              <span
-                key={idx}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-200 shadow-sm"
-              >
-                {skill}
-              </span>
-            ))
+            skills.map((skill: any, idx: number) => {
+              const skillName = typeof skill === "string" ? skill : (typeof skill?.name === "string" ? skill.name : (skill?.name?.name || "Unknown"));
+              return (
+                <span
+                  key={idx}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-200 shadow-sm"
+                >
+                  {skillName}
+                </span>
+              );
+            })
           ) : (
             ["TypeScript", "React.js", "Node.js", "System Architecture", "MongoDB", "Fastify", "Docker", "REST APIs"].map((s, i) => (
               <span

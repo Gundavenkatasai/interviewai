@@ -1,0 +1,31 @@
+{
+  "name": "Interview AI Full-Stack Dev Environment",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "web",
+  "workspaceFolder": "/app",
+  "forwardPorts": [5173, 8001, 27017, 8000],
+  "portsAttributes": {
+    "5173": {
+      "label": "Frontend (Vite)",
+      "onAutoForward": "openBrowser"
+    },
+    "8001": {
+      "label": "Backend API (Fastify)"
+    },
+    "27017": {
+      "label": "Database (MongoDB)"
+    },
+    "8000": {
+      "label": "Scraper Sidecar (JobSpy)"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+}

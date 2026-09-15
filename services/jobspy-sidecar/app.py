@@ -71,7 +71,7 @@ def scrape(req: ScrapeRequest):
                 offset=req.offset,
                 is_remote=req.isRemote,
                 job_type=req.jobType,
-                country_indeed=req.countryIndeed if site in ["indeed", "glassdoor"] else None
+                country_indeed=req.countryIndeed or "India"
             )
             
             duration_ms = int((time.time() - start_time) * 1000)
@@ -98,6 +98,8 @@ def scrape(req: ScrapeRequest):
             elif "timeout" in err_msg:
                 status = "timeout"
             
+            import traceback
+            traceback.print_exc()
             results["sites"].append({
                 "site": site,
                 "status": status,

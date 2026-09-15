@@ -19,6 +19,7 @@ export class AnalyticsController {
       const summary = await AnalyticsService.getOverview(userId, forceRefresh === 'true');
       return { success: true, data: summary };
     } catch (error: any) {
+      console.error("Error in AnalyticsController.getOverview:", error);
       reply.status(500).send({ success: false, error: { message: error.message } });
     }
   }

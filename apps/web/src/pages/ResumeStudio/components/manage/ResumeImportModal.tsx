@@ -28,8 +28,8 @@ export const ResumeImportModal: React.FC<ResumeImportModalProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       const ext = file.name.split(".").pop()?.toLowerCase();
-      if (!["pdf", "docx", "txt", "json"].includes(ext || "")) {
-        setError("Unsupported file format. Please upload PDF, DOCX, TXT, or JSON.");
+      if (!["docx"].includes(ext || "")) {
+        setError("Unsupported file format. Please upload DOCX only.");
         return;
       }
       if (file.size > 10 * 1024 * 1024) {

@@ -124,18 +124,18 @@ export class ResumeParser {
 
     // 2. Identify sections by headers
     const sectionHeaders = [
-      { key: "summary", regex: /^(?:summary|professional summary|profile|about me|executive summary)/i },
-      { key: "experience", regex: /^(?:experience|work experience|employment history|professional experience)/i },
-      { key: "education", regex: /^(?:education|academic background|qualifications)/i },
-      { key: "projects", regex: /^(?:projects|personal projects|key projects|academic projects)/i },
-      { key: "skills", regex: /^(?:skills|technical skills|technologies|core competencies|proficiencies)/i },
-      { key: "certifications", regex: /^(?:certifications|licenses & certifications|certificates)/i },
-      { key: "achievements", regex: /^(?:achievements|awards & achievements|honors & awards|awards)/i },
-      { key: "internships", regex: /^(?:internships|internship experience)/i },
-      { key: "publications", regex: /^(?:publications|research papers)/i },
-      { key: "volunteer", regex: /^(?:volunteer|community service|volunteering)/i },
-      { key: "languages", regex: /^(?:languages|language proficiencies)/i },
-      { key: "interests", regex: /^(?:interests|hobbies|activities)/i }
+      { key: "summary", regex: /^(?:summary|professional summary|profile|about me|executive summary)\s*(?::)?\s*$/i },
+      { key: "experience", regex: /^(?:experience|work experience|employment history|professional experience)\s*(?::)?\s*$/i },
+      { key: "education", regex: /^(?:education|academic background|qualifications|training)\s*(?::)?\s*$/i },
+      { key: "projects", regex: /^(?:projects|personal projects|key projects|academic projects)\s*(?::)?\s*$/i },
+      { key: "skills", regex: /^(?:skills|technical skills|technologies|core competencies|proficiencies)\s*(?::)?\s*$/i },
+      { key: "certifications", regex: /^(?:certifications|licenses & certifications|certificates)\s*(?::)?\s*$/i },
+      { key: "achievements", regex: /^(?:achievements|awards & achievements|honors & awards|awards)\s*(?::)?\s*$/i },
+      { key: "internships", regex: /^(?:internships|internship experience)\s*(?::)?\s*$/i },
+      { key: "publications", regex: /^(?:publications|research papers)\s*(?::)?\s*$/i },
+      { key: "volunteer", regex: /^(?:volunteer|community service|volunteering)\s*(?::)?\s*$/i },
+      { key: "languages", regex: /^(?:languages|language proficiencies)\s*(?::)?\s*$/i },
+      { key: "interests", regex: /^(?:interests|hobbies|activities)\s*(?::)?\s*$/i }
     ];
 
     const sectionChunks: Record<string, string[]> = {
@@ -225,13 +225,12 @@ export class ResumeParser {
     }
     if (curEdu) education.push(curEdu);
 
-    // Parse Skills
-    const skillsText = (sectionChunks.skills || []).join(" ");
+    const skillsText = (sectionChunks.skills || []).join(" ").replace(/\s{2,}/g, " ");
     const parsedSkills = { ...defaultSkills };
     const skillTokens = skillsText
       .split(/[,|•·\n]/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 1 && s.length < 30);
+      .map((s) => s.trim().replace(/^.*:\s*/, "")) // Also strip categories like "Languages:"
+      .filter((s) => s.length > 1 && s.length < 50);
 
     const knownLangs = ["javascript", "typescript", "python", "java", "c++", "c#", "go", "rust", "php", "ruby", "sql", "html", "css"];
     const knownFrameworks = ["react", "node.js", "next.js", "vue", "angular", "express", "fastify", "django", "spring", "flask"];
@@ -265,7 +264,9 @@ export class ResumeParser {
 
     for (const line of projLines) {
       const isBullet = /^[-•*·]\s*/.test(line);
-      if (!isBullet && line.length > 3 && line.length < 60) {
+      const isTitle = !isBullet && line.length > 3 && (line.length < 60 || line.includes("|") || line.includes(" – ") || line.includes(" - ")) && !line.toLowerCase().startsWith("tech") && !line.toLowerCase().startsWith("implemented") && !line.toLowerCase().startsWith("designed") && !line.toLowerCase().startsWith("developed") && !line.toLowerCase().startsWith("built") && !line.toLowerCase().startsWith("automated") && !line.toLowerCase().startsWith("configured") && !line.toLowerCase().startsWith("deployed") && !line.toLowerCase().startsWith("improved") && !line.toLowerCase().startsWith("leveraged") && !line.toLowerCase().startsWith("added") && !line.toLowerCase().startsWith("created") && !line.toLowerCase().startsWith("set up");
+      
+      if (isTitle) {
         if (curProj) projects.push(curProj);
         curProj = {
           id: String(projects.length + 1),

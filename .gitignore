@@ -47,3 +47,15 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+
+# uploads, user documents and generated artifacts
+uploads/
+**/uploads/
+**/artifacts/
+scratch/
+**/scratch/
+apps/api-node/debug*
+debug*
+
+# logs
+*.log

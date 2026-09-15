@@ -167,6 +167,29 @@ export interface IResumeSectionConfig {
   order: number;
 }
 
+export interface IResumeTheme {
+  primaryColor: string;
+  textColor: string;
+  headingColor: string;
+  fontFamily: string;
+  fontSize: number;
+  lineHeight: number;
+  letterSpacing: number;
+}
+
+export interface IResumeLayout {
+  pageSize: "A4" | "Letter";
+  margins: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  };
+  sectionSpacing: number;
+  paragraphSpacing: number;
+  columnGap: number;
+}
+
 export interface IResumeATSAnalysis {
   categories: {
     parsing: number;
@@ -221,6 +244,8 @@ export interface IResume {
   profileData: IResumeProfileData;
   sections: IResumeSectionConfig[];
   template: ResumeTemplateId;
+  theme: IResumeTheme;
+  layout: IResumeLayout;
   atsScore: number;
   atsAnalysis: IResumeATSAnalysis;
   version: number;
@@ -278,6 +303,24 @@ export const defaultSections: IResumeSectionConfig[] = [
   { id: "interests", name: "Interests", enabled: false, order: 12 },
   { id: "customSections", name: "Custom Sections", enabled: false, order: 13 }
 ];
+
+export const defaultTheme: IResumeTheme = {
+  primaryColor: "#5b21b6", // Interview AI purple
+  textColor: "#334155",
+  headingColor: "#0f172a",
+  fontFamily: "Inter",
+  fontSize: 14,
+  lineHeight: 1.5,
+  letterSpacing: 0,
+};
+
+export const defaultLayout: IResumeLayout = {
+  pageSize: "A4",
+  margins: { top: 36, right: 36, bottom: 36, left: 36 },
+  sectionSpacing: 16,
+  paragraphSpacing: 8,
+  columnGap: 24,
+};
 
 export const defaultATSAnalysis: IResumeATSAnalysis = {
   categories: {
@@ -358,6 +401,8 @@ const resumeSchema = new Schema<IResume>(
       ],
       default: "ats_classic"
     },
+    theme: { type: Object, default: defaultTheme },
+    layout: { type: Object, default: defaultLayout },
     atsScore: { type: Number, default: 0 },
     atsAnalysis: { type: Object, default: defaultATSAnalysis },
     version: { type: Number, default: 1 },
@@ -453,6 +498,9 @@ export interface IResumeVersion {
   atsScore: number;
   targetRole: string;
   name: string;
+  template?: string;
+  theme?: any;
+  layout?: any;
   changeSummary?: string;
   createdAt: Date;
 }
@@ -467,6 +515,9 @@ const resumeVersionSchema = new Schema<IResumeVersion>(
     atsScore: { type: Number, default: 0 },
     targetRole: { type: String, default: "" },
     name: { type: String, default: "" },
+    template: { type: String },
+    theme: { type: Schema.Types.Mixed },
+    layout: { type: Schema.Types.Mixed },
     changeSummary: { type: String, default: "" }
   },
   { timestamps: true }

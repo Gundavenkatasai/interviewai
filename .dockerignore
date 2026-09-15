@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+.git
+.next
+dist
+**/dist
+build
+uploads
+**/uploads
+**/artifacts
+scratch
+**/scratch
+*.log

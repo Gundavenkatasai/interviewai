@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
+
 export interface FollowUpTask {
   _id: string;
   type: string;
@@ -30,8 +32,8 @@ export const useOutreach = () => {
   const getDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:3001/api/outreach/dashboard", {
+      const token = localStorage.getItem("interviewai_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/outreach/dashboard`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to load outreach dashboard");
@@ -48,8 +50,8 @@ export const useOutreach = () => {
   const getTimeline = useCallback(async (applicationId: string) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:3001/api/outreach/application/${applicationId}/timeline`, {
+      const token = localStorage.getItem("interviewai_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/outreach/application/${applicationId}/timeline`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to load timeline");
@@ -66,8 +68,8 @@ export const useOutreach = () => {
   const generateDraft = useCallback(async (params: { type: string; tone: string; applicationId?: string; interviewId?: string; contactId?: string }) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:3001/api/outreach/draft", {
+      const token = localStorage.getItem("interviewai_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/outreach/draft`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(params)
@@ -86,8 +88,8 @@ export const useOutreach = () => {
   const submitCommunication = useCallback(async (activityId: string, action: "COPY" | "SEND") => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:3001/api/outreach/submit", {
+      const token = localStorage.getItem("interviewai_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/outreach/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ activityId, action })
@@ -105,8 +107,8 @@ export const useOutreach = () => {
   const suppressFollowUp = useCallback(async (taskId: string) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:3001/api/outreach/followup/${taskId}/suppress`, {
+      const token = localStorage.getItem("interviewai_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/outreach/followup/${taskId}/suppress`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });

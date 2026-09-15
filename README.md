@@ -4,6 +4,36 @@ InterviewAI is a personal AI mock interview practice platform engineered to simu
 
 ---
 
+## 🐳 One-Click Docker Desktop & Dev Environment Setup
+
+Share this repository link with anyone so they can run the website and edit code immediately:  
+🔗 **`https://github.com/Gundavenkatasai/interviewai.git`**
+
+### Option 1: Run with Docker Desktop / Docker Compose
+1. Make sure **Docker Desktop** is running.
+2. Clone and start:
+   ```bash
+   git clone https://github.com/Gundavenkatasai/interviewai.git
+   cd interviewai
+   docker compose up
+   ```
+3. Open in your browser:
+   * 🌐 **Frontend Web App**: [http://localhost:5173](http://localhost:5173)
+   * ⚡ **Backend Fastify API**: [http://localhost:8001](http://localhost:8001) (Swagger docs at [http://localhost:8001/docs](http://localhost:8001/docs))
+   * 🤖 **Job Market Sidecar**: [http://localhost:8000](http://localhost:8000)
+   * 🍃 **Database**: MongoDB on port `27017`
+
+> 💡 **Live Code Editing**: Code modifications in `apps/web` and `apps/api-node` automatically sync and hot-reload inside the running containers!
+
+### Option 2: Docker Desktop "Dev Environments" (1-Click VS Code in Docker)
+1. Open **Docker Desktop**.
+2. Click **Dev Environments** on the left sidebar.
+3. Click **Create** ➔ Select **From Git Repository**.
+4. Paste: `https://github.com/Gundavenkatasai/interviewai.git`
+5. Click **Continue**. Docker Desktop will spin up the entire multi-container environment with VS Code attached so anyone can edit code and run the app right away!
+
+---
+
 ## 🚀 Key Highlights & Philosophy
 
 * **100% Selective Input & Privacy First**: Zero desktop scraping, zero hidden overlays, no Google Meet injection, and no surveillance evasion techniques. Explicit microphone permissions via standard browser APIs with visible indicators.

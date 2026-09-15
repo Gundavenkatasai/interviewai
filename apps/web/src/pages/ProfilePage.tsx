@@ -394,7 +394,16 @@ export default function ProfilePage() {
 
             <div className="flex flex-wrap gap-2 pt-2">
               {form.skills.map((skill, idx) => {
-                const s = typeof skill === "string" ? skill : (skill as any).name;
+                let s = "";
+                if (typeof skill === "string") {
+                  s = skill;
+                } else if (skill && typeof (skill as any).name === "string") {
+                  s = (skill as any).name;
+                } else if (skill && (skill as any).name && typeof (skill as any).name.name === "string") {
+                  s = (skill as any).name.name;
+                } else {
+                  s = "Unknown Skill";
+                }
                 const isVerified = typeof skill !== "string" && (skill as any).provenance?.status === "VERIFIED";
                 const isAi = typeof skill !== "string" && (skill as any).provenance?.sourceType === "AI_SUGGESTED";
                 

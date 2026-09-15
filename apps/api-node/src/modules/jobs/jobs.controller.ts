@@ -221,8 +221,8 @@ export class JobsController {
     }
 
     // ── posted_days: use sourcePostedAt (real extracted date)
-    // DEFAULT to 48 hours (2 days) if not provided, per phase 1 strict freshness rule
-    const days = filters.posted_days !== undefined ? filters.posted_days : 2;
+    // Removed strict 48 hour default to allow historical DB jobs to be visible when filtering by source
+    const days = filters.posted_days !== undefined ? filters.posted_days : 0;
     if (days > 0) { // allows passing 0 or negative to see ALL history
       const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       if (query.sourcePostedAt) {

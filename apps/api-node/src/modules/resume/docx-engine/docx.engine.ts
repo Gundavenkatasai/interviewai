@@ -381,7 +381,19 @@ export class DocxEngine {
       rPr = bold ? "<w:rPr><w:b/><w:bCs/></w:rPr>" : "";
     } else if (bold) {
       if (!/<w:b\b/i.test(rPr)) {
-        rPr = rPr.replace(/<\/w:rPr>/, "<w:b/><w:bCs/></w:rPr>");
+        const rStyleMatch = rPr.match(/<w:rStyle\b[^>]*?(?:\/>|<\/w:rStyle>)/i);
+        const rFontsMatch = rPr.match(/<w:rFonts\b[^>]*?(?:\/>|<\/w:rFonts>)/i);
+        
+        const rStyleStr = rStyleMatch ? rStyleMatch[0] : "";
+        const rFontsStr = rFontsMatch ? rFontsMatch[0] : "";
+        
+        let cleanRPr = rPr
+          .replace(/<w:rStyle\b[^>]*?(?:\/>|<\/w:rStyle>)/i, "")
+          .replace(/<w:rFonts\b[^>]*?(?:\/>|<\/w:rFonts>)/i, "");
+          
+        rPr = cleanRPr.replace(/<w:rPr[^>]*>/i, (match) => {
+          return match + rStyleStr + rFontsStr + "<w:b/><w:bCs/>";
+        });
       }
     } else {
       rPr = rPr
@@ -560,65 +572,24 @@ export class DocxEngine {
       }
 
       const targetParaXml = bestPara.rawXml;
+      
+      // Generate the new formatted runs using the heuristic segmenter
       let newRunsXml = "";
-      let prefixMatched = true;
-      let newTextToProcess = cleanNewText;
-
-      const runRegex = /<w:r\b[\s\S]*?<\/w:r>/g;
-      const originalRuns = targetParaXml.match(runRegex) || [];
-
-      for (const runXml of originalRuns) {
-        const runText = this.extractExactTextFromRun(runXml);
-        
-        if (!runText) {
-            // Preserve empty/formatting runs while within the matching prefix
-            if (prefixMatched) newRunsXml += runXml;
-            continue;
-        }
-        
-        if (prefixMatched) {
-            if (newTextToProcess.startsWith(runText)) {
-                // Perfect match for this entire run
-                newRunsXml += runXml;
-                newTextToProcess = newTextToProcess.substring(runText.length);
-            } else {
-                // Divergence happens in this run
-                let matchLen = 0;
-                while (matchLen < runText.length && matchLen < newTextToProcess.length && runText[matchLen] === newTextToProcess[matchLen]) {
-                    matchLen++;
-                }
-                
-                if (matchLen > 0) {
-                    const matchedStr = newTextToProcess.substring(0, matchLen);
-                    const rPrMatch = runXml.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/);
-                    const rPr = rPrMatch ? rPrMatch[0] : "";
-                    newRunsXml += `<w:r>${rPr}<w:t xml:space="preserve">${this.escapeXml(matchedStr)}</w:t></w:r>`;
-                    newTextToProcess = newTextToProcess.substring(matchLen);
-                }
-                
-                prefixMatched = false;
-            }
-        }
+      const baseRPr = this.getBaseRunProperties(targetParaXml);
+      const segments = this.segmentTextWithBold(cleanNewText, structureMapBefore.boldVocabulary);
+      for (const seg of segments) {
+          newRunsXml += this.makeRunXml(seg.text, baseRPr, seg.bold);
       }
 
-      // Process the remainder with heuristic segmenter
-      if (newTextToProcess.length > 0) {
-          const baseRPr = this.getBaseRunProperties(targetParaXml);
-          const segments = this.segmentTextWithBold(newTextToProcess, structureMapBefore.boldVocabulary);
-          for (const seg of segments) {
-              newRunsXml += this.makeRunXml(seg.text, baseRPr, seg.bold);
-          }
-      }
+      // Safely preserve the original paragraph structure (including bookmarks, proofErr, etc.)
+      // by stripping only the text content, and appending the new text runs at the end.
+      let preservedParaXml = targetParaXml
+        .replace(/<w:t\b[^>]*>[\s\S]*?<\/w:t>/g, "")
+        .replace(/<w:t\b[^>]*\/>/g, "")
+        .replace(/<w:tab\/>/g, "")
+        .replace(/<w:br\b[^>]*\/>/g, "");
 
-      // Preserve <w:pPr> of target paragraph (indents, numbering, tabs, line spacing, margins)
-      const pPrMatch = targetParaXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/);
-      const pPrXml = pPrMatch ? pPrMatch[0] : "";
-
-      // Extract opening tag e.g. <w:p> or <w:p w14:paraId="...">
-      const openTagMatch = targetParaXml.match(/<w:p\b[^>]*>/);
-      const openTag = openTagMatch ? openTagMatch[0] : "<w:p>";
-
-      const modifiedParaXml = `${openTag}${pPrXml}${newRunsXml}</w:p>`;
+      const modifiedParaXml = preservedParaXml.replace(/<\/w:p>$/, `${newRunsXml}</w:p>`);
 
       // Replace in documentXml in-place
       if (documentXml.includes(targetParaXml)) {

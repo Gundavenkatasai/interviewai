@@ -47,6 +47,8 @@ export interface AnalyticsSnapshot {
   dataQuality: any;
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
+
 export const useAnalytics = () => {
   const [data, setData] = useState<AnalyticsSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,8 +57,8 @@ export const useAnalytics = () => {
   const fetchOverview = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const url = `http://localhost:3001/api/analytics/overview${forceRefresh ? '?forceRefresh=true' : ''}`;
+      const token = localStorage.getItem("interviewai_token") || localStorage.getItem("token");
+      const url = `${API_BASE}/api/analytics/overview${forceRefresh ? '?forceRefresh=true' : ''}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -77,8 +79,8 @@ export const useAnalytics = () => {
   const fetchEvidence = useCallback(async (type: 'applications' | 'interviews', ids: string[]) => {
     if (ids.length === 0) return [];
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:3001/api/analytics/evidence?type=${type}&ids=${ids.join(',')}`, {
+      const token = localStorage.getItem("interviewai_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/analytics/evidence?type=${type}&ids=${ids.join(',')}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to load evidence");

@@ -6,8 +6,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
+# Copy source code and local JobSpy package
 COPY app.py .
+COPY JobSpy ./JobSpy
+
+# Install local JobSpy
+RUN pip install --no-cache-dir ./JobSpy
 
 # Expose port
 EXPOSE 8000
