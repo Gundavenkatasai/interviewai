@@ -5,7 +5,7 @@ export const SkillsEditor: React.FC = () => {
   const { resume, updateProfileData } = useResumeStore();
 
   if (!resume) return null;
-  const skills = resume.profileData.skills || { technical: [], languages: [], frameworks: [], tools: [], soft: [] };
+  const skills = resume.profileData?.skills || { technical: [], languages: [], frameworks: [], tools: [], soft: [] };
 
   const handleChange = (category: string, value: string) => {
     // Split by comma, trim whitespace, remove empty strings

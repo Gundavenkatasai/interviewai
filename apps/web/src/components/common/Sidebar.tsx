@@ -63,7 +63,7 @@ export function Sidebar() {
             { href: "/applications", label: "ATS Tracker", icon: Award },
             { href: "/auto-apply", label: "Auto-Apply Bot", icon: Zap },
             { href: "/outreach", label: "AI Outreach", icon: Send },
-            { href: "/linkedin", label: "LinkedIn Analyzer", icon: Share2 },
+            { href: "/linkedin", label: "LinkedIn Workspace", icon: Share2 },
             { href: "/portfolio", label: "Live Portfolio", icon: Globe },
           ]
         },

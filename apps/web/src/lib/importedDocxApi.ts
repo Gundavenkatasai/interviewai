@@ -95,8 +95,29 @@ export interface IDocxSection {
   fields: IDocxField[];
 }
 
+export interface IFieldByParaIndex {
+  fieldId: string;
+  sectionId: string;
+  originalValue: string;
+  currentValue: string;
+  isEditable: boolean;
+  fieldType: string;
+  label: string;
+}
+
+export interface ICompatibilityReport {
+  hasTextBoxes: boolean;
+  hasImages: boolean;
+  hasTables: boolean;
+  hasHeaders: boolean;
+  hasFooters: boolean;
+  unsupportedFeatures: string[];
+}
+
 export interface IWorkspaceDetail extends IWorkspaceSummary {
   sections: IDocxSection[];
+  fieldsByParagraphIndex: Record<string, IFieldByParaIndex>;
+  compatibilityReport: ICompatibilityReport;
 }
 
 export interface IDocxChange {
@@ -175,8 +196,14 @@ export const ImportedDocxApi = {
     return handleResponse(res);
   },
 
-  // Get workspace detail (with sections + fields)
-  async getWorkspace(id: string): Promise<{ success: boolean; workspace: IWorkspaceSummary; sections: IDocxSection[] }> {
+  // Get workspace detail (with sections + fields + paragraph index map)
+  async getWorkspace(id: string): Promise<{
+    success: boolean;
+    workspace: IWorkspaceSummary;
+    sections: IDocxSection[];
+    fieldsByParagraphIndex: Record<string, IFieldByParaIndex>;
+    compatibilityReport: ICompatibilityReport;
+  }> {
     const res = await fetch(`${API_BASE}/api/resume/imported-docx/${id}`, {
       headers: authHeaders(),
     });

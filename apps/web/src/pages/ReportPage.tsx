@@ -215,7 +215,7 @@ export default function ReportPage() {
               const ans = q.answers?.[0];
               const evalRes = ans?.evaluation;
               return (
-                <div key={q.id} className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 space-y-3">
+                <div key={q.id || q._id || `q-${idx}`} className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 space-y-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <span className="text-[11px] uppercase font-bold text-indigo-400">Question #{idx + 1} • {q.category}</span>

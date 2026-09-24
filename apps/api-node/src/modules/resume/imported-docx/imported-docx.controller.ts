@@ -241,7 +241,7 @@ export class ImportedDocxController {
 
   // ============================================================
   // GET /api/resume/imported-docx/:id
-  // Get workspace with sections and fields
+  // Get workspace with sections, fields, and paragraph index map
   // ============================================================
   static async getWorkspace(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user?.sub;
@@ -260,13 +260,71 @@ export class ImportedDocxController {
       fieldsBySection[f.sectionId].push(f as any);
     }
 
+    // Build paragraph-index → field lookup map for inline canvas editing.
+    // Key: "{documentPart}:{paragraphIndex}"  (e.g. "word/document.xml:5")
+    // Value: { fieldId, sectionId, originalValue, currentValue, isEditable, fieldType }
+    // Table cells use "{documentPart}:t{tableIndex}r{rowIndex}c{cellIndex}p{paraIndex}"
+    const fieldsByParagraphIndex: Record<string, {
+      fieldId: string;
+      sectionId: string;
+      originalValue: string;
+      currentValue: string;
+      isEditable: boolean;
+      fieldType: string;
+      label: string;
+    }> = {};
+
+    for (const f of fields) {
+      if (!f.isEditable) continue;
+      const sm = f.sourceMapping as any;
+      if (!sm) continue;
+
+      let key: string;
+      const part = sm.documentPart || "word/document.xml";
+
+      if (sm.tableIndex !== undefined && sm.tableIndex !== null) {
+        // Table cell: unique key includes table+row+cell+para coordinates
+        key = `${part}:t${sm.tableIndex}r${sm.rowIndex ?? 0}c${sm.cellIndex ?? 0}p${sm.paragraphIndex ?? 0}`;
+      } else if (sm.paragraphIndex !== undefined && sm.paragraphIndex !== null) {
+        key = `${part}:${sm.paragraphIndex}`;
+      } else {
+        continue; // cannot map without an index
+      }
+
+      fieldsByParagraphIndex[key] = {
+        fieldId: String(f._id),
+        sectionId: String(f.sectionId),
+        originalValue: f.originalValue,
+        currentValue: f.currentValue,
+        isEditable: f.isEditable,
+        fieldType: f.fieldType,
+        label: f.label,
+      };
+    }
+
+    // Compatibility report — surfaces known unsupported structures
+    const unsupportedFeatures: string[] = workspace.warnings || [];
+    if (workspace.hasTextBoxes) {
+      unsupportedFeatures.push("Text boxes are preserved but not directly editable.");
+    }
+
     return {
       success: true,
       workspace,
       sections: sections.map(s => ({
         ...s.toObject(),
         fields: fieldsBySection[s._id] || []
-      }))
+      })),
+      // Inline edit map: documentPart:paragraphIndex → field metadata
+      fieldsByParagraphIndex,
+      compatibilityReport: {
+        hasTextBoxes: workspace.hasTextBoxes,
+        hasImages: workspace.hasImages,
+        hasTables: workspace.hasTables,
+        hasHeaders: workspace.hasHeaders,
+        hasFooters: workspace.hasFooters,
+        unsupportedFeatures,
+      }
     };
   }
 

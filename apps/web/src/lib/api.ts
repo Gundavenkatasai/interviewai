@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8001";
+const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
 
 export class ApiClient {
   private static async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -22,6 +22,16 @@ export class ApiClient {
     });
 
     if (res.status === 401) {
+      let errorMsg = "Unauthorized. Please log in.";
+      try {
+        const errorData = await res.clone().json();
+        errorMsg =
+          errorData?.error?.message ||
+          errorData?.message ||
+          errorData?.detail ||
+          (typeof errorData?.error === "string" ? errorData.error : errorMsg);
+      } catch {}
+
       if (
         !window.location.pathname.startsWith("/login") &&
         !window.location.pathname.startsWith("/register")
@@ -29,14 +39,18 @@ export class ApiClient {
         localStorage.removeItem("interviewai_token");
         window.location.href = "/login";
       }
-      throw new Error("Unauthorized. Please log in.");
+      throw new Error(errorMsg);
     }
 
     if (!res.ok) {
       let errorMsg = `Request failed (${res.status})`;
       try {
         const errorData = await res.json();
-        errorMsg = errorData.detail || errorData.message || errorMsg;
+        errorMsg =
+          errorData?.error?.message ||
+          errorData?.message ||
+          errorData?.detail ||
+          (typeof errorData?.error === "string" ? errorData.error : errorMsg);
       } catch {}
       throw new Error(errorMsg);
     }
@@ -115,6 +129,25 @@ export class ApiClient {
     return res;
   }
 
+  static async demoLogin() {
+    const res = await this.request<any>("/api/auth/demo", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    const token = res?.token || res?.access_token;
+    if (token) {
+      localStorage.setItem("interviewai_token", token);
+    }
+    return res;
+  }
+
+  static async resetPassword(data: { email: string; password: string }) {
+    return this.request<any>("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   static async logout() {
     try {
       await this.request<any>("/api/auth/logout", {
@@ -149,12 +182,26 @@ export class ApiClient {
 
   static async getInterview(id: string) {
     const res = await this.request<any>(`/api/interviews/${id}`);
-    return res?.session || res?.data || res;
+    const sessionData = res?.session || res?.data || res;
+    const questions = res?.questions || sessionData?.questions || [];
+    const answers = res?.answers || sessionData?.answers || [];
+    return {
+      ...sessionData,
+      questions,
+      answers,
+    };
   }
 
   static async getReport(sessionId: string) {
     const res = await this.request<any>(`/api/interviews/${sessionId}`);
-    return res?.session || res?.data || res;
+    const sessionData = res?.session || res?.data || res;
+    const questions = res?.questions || sessionData?.questions || [];
+    const answers = res?.answers || sessionData?.answers || [];
+    return {
+      ...sessionData,
+      questions,
+      answers,
+    };
   }
 
   static async submitAnswer(sessionId: string, data: { question_id: string; answer_text: string; code_submission?: string; duration_seconds?: number }) {
@@ -433,6 +480,173 @@ export class ApiClient {
 
   static async syncLinkedInProfile(data: { acceptSkills?: boolean; acceptHeadline?: boolean; headline?: string; newSkills?: string[] }) {
     return this.request<any>("/api/linkedin/sync-profile", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ================= LinkedIn Skills & Workspace =================
+  static async getLinkedInSkills() {
+    return this.request<any>("/api/linkedin/skills");
+  }
+
+  static async getLinkedInSettings() {
+    return this.request<any>("/api/linkedin/settings");
+  }
+
+  static async updateLinkedInSettings(data: any) {
+    return this.request<any>("/api/linkedin/settings", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async testLinkedInConnections() {
+    return this.request<any>("/api/linkedin/connections/test", {
+      method: "POST",
+    });
+  }
+
+  static async getLinkedInRecommendations() {
+    return this.request<any>("/api/linkedin/recommendations");
+  }
+
+  static async approveLinkedInRecommendation(id: string, userEditedValue?: string) {
+    return this.request<any>(`/api/linkedin/recommendations/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ userEditedValue }),
+    });
+  }
+
+  static async rejectLinkedInRecommendation(id: string) {
+    return this.request<any>(`/api/linkedin/recommendations/${id}/reject`, {
+      method: "POST",
+    });
+  }
+
+  static async createLinkedInDraft(data: {
+    topic: string;
+    targetAudience?: string;
+    goal?: string;
+    formulaCode?: string;
+    desiredLength?: string;
+    storyBankId?: string;
+    customAngle?: string;
+  }) {
+    return this.request<any>("/api/linkedin/content/draft", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async getLinkedInDrafts() {
+    return this.request<any>("/api/linkedin/content/drafts");
+  }
+
+  static async getLinkedInDraftById(id: string) {
+    return this.request<any>(`/api/linkedin/content/drafts/${id}`);
+  }
+
+  static async updateLinkedInDraft(id: string, data: { body?: string; topic?: string }) {
+    return this.request<any>(`/api/linkedin/content/drafts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async humanizeLinkedInDraft(id?: string, rawText?: string) {
+    return this.request<any>("/api/linkedin/content/humanize", {
+      method: "POST",
+      body: JSON.stringify({ draftId: id, rawText }),
+    });
+  }
+
+  static async auditLinkedInDraft(id?: string, rawText?: string) {
+    return this.request<any>("/api/linkedin/content/audit", {
+      method: "POST",
+      body: JSON.stringify({ draftId: id, rawText }),
+    });
+  }
+
+  static async approveLinkedInDraft(id: string) {
+    return this.request<any>(`/api/linkedin/content/drafts/${id}/approve`, {
+      method: "POST",
+    });
+  }
+
+  static async publishLinkedInDraft(id: string, options?: { scheduledTime?: string; platformId?: string }) {
+    return this.request<any>(`/api/linkedin/content/drafts/${id}/publish`, {
+      method: "POST",
+      body: JSON.stringify(options || {}),
+    });
+  }
+
+  static async repurposeLinkedInContent(data: {
+    sourceType: string;
+    sourceContent: string;
+    goal?: string;
+    targetRole?: string;
+  }) {
+    return this.request<any>("/api/linkedin/content/repurpose", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async extractLinkedInHook(data: { url?: string; postText?: string }) {
+    return this.request<any>("/api/linkedin/hooks/extract", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async draftLinkedInComment(data: { postUrl: string; contextNotes?: string; angle?: string }) {
+    return this.request<any>("/api/linkedin/comments/draft", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async draftLinkedInReply(data: { postUrl: string; parentCommentId?: string; replyToText: string; angle?: string }) {
+    return this.request<any>("/api/linkedin/replies/draft", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async getLinkedInThreads() {
+    return this.request<any>("/api/linkedin/threads");
+  }
+
+  static async getLinkedInEngagers() {
+    return this.request<any>("/api/linkedin/engagers");
+  }
+
+  static async scanLinkedInEngagers(postUrl: string) {
+    return this.request<any>("/api/linkedin/engagers/scan", {
+      method: "POST",
+      body: JSON.stringify({ postUrl }),
+    });
+  }
+
+  static async getLinkedInCalendar() {
+    return this.request<any>("/api/linkedin/calendar");
+  }
+
+  static async generateLinkedInCalendar(data?: { daysCount?: number; focusPillars?: string[]; timezone?: string }) {
+    return this.request<any>("/api/linkedin/calendar/generate", {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    });
+  }
+
+  static async sendLinkedInInterviewerTurn(data: {
+    storyTitle?: string;
+    userAnswer?: string;
+    targetRole?: string;
+    conversationHistory: Array<{ role: "assistant" | "user"; content: string }>;
+  }) {
+    return this.request<any>("/api/linkedin/interviewer/turn", {
       method: "POST",
       body: JSON.stringify(data),
     });

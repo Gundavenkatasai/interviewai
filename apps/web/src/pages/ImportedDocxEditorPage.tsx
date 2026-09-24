@@ -1,20 +1,24 @@
-import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, Save, Download, History,
   Undo2, Redo2, RefreshCw, AlertTriangle, CheckCircle2,
   Loader2, FileText, Eye, EyeOff, Clock, X, Info,
   ChevronDown, ChevronUp, Wifi, WifiOff, Shield,
-  ZoomIn, ZoomOut, Maximize2
+  ZoomIn, ZoomOut, Maximize2, Edit3, MousePointer
 } from "lucide-react";
 import { useImportedDocxEditor } from "../hooks/useImportedDocxEditor";
 import { ImportedDocxApi, IDocxSection } from "../lib/importedDocxApi";
+import {
+  DocxInlineEditLayer,
+  DocxInlineEditLayerHandle,
+} from "../components/common/DocxInlineEditor";
 
 // ============================================================
 // ImportedDocxEditorPage
 // Full three-panel workspace:
 //   Left: Section list + editable fields sidebar (~300px)
-//   Center: mammoth.js HTML canvas preview (flex-1)
+//   Center: High-fidelity DOCX canvas (docx-preview — NOT Mammoth)
 //   Right: collapsible info panel (coverage, versions)
 // ============================================================
 
@@ -59,6 +63,8 @@ export default function ImportedDocxEditorPage() {
   const [zoom, setZoom] = useState(100);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [inlineEditMode, setInlineEditMode] = useState(true);
+  const inlineEditRef = useRef<DocxInlineEditLayerHandle>(null);
 
   // --------------------------------------------------------
   // Initial load
@@ -104,9 +110,18 @@ export default function ImportedDocxEditorPage() {
           ignoreHeight: false,
           ignoreFonts: false,
           breakPages: true,
-          experimental: true,
-        });
+          experimental: false, // stable rendering mode — consistent with DocxXeroxWorkspace
+          useBase64URL: true,
+          renderHeaders: true,
+          renderFooters: true,
+          renderFootnotes: true,
+          renderEndnotes: true,
+        } as any);
         setHasPreviewLoaded(true);
+        // Reattach inline editing after every canvas (re-)render
+        if (inlineEditMode) {
+          setTimeout(() => inlineEditRef.current?.reattach(), 150);
+        }
       }
     } catch (err: any) {
       setPreviewError("Preview could not be rendered. The DOCX will still download correctly.");
@@ -126,7 +141,35 @@ export default function ImportedDocxEditorPage() {
     originalValue: string
   ) => {
     editor.updateField(fieldId, newValue, originalValue);
+    // Optimistic DOM update — no round-trip needed
+    inlineEditRef.current?.applyOptimisticUpdate(fieldId, newValue);
   }, [editor.updateField]);
+
+  // Canvas inline edit → editor + sidebar sync
+  const handleInlineFieldChange = useCallback((
+    fieldId: string,
+    newValue: string,
+    originalValue: string
+  ) => {
+    editor.updateField(fieldId, newValue, originalValue);
+  }, [editor.updateField]);
+
+  // Canvas focus → scroll sidebar to field
+  const handleInlineFieldFocus = useCallback((fieldId: string) => {
+    editor.highlightField(fieldId);
+    for (const section of editor.sections) {
+      if (section.fields.some((f: any) => f._id === fieldId)) {
+        setActiveSectionId(section._id);
+        break;
+      }
+    }
+  }, [editor]);
+
+  // Sidebar focus → scroll canvas
+  const handleSidebarFieldFocus = useCallback((fieldId: string) => {
+    editor.highlightField(fieldId);
+    inlineEditRef.current?.scrollToField(fieldId);
+  }, [editor]);
 
   // --------------------------------------------------------
   // Generate + download
@@ -410,9 +453,17 @@ export default function ImportedDocxEditorPage() {
             <button onClick={handleRefreshPreview} style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "1px solid #1e293b", borderRadius: 8, color: "#64748b", cursor: "pointer", padding: "4px 10px", fontSize: 12 }}>
               <RefreshCw size={12} /> Refresh Preview
             </button>
+            <button
+              onClick={() => setInlineEditMode(v => !v)}
+              style={{ display: "flex", alignItems: "center", gap: 5, background: inlineEditMode ? "rgba(34,197,94,0.1)" : "none", border: `1px solid ${inlineEditMode ? "#22c55e" : "#1e293b"}`, borderRadius: 8, color: inlineEditMode ? "#4ade80" : "#64748b", cursor: "pointer", padding: "4px 10px", fontSize: 12 }}
+              title={inlineEditMode ? "Inline editing ON" : "View Only"}
+            >
+              {inlineEditMode ? <Edit3 size={12} /> : <MousePointer size={12} />}
+              {inlineEditMode ? "Direct Edit" : "View Only"}
+            </button>
             <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#475569" }}>
               <Eye size={12} />
-              High-Fidelity Document Preview
+              High-Fidelity Preview
             </div>
           </div>
 
@@ -502,6 +553,20 @@ export default function ImportedDocxEditorPage() {
           </div>
         )}
       </div>
+
+      {/* Inline Edit Layer — attached to docx-preview canvas DOM */}
+      {inlineEditMode && (
+        <DocxInlineEditLayer
+          ref={inlineEditRef}
+          containerRef={containerRef}
+          fieldsByParaIndexRef={editor.fieldsByParaIndexRef}
+          onFieldChange={handleInlineFieldChange}
+          onFieldFocus={handleInlineFieldFocus}
+          enabled={inlineEditMode && !isLoadingPreview}
+          activeFieldId={editor.activeFieldId}
+          pendingChanges={editor.pendingChanges}
+        />
+      )}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

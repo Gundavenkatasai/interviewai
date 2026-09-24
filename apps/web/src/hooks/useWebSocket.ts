@@ -21,17 +21,24 @@ export function useWebSocket(
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
 
+  const onEventRef = useRef(onEvent);
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
   const connect = useCallback(() => {
     if (!sessionId) return;
     
     setConnectionState(prev => prev === "DISCONNECTED" ? "CONNECTING" : "RECONNECTING");
 
     try {
-      const wsUrl = `${WS_BASE}/ws/interview/${sessionId}`;
+      const token = localStorage.getItem("interviewai_token");
+      const wsUrl = `${WS_BASE}/ws/interview/${sessionId}${token ? `?token=${token}` : ""}`;
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
       ws.onopen = () => {
+        if (socketRef.current !== ws) return;
         setConnectionState("CONNECTED");
         reconnectAttempts.current = 0;
         
@@ -42,11 +49,12 @@ export function useWebSocket(
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          onEvent?.(data);
+          onEventRef.current?.(data);
         } catch {}
       };
 
       ws.onclose = () => {
+        if (socketRef.current !== ws) return;
         setConnectionState("DISCONNECTED");
         
         // Exponential backoff reconnect
@@ -64,7 +72,7 @@ export function useWebSocket(
         // close will be fired immediately after error
       };
     } catch {}
-  }, [sessionId, onEvent]);
+  }, [sessionId]);
 
   useEffect(() => {
     connect();
@@ -81,7 +89,7 @@ export function useWebSocket(
   const sendEvent = useCallback((type: string, payload: any) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       const envelope = {
-        eventId: crypto.randomUUID(),
+        eventId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
         type,
         interviewId: sessionId,
         timestamp: new Date().toISOString(),

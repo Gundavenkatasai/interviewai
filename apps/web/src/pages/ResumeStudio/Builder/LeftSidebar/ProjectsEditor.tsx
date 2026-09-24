@@ -7,7 +7,7 @@ export const ProjectsEditor: React.FC = () => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
   if (!resume) return null;
-  const projects = resume.profileData.projects || [];
+  const projects = resume.profileData?.projects || [];
 
   const handleUpdate = (index: number, field: string, value: any) => {
     const updated = [...projects];

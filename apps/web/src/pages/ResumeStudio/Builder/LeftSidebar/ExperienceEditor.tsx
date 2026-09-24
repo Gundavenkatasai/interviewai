@@ -7,7 +7,7 @@ export const ExperienceEditor: React.FC = () => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
   if (!resume) return null;
-  const experiences = resume.profileData.experience || [];
+  const experiences = resume.profileData?.experience || [];
 
   const handleUpdate = (index: number, field: string, value: any) => {
     const newExp = [...experiences];

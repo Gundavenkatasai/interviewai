@@ -41,6 +41,16 @@ export function MediaSetup({ onPermissionsGranted, onCancel, sessionInfo, mediaD
   const canProceed = isGranted || isDenied;
 
   const handleProceed = () => {
+    // Unlock Speech Synthesis context safely on user gesture without empty utterances
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      } catch (e) {}
+    }
+    
     onPermissionsGranted(videoStream ?? undefined, audioStream ?? undefined);
   };
 

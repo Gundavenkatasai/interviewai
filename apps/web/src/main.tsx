@@ -19,7 +19,6 @@ window.addEventListener('error', (event) => {
 });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
     <HelmetProvider>
       <BrowserRouter>
         <ReactQueryProvider>
@@ -28,6 +27,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           </AuthProvider>
         </ReactQueryProvider>
       </BrowserRouter>
-    </HelmetProvider>
-  </React.StrictMode>,
+    </HelmetProvider>,
 )

@@ -1,10 +1,12 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Sparkles, ArrowRight, Lock, Mail, User, AlertCircle } from "lucide-react";
+import { Sparkles, ArrowRight, Lock, Mail, User, AlertCircle, LogIn } from "lucide-react";
 import { ApiClient } from "../lib/api";
+import { useAuth } from "../contexts/AuthProvider";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { refetchUser } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,6 +20,7 @@ export default function RegisterPage() {
 
     try {
       await ApiClient.register({ full_name: fullName, email, password });
+      refetchUser();
       navigate("/dashboard");
     } catch (err: any) {
       setError(err.message || "Registration failed. Please check your details.");
@@ -26,8 +29,10 @@ export default function RegisterPage() {
     }
   };
 
+  const isAlreadyRegistered = error?.toLowerCase().includes("already registered");
+
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
+    <div className="min-h-[80vh] flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md p-8 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-6 shadow-2xl">
         <div className="text-center space-y-2">
           <div className="inline-flex p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-2">
@@ -38,9 +43,22 @@ export default function RegisterPage() {
         </div>
 
         {error && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+            {isAlreadyRegistered && (
+              <div className="pt-2 border-t border-rose-500/20">
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-300 hover:text-white underline"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Click here to sign in with {email || "this email"}</span>
+                </Link>
+              </div>
+            )}
           </div>
         )}
 

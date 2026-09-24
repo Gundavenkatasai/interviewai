@@ -47,31 +47,49 @@ export const useResumeStore = create<ResumeState>((set, get) => ({
   setActiveSection: (sectionId) => set({ activeSection: sectionId }),
 
   saveHistorySnapshot: () => {
-    const { resume, history } = get();
-    if (!resume) return;
-    
-    // Only keep last 20 changes to avoid memory issues
-    const newHistory = [...history, JSON.parse(JSON.stringify(resume))].slice(-20);
-    set({ history: newHistory, future: [] });
+    try {
+      const { resume, history } = get();
+      if (!resume) return;
+      
+      // Only keep last 20 changes to avoid memory issues
+      const newHistory = [...history, JSON.parse(JSON.stringify(resume))].slice(-20);
+      set({ history: newHistory, future: [] });
+    } catch (err) {
+      console.error("Failed to save history snapshot", err);
+    }
   },
 
   updateProfileData: (path, value) => {
-    const { resume, saveHistorySnapshot } = get();
-    if (!resume) return;
-    
-    saveHistorySnapshot();
-    
-    // Deep clone and update path
-    const updatedResume = { ...resume };
-    const keys = path.split('.');
-    let current: any = updatedResume.profileData;
-    
-    for (let i = 0; i < keys.length - 1; i++) {
-      current = current[keys[i]];
+    try {
+      const { resume, saveHistorySnapshot } = get();
+      if (!resume) return;
+      
+      saveHistorySnapshot();
+      
+      // Deep-clone profileData safely
+      let clonedProfileData: any = {};
+      try {
+        clonedProfileData = resume.profileData ? JSON.parse(JSON.stringify(resume.profileData)) : {};
+      } catch (e) {
+        console.error("Failed to clone profileData", e);
+        clonedProfileData = {};
+      }
+
+      const keys = path.split('.');
+      let current: any = clonedProfileData;
+      
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (current[keys[i]] === undefined || current[keys[i]] === null || typeof current[keys[i]] !== 'object') {
+          current[keys[i]] = {};
+        }
+        current = current[keys[i]];
+      }
+      current[keys[keys.length - 1]] = value;
+      
+      set({ resume: { ...resume, profileData: clonedProfileData }, isDirty: true });
+    } catch (error) {
+      console.error("Error in updateProfileData:", error);
     }
-    current[keys[keys.length - 1]] = value;
-    
-    set({ resume: updatedResume, isDirty: true });
   },
 
   updateTheme: (themeUpdate) => {

@@ -2,15 +2,17 @@ import { useState, useCallback, useRef } from "react";
 import {
   ImportedDocxApi,
   IDocxSection,
-  IDocxField,
   IWorkspaceSummary,
   IDocxVersion,
+  IFieldByParaIndex,
 } from "../lib/importedDocxApi";
 
 // ============================================================
 // useImportedDocxEditor
 // Central state manager for the DOCX import editor.
-// Handles: field edits, undo/redo, autosave, render, versions.
+// Handles: field edits, undo/redo, autosave, render, versions,
+//          fieldsByParagraphIndex (for inline canvas editing),
+//          activeFieldId (sidebar ↔ canvas highlight sync).
 // ============================================================
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error" | "pending";
@@ -55,8 +57,25 @@ export function useImportedDocxEditor(workspaceId: string) {
   // Autosave debounce timer
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Paragraph-index → field lookup map (for DocxInlineEditLayer).
+  // Keyed by "{documentPart}:{paragraphIndex}" or table variant.
+  const fieldsByParaIndexRef = useRef<Record<string, IFieldByParaIndex>>({});
+
+  // Active field ID for canvas ↔ sidebar highlight sync
+  const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+
+  // Compatibility report from backend
+  const [compatibilityReport, setCompatibilityReport] = useState<{
+    hasTextBoxes: boolean;
+    hasImages: boolean;
+    hasTables: boolean;
+    hasHeaders: boolean;
+    hasFooters: boolean;
+    unsupportedFeatures: string[];
+  } | null>(null);
+
   // --------------------------------------------------------
-  // Load workspace data
+  // Load workspace data (sections, fields, para-index map)
   // --------------------------------------------------------
   const loadWorkspace = useCallback(async () => {
     try {
@@ -66,6 +85,12 @@ export function useImportedDocxEditor(workspaceId: string) {
         workspace: res.workspace,
         sections: res.sections,
       }));
+      if (res.fieldsByParagraphIndex) {
+        fieldsByParaIndexRef.current = res.fieldsByParagraphIndex;
+      }
+      if (res.compatibilityReport) {
+        setCompatibilityReport(res.compatibilityReport);
+      }
     } catch (err: any) {
       console.error("[DocxEditor] Failed to load workspace:", err.message);
     }
@@ -88,82 +113,89 @@ export function useImportedDocxEditor(workspaceId: string) {
   }, [workspaceId]);
 
   // --------------------------------------------------------
-  // Update a field value (triggers autosave)
+  // Save all pending changes & auto-render (Autosave)
+  // --------------------------------------------------------
+  const saveAllChanges = useCallback(async (snapshot: Record<string, string>) => {
+    const entries = Object.entries(snapshot);
+    if (entries.length === 0) return;
+    
+    setState(prev => ({ ...prev, saveStatus: "saving" }));
+    try {
+      // 1. Save all field changes
+      for (const [fieldId, value] of entries) {
+        await ImportedDocxApi.saveChange(workspaceId, fieldId, value);
+      }
+      
+      // 2. Generate a new DOCX version so SuperDocEditor updates
+      const result = await ImportedDocxApi.renderDocx(workspaceId);
+      
+      // 3. Update state, clearing ONLY the fields we just saved
+      setState(prev => {
+        const newPending = { ...prev.pendingChanges };
+        for (const fieldId of Object.keys(snapshot)) {
+          delete newPending[fieldId];
+        }
+        return {
+          ...prev,
+          saveStatus: "saved",
+          lastSavedAt: new Date(),
+          pendingChanges: newPending,
+          latestVersionId: result.versionId,
+        };
+      });
+    } catch (err: any) {
+      console.error("[DocxEditor] Autosave failed:", err.message);
+      setState(prev => ({ ...prev, saveStatus: "error" }));
+      throw err;
+    }
+  }, [workspaceId]);
+
+  // --------------------------------------------------------
+  // Update a field value (triggers autosave + syncs para map)
   // --------------------------------------------------------
   const updateField = useCallback(
     (fieldId: string, newValue: string, originalValue: string) => {
-      // Record undo
+      // Record undo entry
       const prev = state.pendingChanges[fieldId] ?? originalValue;
       undoStack.current.push({ fieldId, prevValue: prev, nextValue: newValue });
       redoStack.current = []; // Clear redo on new change
 
-      setState(prev => ({
-        ...prev,
-        pendingChanges: { ...prev.pendingChanges, [fieldId]: newValue },
-        saveStatus: "pending",
-      }));
+      // Update pending changes + sections
+      setState(prev => {
+        const newPending = { ...prev.pendingChanges, [fieldId]: newValue };
+        
+        // Debounced autosave (1500ms) - pass the CURRENT pending changes snapshot
+        if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = setTimeout(() => {
+          saveAllChanges(newPending).catch(console.error);
+        }, 1500);
 
-      // Also update the field's currentValue in sections
-      setState(prev => ({
-        ...prev,
-        sections: prev.sections.map(sec => ({
-          ...sec,
-          fields: sec.fields.map(f =>
-            f._id === fieldId ? { ...f, currentValue: newValue } : f
-          ),
-        })),
-      }));
-
-      // Debounced autosave
-      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-      autosaveTimer.current = setTimeout(() => {
-        persistChange(fieldId, newValue);
-      }, 1500);
-    },
-    [state.pendingChanges, workspaceId]
-  );
-
-  // --------------------------------------------------------
-  // Persist a single change to backend
-  // --------------------------------------------------------
-  const persistChange = useCallback(
-    async (fieldId: string, proposedValue: string) => {
-      setState(prev => ({ ...prev, saveStatus: "saving" }));
-      try {
-        await ImportedDocxApi.saveChange(workspaceId, fieldId, proposedValue);
-        setState(prev => ({
+        return {
           ...prev,
-          saveStatus: "saved",
-          lastSavedAt: new Date(),
-        }));
-      } catch (err: any) {
-        console.error("[DocxEditor] Autosave failed:", err.message);
-        setState(prev => ({ ...prev, saveStatus: "error" }));
+          pendingChanges: newPending,
+          saveStatus: "pending",
+          sections: prev.sections.map(sec => ({
+            ...sec,
+            fields: sec.fields.map(f =>
+              f._id === fieldId ? { ...f, currentValue: newValue } : f
+            ),
+          })),
+        };
+      });
+
+      // Keep the para-index map's currentValue in sync
+      for (const key of Object.keys(fieldsByParaIndexRef.current)) {
+        if (fieldsByParaIndexRef.current[key].fieldId === fieldId) {
+          fieldsByParaIndexRef.current[key] = {
+            ...fieldsByParaIndexRef.current[key],
+            currentValue: newValue,
+          };
+        }
       }
     },
-    [workspaceId]
+    [state.pendingChanges, saveAllChanges]
   );
 
-  // --------------------------------------------------------
-  // Save all pending changes
-  // --------------------------------------------------------
-  const saveAllChanges = useCallback(async () => {
-    const entries = Object.entries(state.pendingChanges);
-    if (entries.length === 0) return;
-    setState(prev => ({ ...prev, saveStatus: "saving" }));
-    try {
-      for (const [fieldId, value] of entries) {
-        await ImportedDocxApi.saveChange(workspaceId, fieldId, value);
-      }
-      setState(prev => ({
-        ...prev,
-        saveStatus: "saved",
-        lastSavedAt: new Date(),
-      }));
-    } catch (err: any) {
-      setState(prev => ({ ...prev, saveStatus: "error" }));
-    }
-  }, [state.pendingChanges, workspaceId]);
 
   // --------------------------------------------------------
   // Undo
@@ -184,11 +216,25 @@ export function useImportedDocxEditor(workspaceId: string) {
       })),
       saveStatus: "pending",
     }));
+
+    // Update para map
+    for (const key of Object.keys(fieldsByParaIndexRef.current)) {
+      if (fieldsByParaIndexRef.current[key].fieldId === entry.fieldId) {
+        fieldsByParaIndexRef.current[key] = {
+          ...fieldsByParaIndexRef.current[key],
+          currentValue: entry.prevValue,
+        };
+      }
+    }
+
+    // Capture the NEW pending changes for the autosave snapshot
+    const newPending = { ...state.pendingChanges, [entry.fieldId]: entry.prevValue };
+
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      persistChange(entry.fieldId, entry.prevValue);
+      saveAllChanges(newPending).catch(console.error);
     }, 1500);
-  }, [persistChange]);
+  }, [state.pendingChanges, saveAllChanges]);
 
   // --------------------------------------------------------
   // Redo
@@ -209,24 +255,36 @@ export function useImportedDocxEditor(workspaceId: string) {
       })),
       saveStatus: "pending",
     }));
+
+    for (const key of Object.keys(fieldsByParaIndexRef.current)) {
+      if (fieldsByParaIndexRef.current[key].fieldId === entry.fieldId) {
+        fieldsByParaIndexRef.current[key] = {
+          ...fieldsByParaIndexRef.current[key],
+          currentValue: entry.nextValue,
+        };
+      }
+    }
+
+    // Capture the NEW pending changes for the autosave snapshot
+    const newPending = { ...state.pendingChanges, [entry.fieldId]: entry.nextValue };
+
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      persistChange(entry.fieldId, entry.nextValue);
+      saveAllChanges(newPending).catch(console.error);
     }, 1500);
-  }, [persistChange]);
+  }, [state.pendingChanges, saveAllChanges]);
 
   // --------------------------------------------------------
-  // Render DOCX (apply all changes + generate artifact)
+  // Render DOCX (flush pending changes + generate artifact)
   // --------------------------------------------------------
   const renderDocx = useCallback(async (): Promise<string | null> => {
     setState(prev => ({ ...prev, isRendering: true, renderError: null }));
     try {
-      // First flush any pending debounced saves
       if (autosaveTimer.current) {
         clearTimeout(autosaveTimer.current);
         autosaveTimer.current = null;
       }
-      await saveAllChanges();
+      await saveAllChanges(state.pendingChanges);
 
       const result = await ImportedDocxApi.renderDocx(workspaceId);
       setState(prev => ({
@@ -278,12 +336,30 @@ export function useImportedDocxEditor(workspaceId: string) {
       });
   }, [state.latestVersionId, state.versions, state.workspace, workspaceId]);
 
+  // --------------------------------------------------------
+  // Highlight a field (sidebar → canvas sync, canvas → sidebar)
+  // --------------------------------------------------------
+  const highlightField = useCallback((fieldId: string | null) => {
+    setActiveFieldId(fieldId);
+  }, []);
+
+  // --------------------------------------------------------
+  // Lookup field metadata by paragraph index key
+  // Used by DocxInlineEditLayer for canvas → field mapping
+  // --------------------------------------------------------
+  const getFieldByParaKey = useCallback((key: string) => {
+    return fieldsByParaIndexRef.current[key] || null;
+  }, []);
+
   const canUndo = undoStack.current.length > 0;
   const canRedo = redoStack.current.length > 0;
   const hasPendingChanges = Object.keys(state.pendingChanges).length > 0;
 
   return {
     ...state,
+    activeFieldId,
+    compatibilityReport,
+    fieldsByParaIndexRef,
     loadWorkspace,
     loadVersions,
     updateField,
@@ -292,6 +368,8 @@ export function useImportedDocxEditor(workspaceId: string) {
     redo,
     renderDocx,
     downloadLatestVersion,
+    highlightField,
+    getFieldByParaKey,
     canUndo,
     canRedo,
     hasPendingChanges,

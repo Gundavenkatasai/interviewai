@@ -7,7 +7,7 @@ export const EducationEditor: React.FC = () => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
   if (!resume) return null;
-  const education = resume.profileData.education || [];
+  const education = resume.profileData?.education || [];
 
   const handleUpdate = (index: number, field: string, value: any) => {
     const newEdu = [...education];

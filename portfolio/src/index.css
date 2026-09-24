@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --muted: #a1a1aa;
+  --surface: #121215;
+  --surface-glass: rgba(18, 18, 21, 0.75);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.22);
+  --accent: #ea580c;
+  --accent-hover: #f97316;
+  --accent-muted: rgba(234, 88, 12, 0.15);
+  --accent-secondary: #0284c7;
+  --accent-secondary-muted: rgba(2, 132, 199, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #09090b;
+  color: #f4f4f5;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ea580c;
+}
+
+/* Studio Scanline overlay */
+.scanline-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+.radar-gradient {
+  background: radial-gradient(circle at 50% 50%, rgba(234, 88, 12, 0.08) 0%, transparent 60%);
+}
+
+.glass-panel {
+  background: rgba(18, 18, 22, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-accent {
+  background: rgba(18, 18, 22, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(234, 88, 12, 0.25);
+  box-shadow: 0 8px 32px rgba(234, 88, 12, 0.1);
+}
+
+/* Text glow */
+.text-glow-orange {
+  text-shadow: 0 0 24px rgba(234, 88, 12, 0.5);
+}
+
+.text-glow-blue {
+  text-shadow: 0 0 24px rgba(2, 132, 199, 0.5);
+}
+
+/* Smooth motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

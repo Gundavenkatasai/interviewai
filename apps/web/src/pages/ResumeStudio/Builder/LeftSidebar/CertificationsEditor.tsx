@@ -7,7 +7,7 @@ export const CertificationsEditor: React.FC = () => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
   if (!resume) return null;
-  const certs = resume.profileData.certifications || [];
+  const certs = resume.profileData?.certifications || [];
 
   const handleUpdate = (index: number, field: string, value: string) => {
     const updated = [...certs];

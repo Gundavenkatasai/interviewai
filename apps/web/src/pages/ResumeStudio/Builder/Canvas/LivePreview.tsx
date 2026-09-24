@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { useResumeStore } from "../../store/useResumeStore";
 import { resumeTemplateRegistry } from "../../registry/TemplateRegistry";
 import { ZoomIn, ZoomOut, Maximize, FileText, Lock, Info, Download } from "lucide-react";
@@ -9,11 +9,13 @@ export const LivePreview: React.FC = () => {
   const { resume } = useResumeStore();
   const [zoom, setZoom] = useState(0.75);
 
-  const TemplateRenderer = useMemo(() => {
+  // Look up the renderer directly — no useMemo so the preview re-renders
+  // whenever ANY field in the resume store changes (not just the template).
+  const TemplateRenderer = (() => {
     if (!resume) return null;
     const def = resumeTemplateRegistry.getTemplate(resume.template);
     return def ? def.renderer : null;
-  }, [resume?.template]);
+  })();
 
   const handleZoomIn = () => setZoom(z => Math.min(z + 0.1, 1.5));
   const handleZoomOut = () => setZoom(z => Math.max(z - 0.1, 0.3));

@@ -8,7 +8,7 @@ export const LanguagesEditor: React.FC = () => {
   const { resume, updateProfileData } = useResumeStore();
 
   if (!resume) return null;
-  const languages = (resume.profileData.languages as any[]) || [];
+  const languages = (resume.profileData?.languages as any[]) || [];
 
   const handleUpdate = (index: number, field: string, value: string) => {
     const updated = [...languages];

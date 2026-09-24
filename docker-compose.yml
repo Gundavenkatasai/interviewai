@@ -11,7 +11,10 @@ services:
       - mongo_data:/data/db
 
   api:
-    build: ./apps/api-node
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: saig55728/interview:latest
     container_name: interviewai-api
     restart: unless-stopped
     ports:
@@ -22,7 +25,7 @@ services:
       - MONGODB_URI=mongodb://mongo:27017
       - MONGODB_DB_NAME=applyhustle
       - FRONTEND_URL=http://localhost:5173
-      - JWT_SECRET=super_secret_jwt_key_change_in_production
+      - JWT_SECRET=${JWT_SECRET:-super_secret_jwt_key_change_in_production}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
     volumes:
       - ./apps/api-node:/app

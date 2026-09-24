@@ -1,6 +1,6 @@
 
 import React from "react";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Square, Play, SkipForward } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Square, SkipForward } from "lucide-react";
 
 interface InterviewControlsProps {
   micEnabled: boolean;
@@ -8,7 +8,6 @@ interface InterviewControlsProps {
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onEndInterview: () => void;
-  onStartAnswer?: () => void;
   onStopAnswer?: () => void;
   onSkipQuestion?: () => void;
   isRecording: boolean;
@@ -22,7 +21,6 @@ export function InterviewControls({
   onToggleMic,
   onToggleCamera,
   onEndInterview,
-  onStartAnswer,
   onStopAnswer,
   onSkipQuestion,
   isRecording,
@@ -54,49 +52,47 @@ export function InterviewControls({
       </button>
 
       {/* Mic Toggle — mute/unmute when speaking, disabled when AI speaking */}
-      {(isCandidateSpeaking || isAiSpeaking) && (
-        <div className="relative group">
-          <button
-            onClick={onToggleMic}
-            disabled={isAiSpeaking || disabled}
-            className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
-              isAiSpeaking || disabled
-                ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                : micEnabled
-                  ? "bg-slate-700 hover:bg-slate-600 text-white"
-                  : "bg-rose-500/20 text-rose-500 hover:bg-rose-500/30 border border-rose-500/50"
-            }`}
-            title={isAiSpeaking ? "AI is speaking" : micEnabled ? "Mute" : "Unmute"}
-          >
-            {micEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-            {micEnabled && isCandidateSpeaking && (
-              <>
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
-              </>
-            )}
-          </button>
-          {isAiSpeaking && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-              Muted while AI speaks
-            </div>
+      <div className="relative group">
+        <button
+          onClick={onToggleMic}
+          disabled={isAiSpeaking || disabled}
+          className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
+            isAiSpeaking || disabled
+              ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+              : micEnabled
+                ? "bg-slate-700 hover:bg-slate-600 text-white"
+                : "bg-rose-500/20 text-rose-500 hover:bg-rose-500/30 border border-rose-500/50"
+          }`}
+          title={isAiSpeaking ? "AI is speaking" : micEnabled ? "Mute" : "Unmute"}
+        >
+          {micEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+          {micEnabled && isCandidateSpeaking && (
+            <>
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
+            </>
           )}
-        </div>
-      )}
+        </button>
+        {isAiSpeaking && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Muted while AI speaks
+          </div>
+        )}
+      </div>
 
       <div className="w-px h-10 bg-slate-700/60 mx-1" />
 
       {/* ── Primary Action Area ── */}
 
-      {/* CANDIDATE_READY: Big "Start Speaking" CTA */}
-      {isCandidateReady && (
-        <button
-          onClick={onStartAnswer}
-          className="flex items-center gap-2.5 px-7 h-12 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl font-semibold transition-all shadow-lg shadow-emerald-900/30 animate-pulse"
-        >
-          <Play className="w-4 h-4 fill-current" />
-          Start Speaking
-        </button>
+      {/* CANDIDATE_SPEAKING: auto-started, show mic active indicator */}
+      {isCandidateSpeaking && (
+        <div className="flex items-center gap-2.5 px-6 h-12 bg-emerald-500/10 text-emerald-300 rounded-xl font-medium border border-emerald-500/20">
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+          </span>
+          Listening...
+        </div>
       )}
 
       {/* CANDIDATE_SPEAKING: Finish Answer button */}

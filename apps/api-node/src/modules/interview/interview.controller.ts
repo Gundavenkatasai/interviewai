@@ -466,10 +466,15 @@ Example: ["Question 1?", "Question 2?", ...]`;
     const questions = await InterviewQuestion.find({ sessionId: id }).sort({ questionOrder: 1 });
     const answers = await CandidateAnswer.find({ sessionId: id });
     const dto = toSessionDto(session);
+    const sessionDetails = {
+      ...dto,
+      questions,
+      answers,
+    };
 
     return {
       success: true,
-      session: dto,
+      session: sessionDetails,
       ...dto,
       questions,
       answers,

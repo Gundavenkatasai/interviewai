@@ -5,7 +5,7 @@ export const SummaryEditor: React.FC = () => {
   const { resume, updateProfileData } = useResumeStore();
 
   if (!resume) return null;
-  const summary = resume.profileData.summary || "";
+  const summary = resume.profileData?.summary || "";
 
   return (
     <div className="space-y-4">

@@ -33,8 +33,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryKey: ["user"],
     queryFn: async () => {
       try {
-        const res = await ApiClient.getMe();
-        return res as User;
+        const res: any = await ApiClient.getMe();
+        const userData = res?.user || res;
+        if (!userData || !userData.email) return null;
+        return {
+          id: userData.id || userData.sub || userData._id,
+          email: userData.email,
+          full_name: userData.full_name || userData.fullName || "User",
+          is_active: userData.isActive !== false,
+          is_admin: Boolean(userData.isAdmin),
+        } as User;
       } catch {
         return null;
       }

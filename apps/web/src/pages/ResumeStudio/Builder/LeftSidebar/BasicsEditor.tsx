@@ -5,7 +5,7 @@ export const BasicsEditor: React.FC = () => {
   const { resume, updateProfileData } = useResumeStore();
 
   if (!resume) return null;
-  const { personal } = resume.profileData;
+  const personal = resume.profileData?.personal || {};
 
   const handleChange = (field: string, value: string) => {
     updateProfileData(`personal.${field}`, value);

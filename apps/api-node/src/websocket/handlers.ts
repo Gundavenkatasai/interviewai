@@ -26,14 +26,16 @@ export async function websocketRoutes(app: FastifyInstance) {
     
     try {
       // Decode JWT token to verify authentication
-      const token = req.cookies?.token || req.headers?.authorization?.replace("Bearer ", "");
+      const token = (req.query as any)?.token || req.cookies?.token || req.headers?.authorization?.replace("Bearer ", "");
       if (!token) {
+        console.error("WS Auth Failed: No token provided", { query: req.query, headers: req.headers });
         connection.close(1008, "Unauthorized: No token provided");
         return;
       }
       
-      const decoded = await app.jwt.verify(token);
+      const decoded = app.jwt.verify(token);
       if (!decoded) {
+        console.error("WS Auth Failed: Invalid token", token);
         connection.close(1008, "Unauthorized: Invalid token");
         return;
       }
@@ -41,9 +43,12 @@ export async function websocketRoutes(app: FastifyInstance) {
       // Additional check: Does the user own this session?
       const session = await InterviewSession.findOne({ _id: sessionId, userId: (decoded as any).sub });
       if (!session) {
+        console.error("WS Auth Failed: Session not found or owned by user", { sessionId, userId: (decoded as any).sub });
         connection.close(1008, "Unauthorized: Session not found or owned by user");
         return;
       }
+
+      console.log("WS Auth Success: Connected session", sessionId);
 
       WebSocketManager.addConnection(sessionId, connection);
 
@@ -77,6 +82,7 @@ export async function websocketRoutes(app: FastifyInstance) {
         }
       });
     } catch (error) {
+      console.error("WS Auth Exception:", error);
       connection.close(1008, "Unauthorized: Token verification failed");
     }
   });
@@ -90,13 +96,17 @@ async function handleMessage(sessionId: string, clientEvent: any, userId: string
       await handleStateSync(sessionId, userId, eventId);
       break;
 
+    case "AI_SPEAKING_STARTED":
+      await updateStateIfValid(sessionId, ["setup", "SETUP", "ready", "READY", "CANDIDATE_READY", "CREATED", "GENERATING_NEXT"], "speaking", "AI_SPEAKING", eventId);
+      break;
+
     case "CANDIDATE_READY":
-      // Valid transition from SETUP/AI_SPEAKING to READY
-      await updateStateIfValid(sessionId, ["setup", "AI_SPEAKING", "CREATED"], "ready", "READY", eventId);
+      // Valid transition from SETUP/AI_SPEAKING/EVALUATING/GENERATING_NEXT to CANDIDATE_READY
+      await updateStateIfValid(sessionId, ["setup", "SETUP", "AI_SPEAKING", "CREATED", "EVALUATING", "GENERATING_NEXT"], "ready", "CANDIDATE_READY", eventId);
       break;
       
     case "CANDIDATE_SPEAKING_STARTED":
-      await updateStateIfValid(sessionId, ["ready", "READY"], "speaking", "CANDIDATE_SPEAKING", eventId);
+      await updateStateIfValid(sessionId, ["ready", "READY", "CANDIDATE_READY"], "speaking", "CANDIDATE_SPEAKING", eventId);
       break;
 
     case "TRANSCRIPT_PARTIAL":

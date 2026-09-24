@@ -16,6 +16,7 @@ const envSchema = z.object({
   QWEN_BASE_URL: z.string().optional(),
   QWEN_API_KEY: z.string().optional(),
   GROQ_API_KEY: z.string().optional(),
+  APIFY_TOKEN: z.string().optional(),
   REDIS_URL: z.string().optional()
 });
 
