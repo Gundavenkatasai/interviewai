@@ -12,9 +12,19 @@
     "resolveJsonModule": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@interview-ai/contracts": ["../../packages/contracts/src/index.ts"],
+      "@interview-ai/types": ["../../packages/types/src/index.ts"],
+      "@interview-ai/logger": ["../../packages/logger/src/index.ts"],
+      "@interview-ai/validation": ["../../packages/validation/src/index.ts"],
+      "@interview-ai/observability": ["../../packages/observability/src/index.ts"],
+      "@interview-ai/config": ["../../packages/config/src/index.ts"],
+      "@interview-ai/testing": ["../../packages/testing/src/index.ts"],
+      "@interview-ai/ai-service": ["../../services/ai/src/index.ts"],
+      "@interview-ai/job-ingestion": ["../../services/job-ingestion/src/index.ts"],
+      "@interview-ai/document-processing": ["../../services/document-processing/src/index.ts"]
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "src/scripts/**/*"]
 }

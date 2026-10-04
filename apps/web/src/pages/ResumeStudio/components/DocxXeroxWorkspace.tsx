@@ -1,7 +1,7 @@
 /**
  * DocxXeroxWorkspace
  *
- * Three-panel imported DOCX editor:
+ * Three-panel imported DOCX editor (Production Hardened):
  *   Left   — Section list + editable field sidebar
  *   Center — High-fidelity DOCX canvas (docx-preview, direct inline editing)
  *   Right  — Collapsible info/coverage panel
@@ -304,11 +304,10 @@ export const DocxXeroxWorkspace: React.FC<Props> = ({ workspaceId, onBack }) => 
           {/* Inline Edit toggle */}
           <button
             onClick={() => setInlineEditMode(v => !v)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition cursor-pointer ${
-              inlineEditMode
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition cursor-pointer ${inlineEditMode
                 ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
                 : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white"
-            }`}
+              }`}
             title={inlineEditMode ? "Inline editing ON — click text in canvas to edit" : "Inline editing OFF"}
           >
             {inlineEditMode ? <Edit3 className="w-3.5 h-3.5" /> : <MousePointer className="w-3.5 h-3.5" />}
@@ -319,11 +318,10 @@ export const DocxXeroxWorkspace: React.FC<Props> = ({ workspaceId, onBack }) => 
           <button
             onClick={handleSaveAndPreview}
             disabled={editor.isRendering || !editor.hasPendingChanges}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg border transition ${
-              editor.hasPendingChanges
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg border transition ${editor.hasPendingChanges
                 ? "bg-indigo-600/15 border-indigo-500 text-indigo-300 hover:bg-indigo-600/25 cursor-pointer"
                 : "bg-transparent border-zinc-800 text-zinc-500 cursor-not-allowed"
-            }`}
+              }`}
           >
             {editor.isRendering ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -350,11 +348,10 @@ export const DocxXeroxWorkspace: React.FC<Props> = ({ workspaceId, onBack }) => 
           {/* Info toggle */}
           <button
             onClick={() => setShowInfoPanel(!showInfoPanel)}
-            className={`p-2 rounded-lg border transition cursor-pointer ${
-              showInfoPanel
+            className={`p-2 rounded-lg border transition cursor-pointer ${showInfoPanel
                 ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
                 : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white"
-            }`}
+              }`}
             title="Coverage & Notes"
           >
             <Info className="w-4 h-4" />
@@ -405,11 +402,10 @@ export const DocxXeroxWorkspace: React.FC<Props> = ({ workspaceId, onBack }) => 
               return (
                 <div
                   key={section._id}
-                  className={`rounded-xl border transition-all ${
-                    isSelected
+                  className={`rounded-xl border transition-all ${isSelected
                       ? "bg-zinc-900/90 border-indigo-500/40 shadow-sm"
                       : "bg-zinc-950/60 border-zinc-900 hover:border-zinc-800"
-                  }`}
+                    }`}
                 >
                   {/* Section header */}
                   <button
@@ -740,9 +736,8 @@ const FieldEditorItem: React.FC<FieldEditorItemProps> = ({
 
   return (
     <div
-      className={`space-y-1 rounded-lg p-1.5 transition-all ${
-        isHighlighted ? "bg-indigo-500/8 ring-1 ring-indigo-500/30" : ""
-      }`}
+      className={`space-y-1 rounded-lg p-1.5 transition-all ${isHighlighted ? "bg-indigo-500/8 ring-1 ring-indigo-500/30" : ""
+        }`}
     >
       <div className="flex items-center justify-between">
         <label className="text-[11px] font-semibold text-zinc-400">{field.label}</label>
@@ -759,13 +754,12 @@ const FieldEditorItem: React.FC<FieldEditorItemProps> = ({
           onChange={handleChange}
           onFocus={onFocus}
           rows={Math.max(2, Math.min(6, Math.ceil(localVal.length / 36)))}
-          className={`w-full p-2.5 text-xs rounded-lg border bg-zinc-900 outline-none transition font-sans leading-relaxed resize-none ${
-            isHighlighted
+          className={`w-full p-2.5 text-xs rounded-lg border bg-zinc-900 outline-none transition font-sans leading-relaxed resize-none ${isHighlighted
               ? "border-indigo-500/60 text-zinc-100 focus:border-indigo-500"
               : isModified
-              ? "border-indigo-500/40 text-zinc-100 focus:border-indigo-500"
-              : "border-zinc-800 text-zinc-300 focus:border-zinc-700"
-          }`}
+                ? "border-indigo-500/40 text-zinc-100 focus:border-indigo-500"
+                : "border-zinc-800 text-zinc-300 focus:border-zinc-700"
+            }`}
         />
       ) : (
         <input
@@ -773,13 +767,12 @@ const FieldEditorItem: React.FC<FieldEditorItemProps> = ({
           value={localVal}
           onChange={handleChange}
           onFocus={onFocus}
-          className={`w-full px-2.5 py-1.5 text-xs rounded-lg border bg-zinc-900 outline-none transition font-sans ${
-            isHighlighted
+          className={`w-full px-2.5 py-1.5 text-xs rounded-lg border bg-zinc-900 outline-none transition font-sans ${isHighlighted
               ? "border-indigo-500/60 text-zinc-100 focus:border-indigo-500"
               : isModified
-              ? "border-indigo-500/40 text-zinc-100 focus:border-indigo-500"
-              : "border-zinc-800 text-zinc-300 focus:border-zinc-700"
-          }`}
+                ? "border-indigo-500/40 text-zinc-100 focus:border-indigo-500"
+                : "border-zinc-800 text-zinc-300 focus:border-zinc-700"
+            }`}
         />
       )}
 
@@ -789,3 +782,4 @@ const FieldEditorItem: React.FC<FieldEditorItemProps> = ({
     </div>
   );
 };
+

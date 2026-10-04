@@ -53,6 +53,30 @@ export const ROUTING_TABLE: Record<AITask, TaskRoute> = {
     defaultTemperature: 0.2,
     defaultMaxTokens: 1500,
   },
+  INTERVIEW_ANSWER_EVALUATION: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-20b",
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 1500,
+  },
+  INTERVIEW_FOLLOWUP_GENERATION: {
+    primaryModel: "gpt-oss-20b",
+    fallbackModel: "qwen-27b",
+    defaultTemperature: 0.4,
+    defaultMaxTokens: 800,
+  },
+  INTERVIEW_FINAL_REPORT: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 2500,
+  },
+  INTERVIEW_RECOMMENDATIONS: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-20b",
+    defaultTemperature: 0.3,
+    defaultMaxTokens: 1000,
+  },
   CAREER_RECOMMENDATION: {
     primaryModel: "qwen-27b",
     fallbackModel: "gpt-oss-120b",
@@ -89,7 +113,7 @@ export class AIRouter {
   }
 
   static getRoute(task: AITask): TaskRoute {
-    return ROUTING_TABLE[task];
+    return ROUTING_TABLE[task] || ROUTING_TABLE.INTERVIEW_QUESTION;
   }
 
   static async executeTask<T = any>(

@@ -1,0 +1,54 @@
+name: CI / Architecture Validation
+
+on:
+  push:
+    branches: [main, master, dev]
+  pull_request:
+    branches: [main, master, dev]
+
+jobs:
+  typecheck:
+    name: TypeScript Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+      - name: Typecheck Backend
+        run: npm run typecheck --prefix apps/api-node
+      - name: Typecheck Frontend
+        run: cd apps/web && npx tsc -b
+
+  architecture-boundaries:
+    name: Architecture Boundaries & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+      - name: Run Architecture & Hardening Tests
+        run: npm test --prefix apps/api-node
+
+  build:
+    name: Production Builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+      - name: Build API
+        run: npm run build --prefix apps/api-node
+      - name: Build Web
+        run: npm run build --prefix apps/web

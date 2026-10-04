@@ -1,249 +1,66 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { InterviewSession, InterviewQuestion, InterviewEvent, CandidateAnswer, Transcript } from "./interview.model";
+import { randomUUID } from "crypto";
+import {
+  InterviewSession,
+  InterviewQuestion,
+  InterviewEvent,
+  CandidateAnswer,
+  AnswerEvaluation,
+  Transcript,
+  InterviewReport,
+  InterviewState,
+  VALID_STATE_TRANSITIONS,
+} from "./interview.model";
 import { AIContextEngine } from "../../ai/context.engine";
 import { Profile } from "../profile/profile.model";
 import { Job } from "../jobs/jobs.model";
+import { Resume } from "../resume/resume.model";
+import { EvaluationEngine } from "./evaluation.engine";
+import { QuestionEngine } from "./question.engine";
+import { ReportEngine } from "./report.engine";
+import { WebSocketManager } from "../../websocket/manager";
+import { PromptRegistry } from "../../ai/prompts/prompt.registry";
 import { AIService } from "../../ai/ai.service";
+import { QuestionGenerationResponseSchema, QuestionGenerationResponse } from "./interview.schemas";
 
-// ─── Question Bank ─────────────────────────────────────────────────────────────
-// Rich question bank indexed by role keyword + interview type + difficulty
+// ─── Question Bank Fallback ──────────────────────────────────────────────────
 
 const QUESTION_BANK: Record<string, string[]> = {
-  // ── Technical / General ────────────────────────────────────────────────────
   "technical:easy": [
-    "What is the difference between `==` and `===` in JavaScript?",
-    "Explain what REST means and describe a RESTful API.",
+    "What is the difference between == and === in JavaScript?",
+    "Explain what REST means and describe what makes an API RESTful.",
     "What is the purpose of a primary key in a relational database?",
     "What is the difference between a process and a thread?",
-    "Explain the concept of version control and why it's important.",
-    "What is an API and how does it work?",
-    "What is the difference between HTTP and HTTPS?",
-    "Explain what a variable is and the difference between `let`, `const`, and `var` in JavaScript.",
-    "What is a function, and what is the difference between a function declaration and an arrow function?",
-    "What is Git? Name 3 common Git commands and their purpose.",
+    "Explain the concept of version control and why it is important.",
   ],
   "technical:medium": [
-    "Explain the concept of Big O notation and why it matters.",
+    "Explain the concept of Big O notation and how you analyze time and space complexity.",
     "What is the difference between SQL and NoSQL databases? When would you choose one over the other?",
-    "Explain the MVC architectural pattern and give an example.",
-    "What is a closure in JavaScript? Give a practical example.",
-    "Describe how HTTP sessions and cookies work for authentication.",
-    "What is the difference between optimistic and pessimistic locking in databases?",
-    "Explain the concept of database indexing and how it improves performance.",
-    "What is dependency injection? Why is it useful?",
-    "Explain event-driven architecture and give a real-world use case.",
-    "What is the difference between authentication and authorization?",
-    "Describe the difference between monolithic and microservices architecture.",
-    "What is CORS and how does it work?",
-    "Explain how promises and async/await work in JavaScript.",
-    "What is a race condition and how do you prevent it?",
-    "What is caching and what are the different caching strategies?",
+    "Explain how promises and async/await work in JavaScript and the event loop mechanics.",
+    "What is database indexing and how does a B-tree index accelerate query performance?",
+    "Explain how caching layers like Redis or Memcached prevent cache stampedes.",
   ],
   "technical:hard": [
-    "Design a URL shortener service (like bit.ly). Walk through the system design.",
-    "Explain the CAP theorem and how it affects distributed system design.",
-    "How would you design a distributed cache? What are the trade-offs?",
-    "Explain consistent hashing and when you'd use it.",
-    "What are the SOLID principles? Give code examples for each.",
-    "Describe the differences between eventual consistency and strong consistency.",
-    "How does garbage collection work in modern runtimes (JVM, V8)?",
-    "Explain how you would implement a rate limiter at scale.",
-    "What is a deadlock? How do you detect and resolve it?",
-    "How would you debug a memory leak in a Node.js application?",
-    "Explain how database transactions and ACID properties work.",
-    "Design a notification system that can handle 10M users.",
-    "What is a saga pattern in microservices? When would you use it?",
-    "Explain the difference between a B-tree and an LSM tree in databases.",
-    "How does OAuth 2.0 work? Describe the authorization code flow.",
-  ],
-
-  // ── System Design ─────────────────────────────────────────────────────────
-  "system design:easy": [
-    "What is a load balancer and why is it used?",
-    "Explain the difference between vertical and horizontal scaling.",
-    "What is a CDN (Content Delivery Network) and when would you use it?",
-    "What is the difference between a relational and non-relational database?",
-    "Explain what a message queue is and give an example use case.",
+    "Design a scalable URL shortener service (like bit.ly) handling 100M daily writes.",
+    "Explain the CAP theorem and the trade-offs between consistency and availability in distributed systems.",
+    "How does garbage collection work in modern runtimes (e.g. V8 generational GC)?",
+    "Explain how you would implement a distributed rate limiter across multiple nodes.",
+    "Describe database transaction isolation levels and how to prevent phantom reads.",
   ],
   "system design:medium": [
-    "Design a URL shortener like bit.ly.",
-    "How would you design a rate limiter API?",
-    "Design a simple key-value store.",
-    "How would you design a file storage service like Dropbox?",
-    "Design a leaderboard system for a gaming app.",
-    "How would you design a simple chat application?",
-    "Design a news feed system like Twitter's timeline.",
-  ],
-  "system design:hard": [
-    "Design a distributed search engine like Elasticsearch.",
-    "How would you design WhatsApp's messaging architecture?",
-    "Design a globally distributed database like CockroachDB.",
-    "How would you design YouTube's video streaming infrastructure?",
-    "Design a real-time collaborative document editing system (like Google Docs).",
-    "How would you architect a payment processing system?",
-    "Design a recommendation engine for an e-commerce platform.",
-  ],
-
-  // ── Behavioral / HR ───────────────────────────────────────────────────────
-  "behavioral:easy": [
-    "Tell me about yourself and your journey into software development.",
-    "What are your greatest strengths as a developer?",
-    "Why are you looking for a new opportunity?",
-    "What do you enjoy most about programming?",
-    "Describe your ideal work environment.",
-    "Where do you see yourself in 3–5 years?",
+    "Design a real-time notification service for mobile and web clients.",
+    "How would you design a distributed key-value store with replication?",
+    "Design a rate limiter API capable of handling bursts.",
   ],
   "behavioral:medium": [
-    "Tell me about a challenging project you worked on and how you handled it.",
-    "Describe a time when you had a conflict with a teammate. How did you resolve it?",
-    "Give an example of when you had to meet a tight deadline. What did you do?",
-    "Tell me about a time you failed. What did you learn?",
-    "Describe a situation where you had to learn a new technology quickly.",
-    "How do you handle disagreements with your manager or team lead?",
-    "Tell me about a time you went above and beyond in your role.",
-    "Describe how you prioritize tasks when everything seems urgent.",
-    "Tell me about a time you received difficult feedback. How did you respond?",
-    "How do you keep yourself updated with the latest technology trends?",
-  ],
-  "behavioral:hard": [
-    "Describe a time when you had to make a difficult technical decision with incomplete information. What was the outcome?",
-    "Tell me about a major product failure you were part of. How did the team handle the post-mortem?",
-    "Give an example of when you had to influence a decision across teams without direct authority.",
-    "Describe a situation where you had to push back on a manager's decision. How did you handle it?",
-    "Tell me about a time you had to significantly change direction mid-project. What caused it and what was the result?",
-  ],
-
-  // ── Coding / DSA ──────────────────────────────────────────────────────────
-  "coding:easy": [
-    "Write a function to reverse a string without using built-in reverse methods.",
-    "Implement a function that checks whether a given string is a palindrome.",
-    "Write a function that returns the Fibonacci sequence up to N numbers.",
-    "Implement a function to find the maximum element in an array.",
-    "Write a function that removes duplicates from an array.",
-    "Implement a function that counts the number of vowels in a string.",
-    "Write a function that checks if two strings are anagrams.",
-    "Implement a basic stack using an array with push, pop, and peek operations.",
-  ],
-  "coding:medium": [
-    "Implement a function to find all pairs in an array that sum to a given target.",
-    "Write a function that performs a binary search on a sorted array.",
-    "Implement a function to check if a linked list has a cycle.",
-    "Write a function to flatten a nested array of arbitrary depth.",
-    "Implement a debounce function from scratch.",
-    "Write a function that finds the longest substring without repeating characters.",
-    "Implement a function to serialize and deserialize a binary tree.",
-    "Write a function to merge two sorted arrays into a single sorted array.",
-    "Implement an LRU (Least Recently Used) cache.",
-    "Write a function to find the first non-repeating character in a string.",
-  ],
-  "coding:hard": [
-    "Implement a function to find the median of two sorted arrays in O(log n).",
-    "Write a function to solve the N-Queens problem and return all solutions.",
-    "Implement a trie data structure with insert, search, and startsWith methods.",
-    "Write a function to find the longest increasing subsequence.",
-    "Implement Dijkstra's shortest path algorithm.",
-    "Write a function that solves the 0/1 knapsack problem using dynamic programming.",
-    "Implement a consistent hashing ring.",
-    "Write a function to detect a cycle in a directed graph using DFS.",
-  ],
-
-  // ── Role-specific: Frontend ────────────────────────────────────────────────
-  "frontend:easy": [
-    "What is the difference between `display: block`, `display: inline`, and `display: inline-block`?",
-    "Explain the CSS box model.",
-    "What is the difference between `null` and `undefined` in JavaScript?",
-    "What is the virtual DOM and how does React use it?",
-    "Explain what props and state are in React.",
-  ],
-  "frontend:medium": [
-    "Explain React's component lifecycle (class vs functional with hooks).",
-    "What is the difference between `useMemo` and `useCallback`? When would you use each?",
-    "Explain the concept of 'lifting state up' in React.",
-    "What is CSS specificity and how is it calculated?",
-    "How does React's reconciliation algorithm work?",
-    "What is code splitting and how do you implement it in React?",
-    "Explain the difference between controlled and uncontrolled components in React.",
-    "What is a web worker and when would you use one?",
-    "Explain how you would optimize a slow React application.",
-    "What is the difference between `localStorage`, `sessionStorage`, and cookies?",
-  ],
-  "frontend:hard": [
-    "Explain React's rendering model — when does React re-render, and how do you prevent unnecessary renders?",
-    "Design a component library architecture for a large-scale application.",
-    "How would you implement server-side rendering (SSR) in a Next.js application?",
-    "Explain micro-frontends and when you would use this architecture.",
-    "How would you design a drag-and-drop interface without using third-party libraries?",
-  ],
-
-  // ── Role-specific: Backend ─────────────────────────────────────────────────
-  "backend:easy": [
-    "What is an ORM and why would you use one?",
-    "Explain the difference between GET, POST, PUT, PATCH, and DELETE HTTP methods.",
-    "What is middleware in the context of Express.js or Fastify?",
-    "What is the purpose of an index in a database?",
-    "Explain what environment variables are and why they're important.",
-  ],
-  "backend:medium": [
-    "How does database connection pooling work and why is it important?",
-    "Explain the concept of database migrations.",
-    "What is the N+1 query problem and how do you solve it?",
-    "Describe how you would implement pagination in a REST API.",
-    "What is the difference between eager and lazy loading?",
-    "How would you secure a REST API?",
-    "Explain what a JWT token is and how authentication with JWTs works.",
-    "What is the difference between horizontal and vertical database scaling?",
-    "How would you implement background jobs in a Node.js application?",
-    "Explain the pub/sub messaging pattern.",
-  ],
-  "backend:hard": [
-    "How would you design a multi-tenant SaaS database architecture?",
-    "Explain how you would implement database sharding.",
-    "Describe your approach to designing a high-availability API.",
-    "How would you handle distributed transactions across microservices?",
-    "Design a real-time event sourcing system.",
-  ],
-
-  // ── Role-specific: Full Stack ──────────────────────────────────────────────
-  "full-stack:medium": [
-    "How do you manage shared state between the frontend and backend?",
-    "Explain your approach to error handling across a full-stack application.",
-    "How would you implement real-time features (like notifications) in a web app?",
-    "Describe your CI/CD pipeline for a full-stack application.",
-    "How do you handle versioning in a REST API?",
-  ],
-
-  // ── Default fallback ───────────────────────────────────────────────────────
-  "default:easy": [
-    "Tell me about yourself and your technical background.",
-    "What programming languages are you most comfortable with and why?",
-    "Describe a recent project you worked on and your role in it.",
-    "What is the most important thing you look for in a codebase?",
-    "How do you approach debugging a problem you've never seen before?",
-  ],
-  "default:medium": [
-    "Describe the most technically challenging problem you've solved.",
-    "How do you ensure code quality in your projects?",
-    "Walk me through your development workflow from feature request to deployment.",
-    "How do you approach learning a new technology or framework?",
-    "Describe how you'd handle a production incident at 3 AM.",
-    "What's your approach to writing tests?",
-    "How do you balance technical debt with shipping features?",
-    "Tell me about a time you had to refactor a large codebase.",
-    "How do you handle disagreements about technical decisions within a team?",
-    "Describe your experience with agile / scrum methodologies.",
-  ],
-  "default:hard": [
-    "Design a scalable architecture for a global SaaS product.",
-    "How would you approach migrating a monolith to microservices?",
-    "Describe the most impactful technical decision you've made.",
-    "How would you build a system to handle 1 million concurrent users?",
-    "Walk me through how you'd evaluate whether to build or buy a tool.",
+    "Tell me about a challenging project you worked on and how you handled unexpected obstacles.",
+    "Describe a time when you had a technical disagreement with a teammate. How did you resolve it?",
+    "Tell me about a production incident you investigated. What was the root cause and mitigation?",
   ],
 };
 
-/** Shuffle an array (Fisher-Yates) */
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
+function shuffle<T>(array: T[]): T[] {
+  const a = [...array];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
@@ -251,59 +68,13 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-/** Pick questions for a session based on role, type, and difficulty */
-function pickQuestions(
-  role: string,
-  interviewType: string,
-  difficulty: string,
-  maxQuestions: number,
-  technologies: string[]
-): string[] {
-  const roleKey = (role || "").toLowerCase().replace(/\s+/g, "-");
-  const typeKey = (interviewType || "technical").toLowerCase();
+function pickFallbackQuestions(role: string, interviewType: string, difficulty: string, count: number): string[] {
   const diffKey = (difficulty || "medium").toLowerCase();
-
-  const candidates: string[] = [];
-
-  // Helper to add questions from a key
-  const addFrom = (key: string, limit = 20) => {
-    const pool = (QUESTION_BANK as Record<string, string[]>)[key];
-    if (pool) candidates.push(...shuffle(pool).slice(0, limit));
-  };
-
-  // 1. Role + type match (most specific)
-  addFrom(`${roleKey}:${diffKey}`);
-  addFrom(`${typeKey}:${diffKey}`);
-
-  // 2. Role + medium (cross difficulty)
-  if (diffKey !== "medium") addFrom(`${roleKey}:medium`, 5);
-  if (diffKey !== "medium") addFrom(`${typeKey}:medium`, 5);
-
-  // 3. General technical questions
-  addFrom(`technical:${diffKey}`, 10);
-  if (diffKey !== "medium") addFrom("technical:medium", 5);
-
-  // 4. Always add some behavioral questions (2–3)
-  if (typeKey !== "behavioral" && typeKey !== "hr") {
-    addFrom("behavioral:medium", 3);
-  }
-
-  // 5. Default fallback
-  addFrom(`default:${diffKey}`, 5);
-  addFrom("default:medium", 5);
-
-  // Deduplicate
-  const seen = new Set<string>();
-  const unique = candidates.filter(q => {
-    if (seen.has(q)) return false;
-    seen.add(q);
-    return true;
-  });
-
-  return unique.slice(0, maxQuestions);
+  const pool = QUESTION_BANK[`technical:${diffKey}`] || QUESTION_BANK["technical:medium"];
+  return shuffle(pool).slice(0, count);
 }
 
-function toSessionDto(session: any) {
+function toSessionDto(session: any, report?: any) {
   if (!session) return null;
   const s = session.toObject ? session.toObject() : session;
   return {
@@ -319,30 +90,26 @@ function toSessionDto(session: any) {
     question_count: s.questionCount,
     max_questions: s.maxQuestions,
     coach_mode: s.coachMode,
+    state: s.state,
+    stateVersion: s.stateVersion,
+    report: report || null,
     score: s.score || {
-      overall_score: 8.4,
-      technical_score: 8.5,
-      communication_score: 8.2,
-      problem_solving_score: 8.6,
+      overall_score: 8.0,
+      technical_score: 8.0,
+      communication_score: 8.0,
+      problem_solving_score: 8.0,
       confidence_score: 8.0,
       final_recommendation: "Ready",
-      strengths: [
-        "Structured problem decomposition and architectural insight",
-        "Clear technical explanations and conceptual clarity",
-        "Good understanding of engineering trade-offs"
-      ],
-      areas_for_improvement: [
-        "Include more concrete performance benchmarks and edge cases",
-        "Structure behavioral responses using STAR format more strictly"
-      ]
+      strengths: ["Clear technical delivery"],
+      areas_for_improvement: ["Provide more production benchmarks"],
     },
     evaluations: s.evaluations || [],
   };
 }
 
-// ─── Controller ────────────────────────────────────────────────────────────────
-
 export class InterviewController {
+  // ── 1. Create Session ─────────────────────────────────────────────────────
+
   static async createSession(request: FastifyRequest, reply: FastifyReply) {
     const userId = (request as any).user.sub;
     const body = request.body as any;
@@ -359,6 +126,45 @@ export class InterviewController {
       : [];
     const maxQuestions = body.max_questions || body.maxQuestions || 5;
 
+    // Load candidate context to create immutable context snapshot
+    let profileSnapshot: any = null;
+    let resumeSnapshot: any = null;
+    let jobSnapshot: any = null;
+    let contextSnapshot: any = {
+      skills: technologies,
+      projects: [],
+      experienceSummary: `${experienceLevel} ${role}`,
+      targetRole: role,
+    };
+
+    try {
+      const profile = await Profile.findOne({ userId });
+      if (profile) {
+        profileSnapshot = profile;
+        contextSnapshot.skills = Array.from(new Set([...contextSnapshot.skills, ...(profile.skills || [])]));
+      }
+
+      if (body.resume_id || body.resumeId) {
+        const resume: any = await Resume.findById(body.resume_id || body.resumeId);
+        if (resume) {
+          resumeSnapshot = resume;
+          const rSkills = resume.extractedSkills || resume.skills || [];
+          contextSnapshot.skills = Array.from(new Set([...contextSnapshot.skills, ...rSkills]));
+        }
+      }
+
+      if (body.jobId || body.job_id) {
+        const job: any = await Job.findById(body.jobId || body.job_id);
+        if (job) {
+          jobSnapshot = job;
+          const jSkills = job.requiredSkills || job.skills || [];
+          contextSnapshot.jobRequirements = jSkills;
+        }
+      }
+    } catch (err) {
+      console.warn("Context snapshot build error", err);
+    }
+
     const session = await InterviewSession.create({
       userId,
       role,
@@ -371,88 +177,112 @@ export class InterviewController {
       durationMinutes: body.duration_minutes || body.durationMinutes || 30,
       maxQuestions,
       status: "setup",
-      state: "CREATED",
+      state: "SETUP",
+      candidateProfileVersion: profileSnapshot?.version || 1,
+      resumeVersion: resumeSnapshot?.version || 1,
+      jobSnapshotVersion: jobSnapshot?.version || 1,
+      contextVersion: 1,
+      contextSnapshot,
       currentQuestionIndex: 0,
+      stateVersion: 1,
+      sessionVersion: 1,
     });
 
-    let questionTexts: string[] = [];
+    // Generate initial dynamic question
+    let initialQuestions: { questionText: string; category: string; topic: string }[] = [];
 
     try {
-      const profile = await Profile.findOne({ userId });
-      const job = body.jobId ? await Job.findById(body.jobId) : null;
-      
-      const candidateContext = AIContextEngine.buildCandidateContext(profile, "short");
-      const jobContext = job ? AIContextEngine.buildJobContext(job) : `Target Role: ${role} at ${company || "Unknown"}`;
-      
-      const prompt = `You are an expert technical interviewer. Generate a JSON array of exactly ${maxQuestions} interview questions for a candidate.
-Context about the candidate:
-${candidateContext}
+      const candidateContext = AIContextEngine.buildCandidateContext(profileSnapshot, "short");
+      const jobContext = jobSnapshot ? AIContextEngine.buildJobContext(jobSnapshot) : `Target Role: ${role} at ${company || "Target Company"}`;
 
-Context about the job:
+      const systemPrompt = PromptRegistry.get("INTERVIEW_QUESTION_GENERATION", "v1");
+      const prompt = `${systemPrompt}
+
+Candidate Context:
+${candidateContext || "Verified technical background."}
+
+Job Context:
 ${jobContext}
 
 Interview Type: ${interviewType}
 Difficulty: ${difficulty}
-Technologies: ${technologies.join(", ")}
+Technologies: ${technologies.join(", ") || "General"}
+Target Question Count: 1 (Generate the strong opening technical question)
 
-Generate tailored, dynamic questions that test the candidate's verified skills against the job requirements. Return ONLY a valid JSON array of strings, with no markdown formatting or other text.
-Example: ["Question 1?", "Question 2?", ...]`;
+Return valid JSON matching the schema.`;
 
-      const aiResponse = await AIService.generate([{ role: "user", content: prompt }]);
-      try {
-        const parsed = JSON.parse(aiResponse.replace(/```json/g, "").replace(/```/g, "").trim());
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          questionTexts = parsed.slice(0, maxQuestions).map(q => String(q));
-        }
-      } catch (e) {
-        console.warn("Failed to parse dynamic questions, falling back to static bank");
+      const aiResponse = await AIService.generateStructured<QuestionGenerationResponse>(
+        [{ role: "user", content: prompt }],
+        QuestionGenerationResponseSchema,
+        { task: "INTERVIEW_QUESTION_GENERATION", temperature: 0.2 }
+      );
+
+      if (aiResponse.questions?.length > 0) {
+        initialQuestions = aiResponse.questions.slice(0, 1).map(q => ({
+          questionText: q.questionText,
+          category: q.category || interviewType,
+          topic: q.topic || "Core Architecture",
+        }));
       }
     } catch (err) {
-      console.warn("Failed to generate dynamic questions, falling back to static bank");
+      console.warn("Dynamic opening question generation failed, using fallback", err);
     }
 
-    if (questionTexts.length === 0) {
-      questionTexts = pickQuestions(
-        role,
-        interviewType,
-        difficulty,
-        maxQuestions,
-        technologies
-      );
+    if (initialQuestions.length === 0) {
+      const fallback = pickFallbackQuestions(role, interviewType, difficulty, 1);
+      initialQuestions = fallback.map(text => ({
+        questionText: text,
+        category: interviewType,
+        topic: "Core Fundamentals",
+      }));
     }
 
-    const questionDocs = questionTexts.map((text, idx) => ({
+    const firstQ = initialQuestions[0];
+    const questionDoc = await InterviewQuestion.create({
       sessionId: session._id,
-      questionOrder: idx + 1,
-      questionText: text,
-      category: interviewType,
+      questionOrder: 1,
+      sequenceNumber: 1,
+      questionText: firstQ.questionText,
+      category: firstQ.category,
+      topic: firstQ.topic,
       difficulty,
-      source: "curated_bank",
-    }));
-
-    await InterviewQuestion.insertMany(questionDocs);
+      source: "initial_generation",
+      status: "GENERATED",
+    });
 
     await InterviewSession.updateOne(
       { _id: session._id },
-      { questionCount: questionDocs.length, status: "active" }
+      {
+        questionCount: 1,
+        currentQuestionId: questionDoc._id,
+        currentQuestionIndex: 0,
+      }
     );
 
     await InterviewEvent.create({
       sessionId: session._id,
       eventType: "SESSION_CREATED",
-      payload: { role, experienceLevel, interviewType, questionsGenerated: questionDocs.length },
+      payload: { role, experienceLevel, interviewType, openingQuestion: questionDoc.questionText },
     });
 
     const dto = toSessionDto(session);
     return { success: true, session: dto, ...dto };
   }
 
+  // ── 2. Get Sessions (History) ─────────────────────────────────────────────
+
   static async getSessions(request: FastifyRequest, reply: FastifyReply) {
     const userId = (request as any).user.sub;
     const sessions = await InterviewSession.find({ userId }).sort({ createdAt: -1 });
-    const dtos = sessions.map(toSessionDto);
+
+    const reports = await InterviewReport.find({ userId });
+    const reportMap = new Map(reports.map(r => [r.sessionId, r]));
+
+    const dtos = sessions.map(s => toSessionDto(s, reportMap.get(s._id)));
     return { success: true, sessions: dtos, data: dtos };
   }
+
+  // ── 3. Get Session Details ────────────────────────────────────────────────
 
   static async getSession(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
@@ -465,21 +295,38 @@ Example: ["Question 1?", "Question 2?", ...]`;
 
     const questions = await InterviewQuestion.find({ sessionId: id }).sort({ questionOrder: 1 });
     const answers = await CandidateAnswer.find({ sessionId: id });
-    const dto = toSessionDto(session);
-    const sessionDetails = {
-      ...dto,
-      questions,
-      answers,
-    };
+    const evaluations = await AnswerEvaluation.find({ answerId: { $in: answers.map(a => a._id) } });
+    const evalMap = new Map(evaluations.map((e: any) => [e.answerId.toString(), e]));
+
+    const questionsWithAnswers = questions.map(q => {
+      const ans = answers.find(a => a.questionId.toString() === q._id.toString());
+      const ev = ans ? evalMap.get(ans._id.toString()) : null;
+      return {
+        ...q.toObject(),
+        answer: ans || null,
+        evaluation: ev || null,
+      };
+    });
+
+    const report = await InterviewReport.findOne({ sessionId: id, userId });
+    const dto = toSessionDto(session, report);
 
     return {
       success: true,
-      session: sessionDetails,
+      session: {
+        ...dto,
+        questions: questionsWithAnswers,
+        answers,
+        report,
+      },
       ...dto,
-      questions,
+      questions: questionsWithAnswers,
       answers,
+      report,
     };
   }
+
+  // ── 4. Delete Session ─────────────────────────────────────────────────────
 
   static async deleteSession(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
@@ -490,8 +337,15 @@ Example: ["Question 1?", "Question 2?", ...]`;
       return reply.status(404).send({ success: false, message: "Session not found" });
     }
 
+    await InterviewQuestion.deleteMany({ sessionId: id });
+    await CandidateAnswer.deleteMany({ sessionId: id });
+    await InterviewReport.deleteMany({ sessionId: id });
+    await Transcript.deleteMany({ sessionId: id });
+
     return { success: true, message: "Session deleted" };
   }
+
+  // ── 5. Submit Answer (Idempotent) ─────────────────────────────────────────
 
   static async submitAnswer(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
@@ -502,34 +356,45 @@ Example: ["Question 1?", "Question 2?", ...]`;
     if (!session) {
       return reply.status(404).send({ success: false, message: "Session not found" });
     }
-    if (session.state === 'COMPLETED' || session.status === 'completed') {
+    if (session.state === "COMPLETED" || session.status === "completed") {
       return reply.status(409).send({ success: false, message: "Session is already completed" });
     }
 
     const questionId = body.question_id || body.questionId;
-    
-    // Check for duplicate answer
+    const answerSubmissionId = body.answer_submission_id || body.answerSubmissionId || randomUUID();
+    const transcriptText = body.transcript || body.answer_text || body.answerText || "";
+    const durationSeconds = body.duration_seconds || body.durationSeconds || Math.round((body.durationMs || 0) / 1000);
+
+    // 1. Idempotency Check: check if answer already recorded for this question
     let answer = await CandidateAnswer.findOne({ sessionId, questionId });
-    
+
     if (!answer) {
       try {
         answer = await CandidateAnswer.create({
           sessionId,
           questionId,
-          answerText: body.answer_text || body.answerText || "",
+          answerSubmissionId,
+          answerText: transcriptText || "(No verbal answer provided)",
+          transcript: transcriptText,
           codeSubmission: body.code_submission || body.codeSubmission,
-          duration: body.duration_seconds || body.durationSeconds || 0,
+          duration: durationSeconds,
+          durationMs: body.durationMs || durationSeconds * 1000,
+          startedAt: body.startedAt ? new Date(body.startedAt) : undefined,
+          submittedAt: body.submittedAt ? new Date(body.submittedAt) : new Date(),
+          status: "SUBMITTED",
         });
 
+        // Update state to PROCESSING -> EVALUATING
         await InterviewSession.updateOne(
           { _id: sessionId },
-          { 
-             $inc: { currentQuestionIndex: 1, stateVersion: 1 },
-             $set: { state: "EVALUATING" }
+          {
+            $set: { state: "EVALUATING" },
+            $inc: { stateVersion: 1 },
           }
         );
+
+        WebSocketManager.sendToSession(sessionId, "ANSWER_PROCESSING", { questionId });
       } catch (err: any) {
-        // If race condition inserts duplicate, catch E11000 and find the answer
         if (err.code === 11000) {
           answer = await CandidateAnswer.findOne({ sessionId, questionId });
         } else {
@@ -538,8 +403,67 @@ Example: ["Question 1?", "Question 2?", ...]`;
       }
     }
 
-    return { success: true, answer };
+    if (!answer) {
+      return reply.status(500).send({ success: false, message: "Failed to persist answer" });
+    }
+
+    // 2. Evaluate Answer via EvaluationEngine
+    let evaluation;
+    try {
+      WebSocketManager.sendToSession(sessionId, "ANSWER_EVALUATION_STARTED", { questionId, answerId: answer._id });
+      evaluation = await EvaluationEngine.evaluateAnswer(answer._id);
+      WebSocketManager.sendToSession(sessionId, "ANSWER_EVALUATED", { questionId, score: evaluation.score });
+    } catch (evalErr) {
+      console.warn("Evaluation failed, using fallback", evalErr);
+    }
+
+    return { success: true, answer, evaluation };
   }
+
+  // ── 6. Skip Question (Idempotent) ─────────────────────────────────────────
+
+  static async skipQuestion(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user.sub;
+    const { id: sessionId } = request.params;
+    const body = request.body as any;
+
+    const session = await InterviewSession.findOne({ _id: sessionId, userId });
+    if (!session) {
+      return reply.status(404).send({ success: false, message: "Session not found" });
+    }
+
+    const questionId = body.question_id || body.questionId || session.currentQuestionId;
+    if (!questionId) {
+      return reply.status(400).send({ success: false, message: "No question specified to skip" });
+    }
+
+    // Mark question as SKIPPED
+    await InterviewQuestion.updateOne(
+      { _id: questionId, sessionId },
+      {
+        status: "SKIPPED",
+        skipReason: body.skip_reason || body.skipReason || "Candidate clicked Skip",
+        answeredAt: new Date(),
+      }
+    );
+
+    // Record empty candidate answer with SKIPPED status for tracking
+    await CandidateAnswer.findOneAndUpdate(
+      { sessionId, questionId },
+      {
+        sessionId,
+        questionId,
+        answerText: "(Skipped)",
+        duration: 0,
+        status: "SKIPPED",
+      },
+      { upsert: true, new: true }
+    );
+
+    return { success: true, message: "Question skipped successfully" };
+  }
+
+  // ── 7. Next Question ──────────────────────────────────────────────────────
 
   static async nextQuestion(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
@@ -551,41 +475,70 @@ Example: ["Question 1?", "Question 2?", ...]`;
     }
 
     const questions = await InterviewQuestion.find({ sessionId }).sort({ questionOrder: 1 });
+    const maxQ = session.maxQuestions || 5;
 
-    if (questions.length === 0) {
-      return reply.status(422).send({
-        success: false,
-        message: "No questions found for this session. Please create a new interview.",
-      });
+    // Check if session has reached question limit
+    if (questions.length >= maxQ) {
+      // Transition to COMPLETING -> generate report
+      await InterviewSession.updateOne(
+        { _id: sessionId },
+        { $set: { state: "COMPLETING" }, $inc: { stateVersion: 1 } }
+      );
+      WebSocketManager.sendToSession(sessionId, "INTERVIEW_COMPLETING", {});
+
+      const report = await ReportEngine.generateReport(sessionId, userId, 1);
+      WebSocketManager.sendToSession(sessionId, "REPORT_READY", { reportId: report.reportId });
+
+      return {
+        success: true,
+        complete: true,
+        interview_complete: true,
+        report,
+        question: null,
+      };
     }
 
-    const idx = session.currentQuestionIndex ?? 0;
+    // Otherwise, transition to GENERATING_NEXT and produce next question
+    await InterviewSession.updateOne(
+      { _id: sessionId },
+      { $set: { state: "GENERATING_NEXT" }, $inc: { stateVersion: 1 } }
+    );
+    WebSocketManager.sendToSession(sessionId, "NEXT_QUESTION_GENERATING", {});
 
-    if (idx >= questions.length) {
-      return { success: true, complete: true, question: null };
-    }
+    const nextQ = await QuestionEngine.generateNextQuestion(sessionId);
 
-    const question = questions[idx];
+    // Transition to AI_SPEAKING
+    await InterviewSession.updateOne(
+      { _id: sessionId },
+      { $set: { state: "AI_SPEAKING" }, $inc: { stateVersion: 1 } }
+    );
+
     const questionDto = {
-      id: question._id,
-      _id: question._id,
-      question_id: question._id,
-      question_text: question.questionText,
-      questionText: question.questionText,
-      question_order: question.questionOrder,
-      category: question.category,
-      difficulty: question.difficulty,
-      source: question.source,
+      id: nextQ._id,
+      _id: nextQ._id,
+      question_id: nextQ._id,
+      question_text: nextQ.questionText,
+      questionText: nextQ.questionText,
+      question_order: nextQ.questionOrder,
+      category: nextQ.category,
+      topic: nextQ.topic,
+      difficulty: nextQ.difficulty,
+      source: nextQ.source,
+      status: nextQ.status,
     };
+
+    WebSocketManager.sendToSession(sessionId, "NEXT_QUESTION_READY", { question: questionDto });
 
     return {
       success: true,
       complete: false,
       question: questionDto,
-      current_index: idx,
-      total: questions.length,
+      current_index: nextQ.questionOrder - 1,
+      total: maxQ,
     };
   }
+
+  // ── 8. Complete Session (Atomic Lock) ─────────────────────────────────────
 
   static async completeSession(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
@@ -596,105 +549,46 @@ Example: ["Question 1?", "Question 2?", ...]`;
       return reply.status(404).send({ success: false, message: "Session not found" });
     }
 
-    // Idempotency: Return existing session if already completed
-    if (existingSession.state === 'COMPLETED' || existingSession.status === 'completed') {
-      const dto = toSessionDto(existingSession);
-      return { success: true, session: dto, ...dto };
+    // If already completed, return existing report
+    if (existingSession.state === "COMPLETED" || existingSession.status === "completed") {
+      const report = await InterviewReport.findOne({ sessionId, userId });
+      const dto = toSessionDto(existingSession, report);
+      return { success: true, session: dto, report, ...dto };
     }
 
-    // Prevent double completions from concurrent calls using an intermediate state lock
-    const sessionToLock = await InterviewSession.findOneAndUpdate(
-      { _id: sessionId, state: { $ne: 'COMPLETED' }, status: { $ne: 'completed' } },
-      { $set: { state: 'PROCESSING_COMPLETION' } },
-      { new: true }
-    );
-    
-    if (!sessionToLock) {
-       // Another request got it first
-       const updated = await InterviewSession.findOne({ _id: sessionId });
-       const dto = toSessionDto(updated);
-       return { success: true, session: dto, ...dto };
-    }
-
-    const answers = await CandidateAnswer.find({ sessionId });
-    const questions = await InterviewQuestion.find({ sessionId }).sort({ questionOrder: 1 });
-    
-    let transcriptStr = "";
-    questions.forEach(q => {
-      const a = answers.find(ans => ans.questionId.toString() === q._id.toString());
-      transcriptStr += `Q: ${q.questionText}\nA: ${a ? a.answerText : "No answer provided"}\n\n`;
-    });
-
-    const schema = {
-      type: "object",
-      properties: {
-        overall_score: { type: "number" },
-        technical_score: { type: "number" },
-        communication_score: { type: "number" },
-        problem_solving_score: { type: "number" },
-        confidence_score: { type: "number" },
-        final_recommendation: { type: "string" },
-        strengths: { type: "array", items: { type: "string" } },
-        areas_for_improvement: { type: "array", items: { type: "string" } }
-      },
-      required: ["overall_score", "technical_score", "communication_score", "problem_solving_score", "confidence_score", "final_recommendation", "strengths", "areas_for_improvement"]
-    };
-
-    const prompt = `You are an expert technical interviewer. Evaluate the overall performance of the candidate in this interview session.
-
-Transcript:
-${transcriptStr}
-
-Target Role: ${existingSession.role}
-Difficulty: ${existingSession.difficulty}
-Experience Level: ${existingSession.experienceLevel}
-
-Provide an objective score out of 10 for each category, a final recommendation (e.g. "Ready", "Needs Practice", "Not Ready"), and arrays of strengths and areas for improvement.`;
-
-    let scoreData;
-    try {
-      scoreData = await AIService.generateStructured<any>(
-        [{ role: "user", content: prompt }],
-        schema
-      );
-    } catch (e) {
-      console.warn("Failed to generate session score, using fallback", e);
-      const count = answers.length;
-      scoreData = {
-        overall_score: Number(((7.8 + count*0.1)).toFixed(1)),
-        technical_score: Number(((7.8 + count*0.1)).toFixed(1)),
-        communication_score: 8.0,
-        problem_solving_score: 7.5,
-        confidence_score: 7.5,
-        final_recommendation: "Needs Practice",
-        strengths: ["Completed the interview"],
-        areas_for_improvement: ["Need more data for accurate evaluation"]
-      };
-    }
-
-    const session = await InterviewSession.findOneAndUpdate(
-      { _id: sessionId, userId },
+    // Atomic completion lock
+    const lockId = randomUUID();
+    const lockedSession = await InterviewSession.findOneAndUpdate(
       {
-        status: "completed",
-        state: "COMPLETED",
-        completedAt: new Date(),
-        score: scoreData,
-        $inc: { stateVersion: 1 }
+        _id: sessionId,
+        userId,
+        state: { $nin: ["COMPLETED"] },
+        completionLock: { $exists: false },
+      },
+      {
+        $set: {
+          completionLock: lockId,
+          state: "REPORT_GENERATING",
+        },
+        $inc: { stateVersion: 1 },
       },
       { new: true }
     );
 
-    if (!session) {
-      return reply.status(404).send({ success: false, message: "Session not found" });
+    if (!lockedSession) {
+      // Another worker is generating report; wait or return current
+      const current = await InterviewSession.findOne({ _id: sessionId });
+      const report = await InterviewReport.findOne({ sessionId, userId });
+      const dto = toSessionDto(current, report);
+      return { success: true, session: dto, report, ...dto };
     }
 
-    await InterviewEvent.create({
-      sessionId,
-      eventType: "SESSION_COMPLETED",
-      payload: scoreData,
-    });
+    WebSocketManager.sendToSession(sessionId, "REPORT_GENERATING", {});
 
-    // Day 16: Eagerly trigger a FollowUpTask (Thank-You Note) after interview
+    // Generate authoritative Report
+    const report = await ReportEngine.generateReport(sessionId, userId, 1);
+
+    // Eagerly trigger Thank-You Note follow-up
     try {
       const { FollowUpEngine } = require("../outreach/followup.engine");
       await FollowUpEngine.scheduleFollowUp({
@@ -702,15 +596,85 @@ Provide an objective score out of 10 for each category, a final recommendation (
         type: "INTERVIEW_THANK_YOU",
         reason: "Completed interview session",
         interviewId: sessionId,
-        offsetBusinessDays: 1, // Due tomorrow
+        offsetBusinessDays: 1,
       });
-    } catch (err) {
-      console.error("Failed to schedule follow-up", err);
+    } catch (_) {}
+
+    WebSocketManager.sendToSession(sessionId, "REPORT_READY", { reportId: report.reportId });
+    WebSocketManager.sendToSession(sessionId, "INTERVIEW_COMPLETED", {});
+
+    const updatedSession = await InterviewSession.findOne({ _id: sessionId });
+    const dto = toSessionDto(updatedSession, report);
+    return { success: true, session: dto, report, ...dto };
+  }
+
+  // ── 9. State Transition Validator ─────────────────────────────────────────
+
+  static async updateState(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user.sub;
+    const { id: sessionId } = request.params;
+    const body = request.body as any;
+
+    const requestedState = (body.state || "").toUpperCase() as InterviewState;
+    const session = await InterviewSession.findOne({ _id: sessionId, userId });
+    if (!session) {
+      return reply.status(404).send({ success: false, message: "Session not found" });
     }
 
-    const dto = toSessionDto(session);
-    return { success: true, session: dto, ...dto };
+    const currentState = session.state as InterviewState;
+    const allowedTransitions = VALID_STATE_TRANSITIONS[currentState] || [];
+
+    if (!allowedTransitions.includes(requestedState) && requestedState !== currentState) {
+      return reply.status(400).send({
+        success: false,
+        message: `Invalid state transition from ${currentState} to ${requestedState}`,
+        allowed: allowedTransitions,
+      });
+    }
+
+    session.state = requestedState;
+    session.stateVersion += 1;
+    await session.save();
+
+    WebSocketManager.sendToSession(sessionId, "INTERVIEW_STATE", {
+      state: session.state,
+      stateVersion: session.stateVersion,
+    });
+
+    return { success: true, state: session.state, stateVersion: session.stateVersion };
   }
+
+  // ── 10. Get Report ────────────────────────────────────────────────────────
+
+  static async getReport(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user.sub;
+    const { id: sessionId } = request.params;
+
+    let report: any = await InterviewReport.findOne({ sessionId, userId });
+    if (!report) {
+      // If session is completed or in report generating, synthesize report now
+      const session = await InterviewSession.findOne({ _id: sessionId, userId });
+      if (session) {
+        report = await ReportEngine.generateReport(sessionId, userId, 1);
+      } else {
+        return reply.status(404).send({ success: false, message: "Report not found" });
+      }
+    }
+
+    return { success: true, report, data: report };
+  }
+
+  // ── 11. Generate Report Endpoint ──────────────────────────────────────────
+
+  static async generateReport(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user.sub;
+    const { id: sessionId } = request.params;
+
+    const report = await ReportEngine.generateReport(sessionId, userId, 1);
+    return { success: true, report, data: report };
+  }
+
+  // ── 12. Helper Endpoints ──────────────────────────────────────────────────
 
   static async updateElapsed(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
@@ -719,7 +683,6 @@ Provide an objective score out of 10 for each category, a final recommendation (
     const elapsed = body.elapsed_seconds || body.elapsedSeconds || 0;
 
     await InterviewSession.updateOne({ _id: sessionId, userId }, { elapsedSeconds: elapsed });
-
     return { success: true };
   }
 
@@ -730,8 +693,8 @@ Provide an objective score out of 10 for each category, a final recommendation (
 
     const entry = await Transcript.create({
       sessionId,
-      speaker: body.speaker,
-      content: body.content,
+      speaker: body.speaker || "candidate",
+      content: body.content || "",
     });
 
     return { success: true, entry };
@@ -756,11 +719,18 @@ Provide an objective score out of 10 for each category, a final recommendation (
     const { id: sessionId } = request.params;
     const body = request.body as any;
 
+    const session = await InterviewSession.findOne({ _id: sessionId, userId });
+    if (!session) return reply.status(404).send({ success: false, message: "Session not found" });
+
+    const count = await InterviewQuestion.countDocuments({ sessionId });
     const question = await InterviewQuestion.create({
       sessionId,
+      questionOrder: count + 1,
+      sequenceNumber: count + 1,
       questionText: body.question_text || body.questionText || "",
       category: body.category || "technical",
       source: body.source || "manual",
+      status: "GENERATED",
     });
 
     return { success: true, question };

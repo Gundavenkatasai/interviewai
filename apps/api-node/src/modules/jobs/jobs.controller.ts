@@ -1,6 +1,28 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { Job, SavedJob, ApplicationClick } from "./jobs.model";
+import { Job, SavedJob, ApplicationClick, ViewedJob } from "./jobs.model";
 import { z } from "zod";
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").slice(0, 100);
+}
+
+function isValidApplyUrl(url?: string): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    if (parsed.protocol === "javascript:" || parsed.protocol === "data:") return false;
+    if (!parsed.hostname || parsed.hostname.length < 3) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const StringOrArray = z.union([z.string(), z.array(z.string())]).transform((val) => {
+  if (Array.isArray(val)) return val.join(",");
+  return val;
+}).optional();
 
 // Query params always arrive as strings — coerce everything
 const FilterSchema = z.object({
@@ -8,16 +30,16 @@ const FilterSchema = z.object({
   page: z.coerce.number().default(1),
   page_size: z.coerce.number().default(24),
   limit: z.coerce.number().default(24),
-  // Multi-value filters — frontend sends comma-separated strings
-  role_category: z.string().optional(),
+  // Multi-value filters — frontend sends comma-separated strings or repeated query keys
+  role_category: StringOrArray,
   experience_range: z.string().optional(),
-  work_mode: z.string().optional(),
-  employment_type: z.string().optional(),
-  seniority: z.string().optional(),
-  skills: z.string().optional(),
+  work_mode: StringOrArray,
+  employment_type: StringOrArray,
+  seniority: StringOrArray,
+  skills: StringOrArray,
   company: z.string().optional(),
-  source: z.string().optional(),
-  sources: z.string().optional(),
+  source: StringOrArray,
+  sources: StringOrArray,
   location: z.string().optional(),
   salary_min: z.coerce.number().optional(),
   salary_max: z.coerce.number().optional(),
@@ -27,6 +49,30 @@ const FilterSchema = z.object({
   sort: z.string().default("newest"),
 });
 
+const CANONICAL_SOURCES: Record<string, string> = {
+  linkedin: "LinkedIn",
+  indeed: "Indeed",
+  naukri: "Naukri",
+  internshala: "Internshala",
+  foundit: "Foundit",
+  wellfound: "Wellfound",
+  cutshort: "Cutshort",
+  hirist: "Hirist",
+  shine: "Shine",
+  timesjobs: "TimesJobs",
+  glassdoor: "Glassdoor",
+  googlejobs: "GoogleJobs",
+  ziprecruiter: "ZipRecruiter",
+  bayt: "Bayt",
+  bdjobs: "BDJobs",
+  greenhouse: "Greenhouse",
+  lever: "Lever",
+  ashby: "Ashby",
+  workday: "Workday",
+  smartrecruiters: "SmartRecruiters",
+  instahyre: "Instahyre",
+};
+
 /** Transform a Mongoose Job doc to the snake_case shape the frontend expects */
 function toJobDto(job: any) {
   const raw = job.toObject ? job.toObject() : job;
@@ -34,21 +80,25 @@ function toJobDto(job: any) {
   const companyName = raw.companyName ||
     raw.company ||
     (raw.description ? raw.description.match(/(?:at|@|by)\s+([A-Z][\w\s&.]{1,40}?)(?:\.|,|\s+(?:is|are|we|you|in|for|the|a |an ))/i)?.[1]?.trim() : null) ||
-    "Unknown";
+    "Unknown Company";
+
+  const validApply = isValidApplyUrl(raw.applyUrl) ? raw.applyUrl
+    : (isValidApplyUrl(raw.applicationUrl) ? raw.applicationUrl
+    : (isValidApplyUrl(raw.sourceUrl) ? raw.sourceUrl : null));
 
   return {
     id: String(raw._id),
-    title: raw.title,
+    title: raw.title || "Job Opening",
     company_name: companyName,
     company_logo: raw.companyLogo,
-    description: raw.description,
-    location: raw.location,
-    location_normalized: raw.locationNormalized || raw.location,
-    country: raw.country,
+    description: raw.description || "",
+    location: raw.location || "India",
+    location_normalized: raw.locationNormalized || raw.location || "India",
+    country: raw.country || "India",
     state: raw.state,
     city: raw.city,
-    is_india_job: raw.isIndiaJob,
-    status: raw.status,
+    is_india_job: raw.isIndiaJob !== false,
+    status: raw.status || "ACTIVE",
     is_active: raw.isActive !== false,
     is_expired: raw.isExpired || false,
     salary_min: raw.salaryMin,
@@ -68,13 +118,18 @@ function toJobDto(job: any) {
     skills: Array.isArray(raw.skills)
       ? raw.skills.map((s: any) => (typeof s === "string" ? s : s?.name || String(s))).filter(Boolean)
       : [],
-    source: raw.source,
-    source_url: raw.sourceUrl,
-    apply_url: raw.applyUrl || raw.applicationUrl || raw.canonicalUrl || raw.sourceUrl || null,
-    application_url: raw.applicationUrl,
+    skills_normalized: Array.isArray(raw.skillsNormalized) ? raw.skillsNormalized : [],
+    source: raw.source || "UNKNOWN",
+    source_job_id: raw.sourceJobId,
+    source_url: isValidApplyUrl(raw.sourceUrl) ? raw.sourceUrl : null,
+    apply_url: validApply,
+    canonical_url: isValidApplyUrl(raw.canonicalUrl) ? raw.canonicalUrl : null,
+    application_url: validApply,
     source_posted_at: raw.sourcePostedAt,
-    posted_at: raw.postedAt || raw.createdAt,
-    posting_date_confidence: raw.postingDateConfidence || "unknown",
+    posted_at: raw.sourcePostedAt || raw.postedAt || raw.createdAt,
+    posting_date_confidence: raw.postingDateConfidence || "medium",
+    first_seen_at: raw.firstSeenAt,
+    last_seen_at: raw.lastSeenAt,
     is_saved: false,
     is_new: raw.freshness === "FRESH" || (raw.createdAt && (Date.now() - new Date(raw.createdAt).getTime()) < 48 * 60 * 60 * 1000),
     freshness: raw.freshness || "UNKNOWN",
@@ -82,14 +137,16 @@ function toJobDto(job: any) {
     match_details: raw.matchDetails,
     trust_score: raw.trustScore,
     trust_details: raw.trustDetails,
-    apply_url_status: raw.applyUrlStatus || "UNKNOWN",
+    apply_url_status: validApply ? "VALID" : "APPLY_URL_INVALID",
     duplicate_sources: Array.isArray(raw.sourceReferences) 
       ? raw.sourceReferences.map((sr: any) => ({
-          source: sr.source,
-          source_url: sr.sourceUrl,
-          apply_url: sr.applyUrl
+          source: sr.source || "UNKNOWN",
+          source_url: isValidApplyUrl(sr.sourceUrl) ? sr.sourceUrl : null,
+          apply_url: isValidApplyUrl(sr.applyUrl) ? sr.applyUrl : null,
         }))
       : [],
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
   };
 }
 
@@ -103,11 +160,10 @@ import { JobSourceRegistry } from "./ingestion/source.registry";
 export class JobsController {
   
   static async getSources(request: FastifyRequest, reply: FastifyReply) {
-    // Only return the list of registered sources for the frontend filter dropdown
-    // Avoid calling getHealthStatus() here because it triggers Puppeteer browsers and timeouts (30s+)
     const sourcesArray = JobSourceRegistry.getCapabilitiesInfo();
     return reply.send({ success: true, sources: sourcesArray });
   }
+
   static async getJobs(request: FastifyRequest, reply: FastifyReply) {
     let filters: any;
     try {
@@ -116,20 +172,28 @@ export class JobsController {
       return reply.status(400).send({ success: false, message: "Invalid query params", details: err.errors });
     }
 
-    const query: any = {};
+    const andConditions: any[] = [
+      { isActive: { $ne: false } },
+      { isIndiaJob: true }
+    ];
 
     if (filters.search) {
-      query.$or = [
-        { title: { $regex: filters.search, $options: "i" } },
-        { description: { $regex: filters.search, $options: "i" } },
-      ];
+      const safeSearch = escapeRegex(filters.search.trim());
+      if (safeSearch) {
+        andConditions.push({
+          $or: [
+            { title: { $regex: safeSearch, $options: "i" } },
+            { description: { $regex: safeSearch, $options: "i" } },
+            { companyName: { $regex: safeSearch, $options: "i" } },
+          ]
+        });
+      }
     }
 
-    // ── role_category: maps to title keyword since roleCategory field is empty
+    // ── role_category: maps to title keyword
     if (filters.role_category) {
-      const cats = filters.role_category.split(",").filter(Boolean);
+      const cats = filters.role_category.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
       if (cats.length) {
-        // Map frontend category values to keywords searched in title
         const categoryKeywords: Record<string, string[]> = {
           fullstack: ["full stack", "fullstack", "full-stack"],
           frontend: ["frontend", "front end", "front-end", "react", "angular", "vue"],
@@ -144,105 +208,186 @@ export class JobsController {
         };
         const keywords = cats.flatMap((c: string) => categoryKeywords[c] || [c]);
         if (keywords.length) {
-          const catOr = keywords.map((kw: string) => ({ title: { $regex: kw, $options: "i" } }));
-          // Merge with existing $or if search is active
-          if (query.$or) {
-            query.$and = [{ $or: query.$or }, { $or: catOr }];
-            delete query.$or;
-          } else {
-            query.$or = catOr;
-          }
+          andConditions.push({
+            $or: keywords.map((kw: string) => ({ title: { $regex: escapeRegex(kw), $options: "i" } }))
+          });
         }
       }
     }
 
-    // ── work_mode: exact match (DB values: remote, hybrid, onsite)
+    // ── work_mode: match case-insensitively (REMOTE, remote, ONSITE, onsite, HYBRID, hybrid)
     if (filters.work_mode) {
-      const modes = filters.work_mode.split(",").filter(Boolean);
-      if (modes.length) query.workMode = { $in: modes };
+      const modes = filters.work_mode.split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (modes.length) {
+        const variants = modes.flatMap((m: string) => [
+          m,
+          m.toLowerCase(),
+          m.toUpperCase(),
+          m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()
+        ]);
+        andConditions.push({ workMode: { $in: Array.from(new Set(variants)) } });
+      }
     }
 
-    // ── employment_type: normalize frontend (full-time) → DB (full_time)
+    // ── employment_type: match DB variations (fulltime, FULL_TIME, full_time, internship, etc.)
     if (filters.employment_type) {
-      const normalize = (v: string) => v.replace(/-/g, "_");
-      const types = filters.employment_type.split(",").filter(Boolean).map(normalize);
-      if (types.length) query.employmentType = { $in: types };
+      const types = filters.employment_type.split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (types.length) {
+        const variants = new Set<string>();
+        for (const t of types) {
+          variants.add(t);
+          variants.add(t.toLowerCase());
+          variants.add(t.toUpperCase());
+          variants.add(t.replace(/-/g, "_"));
+          variants.add(t.replace(/-/g, "_").toUpperCase());
+          variants.add(t.replace(/-/g, ""));
+          variants.add(t.replace(/-/g, "").toUpperCase());
+          if (t.toLowerCase().includes("full")) {
+            variants.add("fulltime");
+            variants.add("FULL_TIME");
+            variants.add("full_time");
+          }
+          if (t.toLowerCase().includes("intern")) {
+            variants.add("internship");
+            variants.add("INTERNSHIP");
+          }
+          if (t.toLowerCase().includes("part")) {
+            variants.add("parttime");
+            variants.add("PART_TIME");
+          }
+        }
+        andConditions.push({ employmentType: { $in: Array.from(variants) } });
+      }
     }
 
-    // ── seniority: exact match (DB values: intern, fresher, entry, junior, mid, senior, lead, principal)
+    // ── seniority: match seniority field or experienceLevel
     if (filters.seniority) {
-      const levels = filters.seniority.split(",").filter(Boolean);
-      if (levels.length) query.seniority = { $in: levels };
-    }
-
-    // ── location: use 'location' field (locationNormalized is empty in DB)
-    if (filters.location && filters.location !== "All India") {
-      query.location = { $regex: filters.location, $options: "i" };
-    }
-
-    if (filters.salary_min) query.salaryMin = { $gte: filters.salary_min };
-    if (filters.salary_max) query.salaryMax = { $lte: filters.salary_max };
-
-    // ── company: search in description (companyName field is null in most docs)
-    if (filters.company) {
-      query.description = { $regex: filters.company, $options: "i" };
-    }
-
-    // ── source: match primary source OR any source reference from deduplication
-    const sourceStr = filters.source || filters.sources;
-    if (sourceStr) {
-      const srcs = sourceStr.split(",").filter(Boolean);
-      if (srcs.length) {
-        const regexes = srcs.map((s: string) => new RegExp(`^${s}$`, 'i'));
-        if (!query.$and) query.$and = [];
-        query.$and.push({
+      const levels = filters.seniority.split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (levels.length) {
+        const variants = levels.flatMap((l: string) => [
+          l,
+          l.toLowerCase(),
+          l.toUpperCase(),
+          l.charAt(0).toUpperCase() + l.slice(1).toLowerCase()
+        ]);
+        andConditions.push({
           $or: [
-            { source: { $in: regexes } },
-            { "sourceReferences.source": { $in: regexes } }
+            { seniority: { $in: Array.from(new Set(variants)) } },
+            { experienceLevel: { $regex: levels.map(escapeRegex).join("|"), $options: "i" } }
           ]
         });
       }
     }
 
-    // ── skills: search in description since skills array is empty in most docs
-    if (filters.skills) {
-      const skillList = filters.skills.split(",").filter(Boolean);
-      if (skillList.length) {
-        const skillRegexes = skillList.map((s: string) => ({ description: { $regex: s, $options: "i" } }));
-        if (query.$and) {
-          query.$and.push({ $or: skillRegexes });
-        } else if (query.$or && !query.$and) {
-          query.$and = [{ $or: query.$or }, { $or: skillRegexes }];
-          delete query.$or;
-        } else {
-          query.$or = skillRegexes;
-        }
+    // ── experience_range: numeric range against minExperience
+    if (filters.experience_range) {
+      const range = filters.experience_range.trim();
+      if (range === "0-1") andConditions.push({ minExperience: { $lte: 1 } });
+      else if (range === "1-3") andConditions.push({ minExperience: { $gte: 1, $lte: 3 } });
+      else if (range === "3-5") andConditions.push({ minExperience: { $gte: 3, $lte: 5 } });
+      else if (range === "5-8") andConditions.push({ minExperience: { $gte: 5, $lte: 8 } });
+      else if (range === "8+") andConditions.push({ minExperience: { $gte: 8 } });
+    }
+
+    // ── location: case-insensitive match on location or city
+    if (filters.location && filters.location !== "All India") {
+      const safeLoc = escapeRegex(filters.location.trim());
+      if (safeLoc) {
+        andConditions.push({
+          $or: [
+            { location: { $regex: safeLoc, $options: "i" } },
+            { city: { $regex: safeLoc, $options: "i" } },
+            { locationNormalized: { $regex: safeLoc, $options: "i" } }
+          ]
+        });
       }
     }
 
-    // ── posted_days: use sourcePostedAt (real extracted date)
-    // Removed strict 48 hour default to allow historical DB jobs to be visible when filtering by source
-    const days = filters.posted_days !== undefined ? filters.posted_days : 0;
-    if (days > 0) { // allows passing 0 or negative to see ALL history
-      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      if (query.sourcePostedAt) {
-        query.sourcePostedAt.$gte = cutoff;
-      } else {
-        query.sourcePostedAt = { $gte: cutoff };
+    if (filters.salary_min) andConditions.push({ salaryMin: { $gte: filters.salary_min } });
+    if (filters.salary_max) andConditions.push({ salaryMax: { $lte: filters.salary_max } });
+
+    // ── company: search companyName or description
+    if (filters.company) {
+      const safeCompany = escapeRegex(filters.company.trim());
+      if (safeCompany) {
+        andConditions.push({
+          $or: [
+            { companyName: { $regex: safeCompany, $options: "i" } },
+            { description: { $regex: safeCompany, $options: "i" } }
+          ]
+        });
       }
     }
+
+    // ── source: STRICT match on canonical/cased variants of selected sources
+    // Guarantees:
+    // 1. Every returned job's `source` strictly belongs to the selected set.
+    // 2. No source is silently replaced with Indeed.
+    // 3. UI badge comes directly from job.source.
+    const sourceStr = filters.sources || filters.source;
+    if (sourceStr) {
+      const rawSrcs = sourceStr.split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (rawSrcs.length) {
+        const targetValues = new Set<string>();
+        for (const s of rawSrcs) {
+          const lower = s.toLowerCase();
+          const canonical = CANONICAL_SOURCES[lower] || s;
+          targetValues.add(canonical);
+          targetValues.add(s);
+          targetValues.add(lower);
+          targetValues.add(s.toUpperCase());
+        }
+        andConditions.push({ source: { $in: Array.from(targetValues) } });
+      }
+    }
+
+    // ── skills: search in skills array or description
+    if (filters.skills) {
+      const skillList = filters.skills.split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (skillList.length) {
+        const skillOr = skillList.map((s: string) => ({
+          $or: [
+            { skills: s },
+            { description: { $regex: escapeRegex(s), $options: "i" } }
+          ]
+        }));
+        andConditions.push({ $or: skillOr });
+      }
+    }
+
+    // ── posted_days
+    const days = filters.posted_days !== undefined ? filters.posted_days : 0;
+    if (days > 0) {
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      andConditions.push({
+        $or: [
+          { sourcePostedAt: { $gte: cutoff } },
+          { createdAt: { $gte: cutoff } }
+        ]
+      });
+    }
+
+    const query: any = andConditions.length > 1 ? { $and: andConditions } : andConditions[0] || {};
+
     const pageSize = Math.min(filters.page_size || filters.limit || 24, 100);
     const skip = (filters.page - 1) * pageSize;
 
-    // Default sort: try sourcePostedAt, fallback to createdAt for jobs without source date
-    let sortObj: any = { createdAt: -1 };
+    // Deterministic sorting with stable tie-breaker:
+    let sortObj: any = { sourcePostedAt: -1, createdAt: -1, _id: -1 };
     let dynamicSort = false;
-    if (filters.sort === "salary_desc") sortObj = { salaryMax: -1, createdAt: -1 };
-    else if (filters.sort === "salary_asc") sortObj = { salaryMin: 1, createdAt: -1 };
-    else if (filters.sort === "relevant") sortObj = { createdAt: -1 };
-    else if (filters.sort === "match" || filters.sort === "trust") {
+    if (filters.sort === "salary_desc") {
+      sortObj = { salaryMax: -1, createdAt: -1, _id: -1 };
+    } else if (filters.sort === "salary_asc") {
+      sortObj = { salaryMin: 1, createdAt: -1, _id: -1 };
+    } else if (filters.sort === "relevant") {
+      sortObj = { createdAt: -1, _id: -1 };
+    } else if (filters.sort === "newest") {
+      sortObj = { sourcePostedAt: -1, createdAt: -1, _id: -1 };
+    } else if (filters.sort === "oldest") {
+      sortObj = { sourcePostedAt: 1, createdAt: 1, _id: 1 };
+    } else if (filters.sort === "match" || filters.sort === "trust") {
       dynamicSort = true;
-      sortObj = { createdAt: -1 }; // Initial fetch sorted by newest
+      sortObj = { sourcePostedAt: -1, createdAt: -1, _id: -1 };
     }
 
     const userId = (request as any).user?.sub;
@@ -410,22 +555,58 @@ export class JobsController {
     };
   }
 
-  static async toggleSavedJob(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
-    const userId = (request as any).user.sub;
+  static async saveJob(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user?.sub;
     const { id } = request.params;
+    if (!userId) return reply.status(401).send({ success: false, message: "Unauthorized" });
+
+    await SavedJob.findOneAndUpdate(
+      { userId, jobId: id },
+      { $setOnInsert: { savedAt: new Date() } },
+      { upsert: true, new: true }
+    );
+    return { success: true, saved: true, action: "added" };
+  }
+
+  static async unsaveJob(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user?.sub;
+    const { id } = request.params;
+    if (!userId) return reply.status(401).send({ success: false, message: "Unauthorized" });
+
+    await SavedJob.deleteOne({ userId, jobId: id });
+    return { success: true, saved: false, action: "removed" };
+  }
+
+  static async trackView(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const { id } = request.params;
+    const userId = (request as any).user?.sub;
+    if (userId) {
+      await ViewedJob.findOneAndUpdate(
+        { userId, jobId: id },
+        { $set: { viewedAt: new Date() } },
+        { upsert: true }
+      ).catch(() => {});
+    }
+    return { success: true };
+  }
+
+  static async toggleSavedJob(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user?.sub;
+    const { id } = request.params;
+    if (!userId) return reply.status(401).send({ success: false, message: "Unauthorized" });
 
     const existing = await SavedJob.findOne({ userId, jobId: id });
     if (existing) {
       await SavedJob.deleteOne({ _id: existing._id });
-      return { success: true, action: "removed" };
+      return { success: true, saved: false, action: "removed" };
     } else {
-      await SavedJob.create({ userId, jobId: id });
-      return { success: true, action: "added" };
+      await SavedJob.create({ userId, jobId: id, savedAt: new Date() });
+      return { success: true, saved: true, action: "added" };
     }
   }
 
   static async filterCounts(request: FastifyRequest, reply: FastifyReply) {
-    const [workModes, seniorities, empTypes, sources, totalJobs] = await Promise.all([
+    const [workModes, seniorities, empTypes, sources, categories, totalJobs] = await Promise.all([
       Job.aggregate([
         { $group: { _id: "$workMode", count: { $sum: 1 } } },
         { $match: { _id: { $ne: null } } },
@@ -442,16 +623,68 @@ export class JobsController {
         { $group: { _id: "$source", count: { $sum: 1 } } },
         { $match: { _id: { $ne: null } } },
       ]),
-      Job.countDocuments({}),
+      Job.aggregate([
+        { $group: { _id: "$roleCategory", count: { $sum: 1 } } },
+        { $match: { _id: { $ne: null } } },
+      ]),
+      Job.countDocuments({ isActive: { $ne: false }, isIndiaJob: true }),
     ]);
+
+    const sourceCounts: Record<string, number> = {};
+    for (const s of sources) {
+      if (!s._id) continue;
+      const count = Number(s.count) || 0;
+      sourceCounts[s._id] = count;
+      sourceCounts[s._id.toLowerCase()] = count;
+      sourceCounts[s._id.toUpperCase()] = count;
+    }
+
+    const workModeCounts: Record<string, number> = {};
+    for (const w of workModes) {
+      if (!w._id) continue;
+      const count = Number(w.count) || 0;
+      workModeCounts[w._id] = count;
+      workModeCounts[w._id.toLowerCase()] = count;
+    }
+
+    const seniorityCounts: Record<string, number> = {};
+    for (const s of seniorities) {
+      if (!s._id) continue;
+      const count = Number(s.count) || 0;
+      seniorityCounts[s._id] = count;
+      seniorityCounts[s._id.toLowerCase()] = count;
+    }
+
+    const empTypeCounts: Record<string, number> = {};
+    for (const e of empTypes) {
+      if (!e._id) continue;
+      const count = Number(e.count) || 0;
+      empTypeCounts[e._id] = count;
+      empTypeCounts[e._id.toLowerCase()] = count;
+      empTypeCounts[e._id.replace(/_/g, "-")] = count;
+    }
+
+    const roleCatCounts: Record<string, number> = {};
+    for (const r of categories) {
+      if (!r._id) continue;
+      const count = Number(r.count) || 0;
+      roleCatCounts[r._id] = count;
+      roleCatCounts[r._id.toLowerCase()] = count;
+    }
 
     return {
       success: true,
       total: totalJobs,
-      workMode: Object.fromEntries(workModes.map((w: any) => [w._id, w.count])),
-      seniority: Object.fromEntries(seniorities.map((s: any) => [s._id, s.count])),
-      employmentType: Object.fromEntries(empTypes.map((e: any) => [e._id, e.count])),
-      source: Object.fromEntries(sources.map((s: any) => [s._id, s.count])),
+      workMode: workModeCounts,
+      work_modes: workModeCounts,
+      seniority: seniorityCounts,
+      seniorities: seniorityCounts,
+      employmentType: empTypeCounts,
+      employment_types: empTypeCounts,
+      source: sourceCounts,
+      sources: sourceCounts,
+      roleCategory: roleCatCounts,
+      role_categories: roleCatCounts,
     };
   }
 

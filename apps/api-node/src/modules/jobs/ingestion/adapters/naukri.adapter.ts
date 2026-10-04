@@ -48,8 +48,8 @@ export class NaukriAdapter implements JobSourceAdapter {
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
 
       // Naukri uses aggressive bot protection, but basic headless might bypass the first few pages
-      const listings = await page.$$eval('div.srp-jobtuple-wrapper', (elements) => {
-        return elements.map(el => {
+      const listings = await page.$$eval('div.srp-jobtuple-wrapper', (elements: any[]) => {
+        return elements.map((el: any) => {
           const titleEl = el.querySelector('a.title');
           const title = titleEl?.textContent?.trim() || 'Unknown Title';
           const applyUrl = titleEl?.getAttribute('href') || '';
@@ -69,7 +69,7 @@ export class NaukriAdapter implements JobSourceAdapter {
           const descEl = el.querySelector('.job-desc');
           const description = descEl?.textContent?.trim() || '';
           
-          const tags = Array.from(el.querySelectorAll('.tags-gt .tag-li')).map(t => t.textContent?.trim() || '');
+          const tags = Array.from(el.querySelectorAll('.tags-gt .tag-li')).map((t: any) => t.textContent?.trim() || '');
           
           const dateEl = el.querySelector('.job-post-day');
           const postedAtText = dateEl?.textContent?.trim() || undefined;

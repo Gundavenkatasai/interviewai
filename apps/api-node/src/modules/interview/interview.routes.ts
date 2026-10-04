@@ -15,9 +15,13 @@ export async function interviewRoutes(app: FastifyInstance) {
   // @ts-ignore
   app.post("/:id/answers", { preValidation: [authenticate] }, InterviewController.submitAnswer);
   // @ts-ignore
+  app.post("/:id/skip", { preValidation: [authenticate] }, InterviewController.skipQuestion);
+  // @ts-ignore
   app.post("/:id/next-question", { preValidation: [authenticate] }, InterviewController.nextQuestion);
   // @ts-ignore
   app.post("/:id/complete", { preValidation: [authenticate] }, InterviewController.completeSession);
+  // @ts-ignore
+  app.post("/:id/state", { preValidation: [authenticate] }, InterviewController.updateState);
   // @ts-ignore
   app.post("/:id/elapsed", { preValidation: [authenticate] }, InterviewController.updateElapsed);
   // @ts-ignore
@@ -26,4 +30,10 @@ export async function interviewRoutes(app: FastifyInstance) {
   app.post("/:id/feedback", { preValidation: [authenticate] }, InterviewController.updateFeedback);
   // @ts-ignore
   app.post("/:id/questions", { preValidation: [authenticate] }, InterviewController.addQuestion);
+
+  // Report endpoints
+  // @ts-ignore
+  app.get("/:id/report", { preValidation: [authenticate] }, InterviewController.getReport);
+  // @ts-ignore
+  app.post("/:id/report/generate", { preValidation: [authenticate] }, InterviewController.generateReport);
 }

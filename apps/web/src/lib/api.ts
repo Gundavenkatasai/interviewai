@@ -204,10 +204,34 @@ export class ApiClient {
     };
   }
 
-  static async submitAnswer(sessionId: string, data: { question_id: string; answer_text: string; code_submission?: string; duration_seconds?: number }) {
+  static async submitAnswer(sessionId: string, data: {
+    question_id: string;
+    answer_submission_id?: string;
+    answer_text?: string;
+    transcript?: string;
+    code_submission?: string;
+    duration_seconds?: number;
+    durationMs?: number;
+    startedAt?: string | number;
+    submittedAt?: string | number;
+  }) {
     return this.request<any>(`/api/interviews/${sessionId}/answers`, {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  static async skipQuestion(sessionId: string, data?: { question_id?: string; skip_reason?: string }) {
+    return this.request<any>(`/api/interviews/${sessionId}/skip`, {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    });
+  }
+
+  static async updateState(sessionId: string, state: string) {
+    return this.request<any>(`/api/interviews/${sessionId}/state`, {
+      method: "POST",
+      body: JSON.stringify({ state }),
     });
   }
 
@@ -216,6 +240,19 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify({}),
     });
+  }
+
+  static async getInterviewReport(sessionId: string) {
+    const res = await this.request<any>(`/api/interviews/${sessionId}/report`);
+    return res?.report || res?.data || res;
+  }
+
+  static async generateInterviewReport(sessionId: string) {
+    const res = await this.request<any>(`/api/interviews/${sessionId}/report/generate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    return res?.report || res?.data || res;
   }
 
   static async addQuestion(sessionId: string, data: any) {

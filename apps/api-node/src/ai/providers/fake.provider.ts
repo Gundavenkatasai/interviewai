@@ -77,6 +77,85 @@ export class FakeAIProvider implements AIProvider {
        } as any as T;
     }
 
+    if (request.task === "INTERVIEW_ANSWER_EVALUATION" || request.task === "INTERVIEW_EVALUATION") {
+      return {
+        score: 8.5,
+        correct: true,
+        dimensionScores: {
+          technicalAccuracy: 8.5,
+          relevance: 8.5,
+          completeness: 8.0,
+          depth: 8.0,
+          problemSolving: 8.5,
+          communication: 9.0,
+          structure: 8.5,
+          confidenceClarity: 8.5,
+        },
+        evidenceState: {
+          technicalAccuracy: "SUPPORTED",
+          relevance: "SUPPORTED",
+          completeness: "SUPPORTED",
+          depth: "SUPPORTED",
+          problemSolving: "SUPPORTED",
+          communication: "SUPPORTED",
+          structure: "SUPPORTED",
+          confidenceClarity: "SUPPORTED",
+        },
+        strengths: ["Strong architectural insight", "Clear multi-tiered caching design"],
+        weaknesses: ["Add concrete latency numbers for L1 vs L2 cache"],
+        evidence: ["Multi-tiered approach with Redis and PostgreSQL"],
+        missingPoints: ["Cache invalidation stamps"],
+        feedback: "Excellent structured answer showing production awareness.",
+        recommendedAnswer: "Combine local L1 cache with Redis cluster and read replicas.",
+        suggestedImprovements: ["Include benchmarks"],
+        confidence: 0.9,
+      } as any as T;
+    }
+
+    if (request.task === "INTERVIEW_FOLLOWUP_GENERATION" || request.task === "INTERVIEW_QUESTION") {
+      return {
+        questionText: "How do you handle database failover and automated replica promotion under partitioned networks?",
+        category: "technical",
+        topic: "High Availability",
+        difficulty: "hard",
+        reason: "Follow-up probing high availability",
+        expectedConcepts: ["Quorum", "Split-brain prevention", "Health checks"],
+      } as any as T;
+    }
+
+    if (request.task === "INTERVIEW_FINAL_REPORT") {
+      return {
+        overallScore: 8.6,
+        dimensionScores: {
+          technical: 8.7,
+          communication: 8.5,
+          problemSolving: 8.8,
+          relevance: 8.6,
+          completeness: 8.4,
+          depth: 8.5,
+          structure: 8.6,
+          confidence: 8.7,
+        },
+        strengths: ["Demonstrated deep understanding of distributed architectures and caching"],
+        weaknesses: ["Could include more specific latency metrics"],
+        technicalGaps: ["Cache stampede mitigation"],
+        communicationFeedback: ["Well paced and structured responses"],
+        repeatedMistakes: [],
+        topicCoverage: {
+          coveredTopics: ["Distributed Systems", "High Availability", "Architecture"],
+          weakTopics: [],
+          strongTopics: ["Distributed Systems"],
+          remainingTopics: [],
+        },
+        questionEvaluations: [],
+        recommendedTopics: ["Distributed Consensus", "Raft Protocol"],
+        recommendedQuestions: ["Explain how Raft prevents split-brain leaders during network partitions."],
+        readinessAssessment: "Ready",
+        nextBestActions: ["Review consensus protocols", "Practice system design diagrams"],
+        confidence: "HIGH",
+      } as any as T;
+    }
+
     return {} as T;
   }
 }

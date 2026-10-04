@@ -137,11 +137,29 @@ const jobSchema = new Schema<IJob>(
   { timestamps: true }
 );
 
-// Indexes
+// Production Indexes for 1,000+ Concurrent Query Optimization
 jobSchema.index({ source: 1, sourceJobId: 1 }, { unique: true });
 jobSchema.index({ country: 1, isActive: 1, sourcePostedAt: -1 });
+jobSchema.index({ isActive: 1, isIndiaJob: 1, source: 1, createdAt: -1 });
+jobSchema.index({ isActive: 1, isIndiaJob: 1, sourcePostedAt: -1, createdAt: -1, _id: -1 });
+jobSchema.index({ isActive: 1, isIndiaJob: 1, workMode: 1, createdAt: -1 });
+jobSchema.index({ isActive: 1, isIndiaJob: 1, seniority: 1, createdAt: -1 });
+jobSchema.index({ isActive: 1, isIndiaJob: 1, employmentType: 1, createdAt: -1 });
 
 export const Job = mongoose.model<IJob>("Job", jobSchema);
+
+export const viewedJobSchema = new Schema(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    userId: { type: String, ref: "User", required: true, index: true },
+    jobId: { type: String, ref: "Job", required: true, index: true },
+    viewedAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
+
+viewedJobSchema.index({ userId: 1, jobId: 1 }, { unique: true });
+export const ViewedJob = mongoose.model("ViewedJob", viewedJobSchema);
 
 export const savedJobSchema = new Schema(
   {

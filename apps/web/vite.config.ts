@@ -7,6 +7,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@interview-ai/ui': path.resolve(__dirname, '../../packages/ui/src/index.tsx'),
+      '@interview-ai/contracts': path.resolve(__dirname, '../../packages/contracts/src/index.ts'),
+      '@interview-ai/types': path.resolve(__dirname, '../../packages/types/src/index.ts'),
+      '@interview-ai/api-client': path.resolve(__dirname, '../../packages/api-client/src/index.ts'),
+      '@interview-ai/validation': path.resolve(__dirname, '../../packages/validation/src/index.ts'),
     },
   },
   server: {

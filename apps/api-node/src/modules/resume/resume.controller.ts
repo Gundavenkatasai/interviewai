@@ -39,6 +39,8 @@ import { PdfEngine } from "./pdf-engine/pdf.engine";
 import { OptimizationService, OptimizationValidator, IOptimizationProposal, IBeforeAfterReport } from "./optimization";
 import { Profile } from "../profile/profile.model";
 import { Job } from "../jobs/jobs.model";
+import { ResumeSecurity } from "./resume.security";
+import { ResumeWorkerQueue } from "./resume.queue";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -190,10 +192,10 @@ export class ResumeController {
   }
 
   /**
-   * 4. Update resume & create version snapshot
+   * 4. Update resume & handle autosave with optimistic concurrency (Phase 11 & 12)
    */
   static async updateResume(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
-    const userId = (request as any).user.sub;
+    const userId = ResumeSecurity.getUserId(request);
     const { id } = request.params;
     const body = (request.body as any) || {};
 
@@ -202,12 +204,30 @@ export class ResumeController {
       return reply.status(404).send({ success: false, message: "Resume not found" });
     }
 
-    if (body.name) resume.name = body.name;
-    if (body.targetRole) resume.targetRole = body.targetRole;
-    if (body.template) resume.template = body.template;
-    if (body.sections) resume.sections = body.sections;
-    if (body.profileData) {
-      resume.profileData = body.profileData;
+    // Optimistic Concurrency Control
+    const baseRevision = body.baseRevision !== undefined ? Number(body.baseRevision) : undefined;
+    if (baseRevision !== undefined && resume.revision !== undefined && resume.revision !== baseRevision) {
+      return reply.status(409).send({
+        success: false,
+        error: {
+          code: "VERSION_CONFLICT",
+          message: "Resume was modified in another tab or session. Please reload or review server changes before saving.",
+          serverRevision: resume.revision,
+          serverVersion: resume.version,
+          serverUpdatedAt: resume.updatedAt,
+          serverResume: resume
+        }
+      });
+    }
+
+    if (body.name !== undefined) resume.name = body.name;
+    if (body.targetRole !== undefined) resume.targetRole = body.targetRole;
+    if (body.template !== undefined) resume.template = body.template;
+    if (body.theme !== undefined) resume.theme = { ...resume.theme, ...body.theme };
+    if (body.layout !== undefined) resume.layout = { ...resume.layout, ...body.layout };
+    if (body.sections !== undefined) resume.sections = body.sections;
+    if (body.profileData !== undefined) {
+      resume.profileData = ResumeSecurity.ensureStableIds(body.profileData);
       const atsText = resume.rawText || ResumeATS.getWhatAtsSees(resume.profileData);
       const atsReport = AtsEvaluator.analyze({
         resumeText: atsText,
@@ -220,26 +240,45 @@ export class ResumeController {
       resume.atsAnalysis = analysis;
     }
 
-    const newVersion = (resume.version || 1) + 1;
-    resume.version = newVersion;
+    const nextRevision = (resume.revision || 1) + 1;
+    resume.revision = nextRevision;
     resume.updatedAt = new Date();
 
+    // Create a milestone version snapshot if requested explicitly, or every 15 autosave revisions
+    const isExplicitSnapshot = Boolean(body.createSnapshot);
+    const isMilestone = nextRevision % 15 === 0;
+    if (isExplicitSnapshot || isMilestone) {
+      const newVersion = (resume.version || 1) + 1;
+      resume.version = newVersion;
+      const snapshotObj = resume.toObject();
+      const checksum = crypto.createHash("sha256").update(JSON.stringify(snapshotObj.profileData)).digest("hex");
+
+      await ResumeVersion.create({
+        resumeId: resume._id,
+        userId,
+        versionNumber: newVersion,
+        checksum,
+        snapshot: snapshotObj,
+        atsScore: resume.atsScore,
+        targetRole: resume.targetRole,
+        name: resume.name,
+        template: resume.template,
+        theme: resume.theme,
+        layout: resume.layout,
+        changeSummary: body.changeSummary || (isExplicitSnapshot ? "Saved version checkpoint" : `Autosave milestone (rev ${nextRevision})`)
+      });
+    }
+
     await resume.save();
+    await ResumeController.logActivity(userId, resume._id, "updated", `Updated resume content (rev ${nextRevision})`);
 
-    await ResumeVersion.create({
-      resumeId: resume._id,
-      userId,
-      versionNumber: newVersion,
-      snapshot: resume.toObject(),
-      atsScore: resume.atsScore,
-      targetRole: resume.targetRole,
-      name: resume.name,
-      changeSummary: body.changeSummary || `Updated resume sections`
-    });
-
-    await ResumeController.logActivity(userId, resume._id, "updated", `Updated resume content (v${newVersion})`);
-
-    return { success: true, resume, data: resume };
+    return {
+      success: true,
+      resume,
+      data: resume,
+      revision: resume.revision,
+      version: resume.version
+    };
   }
 
   /**
@@ -327,7 +366,7 @@ export class ResumeController {
   }
 
   /**
-   * 8. Upload & parse resume file (PDF, DOCX, TXT) with scanned PDF detection
+   * 8. Upload & parse resume file (PDF, DOCX, TXT) with magic-byte security and worker backpressure
    */
   static async uploadResume(request: FastifyRequest, reply: FastifyReply) {
     const file = await request.file();
@@ -335,107 +374,129 @@ export class ResumeController {
       return reply.status(400).send({ success: false, message: "No file uploaded" });
     }
 
-    const userId = (request as any).user.sub;
-    const uploadDir = path.join(__dirname, "../../../uploads", userId);
+    const userId = ResumeSecurity.getUserId(request);
+    const buffer = await file.toBuffer();
+
+    // Magic-byte and signature validation (anti-spoofing, anti-zip bomb, path traversal protection)
+    const validation = await ResumeSecurity.validateUpload(buffer, file.filename, file.mimetype);
+    if (!validation.isValid) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "INVALID_FILE",
+          message: validation.error || "Uploaded file failed security validation."
+        }
+      });
+    }
+
+    const uploadDir = path.join(process.cwd(), "uploads", userId);
     fs.mkdirSync(uploadDir, { recursive: true });
 
-    const filePath = path.join(uploadDir, file.filename);
-    const buffer = await file.toBuffer();
-    
-    // Hash document for duplicate detection
-    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-    
+    const safeStoragePath = path.join(uploadDir, validation.storageFilename);
+    const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+
     let resumeDoc = await ResumeDocument.findOne({ userId, hash });
     let isDuplicate = false;
 
     if (!resumeDoc) {
-      await fs.promises.writeFile(filePath, buffer);
+      await fs.promises.writeFile(safeStoragePath, buffer);
       resumeDoc = await ResumeDocument.create({
         userId,
-        filename: file.filename,
+        filename: validation.sanitizedFilename,
         mimeType: file.mimetype || "application/octet-stream",
         hash,
-        storagePath: filePath,
-        parserVersion: "1.0",
-        schemaVersion: "1.0"
+        storagePath: safeStoragePath,
+        parserVersion: "2.0",
+        schemaVersion: "2.0"
       });
     } else {
       isDuplicate = true;
     }
 
-    // Create an import tracking record
+    // Create import record
     const resumeImport = await ResumeImport.create({
       userId,
       sourceDocumentId: resumeDoc._id,
       status: "processing",
-      parserVersion: "1.0",
+      parserVersion: "2.0",
       duplicateOf: isDuplicate ? resumeDoc._id : undefined
     });
 
     try {
-      // Text extraction with scanned PDF detection
-      const { text, isScanned, warnings } = await ResumeParser.extractRawText(buffer, file.mimetype || file.filename);
+      // Execute document parsing through bounded worker queue to prevent memory/CPU exhaustion
+      const parseResult = await ResumeWorkerQueue.getInstance().add(
+        "PARSE",
+        userId,
+        { buffer, filename: validation.sanitizedFilename, mimetype: file.mimetype },
+        async (payload) => {
+          const { text, isScanned, warnings } = await ResumeParser.extractRawText(payload.buffer, payload.mimetype || payload.filename);
+          const { profileData, confidence, confidenceMessage } = ResumeParser.parseTextToResume(text, payload.filename);
+          const atsReport = AtsEvaluator.analyze({
+            resumeText: text,
+            roleName: "Software Engineer",
+            roleCategory: "software-engineering",
+            fileName: payload.filename
+          });
+          const { score, analysis } = ResumeATS.mapAtsReportToAnalysis(atsReport);
+          return { text, isScanned, warnings, profileData, confidence, confidenceMessage, score, analysis };
+        },
+        { priority: 20, timeoutMs: 45000, idempotencyKey: `upload_${userId}_${hash}` }
+      );
 
-      // Section parsing
-      const { profileData, confidence, confidenceMessage } = ResumeParser.parseTextToResume(text, file.filename);
-      const atsReport = AtsEvaluator.analyze({
-        resumeText: text,
-        roleName: "Software Engineer",
-        roleCategory: "software-engineering",
-        fileName: file.filename
-      });
-      const { score, analysis } = ResumeATS.mapAtsReportToAnalysis(atsReport);
-
-      const resumeName = file.filename.replace(/\.[^/.]+$/, "") || "Imported Resume";
-      const fileType = file.mimetype.includes("pdf") ? "pdf" : file.mimetype.includes("word") ? "docx" : "txt";
+      const resumeName = validation.sanitizedFilename.replace(/\.[^/.]+$/, "") || "Imported Resume";
+      const sanitizedProfileData = ResumeSecurity.ensureStableIds(parseResult.profileData);
 
       const resume = await Resume.create({
         userId,
         name: resumeName,
         targetRole: "Software Engineer",
-        filename: file.filename,
-        fileType,
+        filename: validation.sanitizedFilename,
+        fileType: validation.fileType,
         storagePath: resumeDoc.storagePath,
-        rawText: text,
-        isScanned,
+        rawText: parseResult.text,
+        isScanned: parseResult.isScanned,
         sourceDocumentId: resumeDoc._id,
-        parsingStatus: confidence === "low" ? "partial" : "completed",
+        parsingStatus: parseResult.confidence === "low" ? "partial" : "completed",
         verificationStatus: "reviewing",
-        profileData,
-        atsScore: score,
-        atsAnalysis: analysis,
-        version: 1
+        profileData: sanitizedProfileData,
+        atsScore: parseResult.score,
+        atsAnalysis: parseResult.analysis,
+        version: 1,
+        revision: 1
       });
 
-      // Link import to resume
       resumeImport.resumeId = resume._id;
       resumeImport.status = "success";
-      resumeImport.warnings = warnings;
+      resumeImport.warnings = parseResult.warnings;
       await resumeImport.save();
+
+      const snapshotObj = resume.toObject();
+      const checksum = crypto.createHash("sha256").update(JSON.stringify(snapshotObj.profileData)).digest("hex");
 
       await ResumeVersion.create({
         resumeId: resume._id,
         userId,
         versionNumber: 1,
-        snapshot: resume.toObject(),
-        atsScore: score,
+        checksum,
+        snapshot: snapshotObj,
+        atsScore: parseResult.score,
         targetRole: "Software Engineer",
         name: resumeName,
-        changeSummary: `Uploaded and parsed from ${file.filename}`
+        changeSummary: `Uploaded and verified from ${validation.sanitizedFilename}`
       });
 
-      await ResumeController.logActivity(userId, resume._id, "uploaded", `Uploaded resume file "${file.filename}"`);
+      await ResumeController.logActivity(userId, resume._id, "uploaded", `Uploaded resume file "${validation.sanitizedFilename}"`);
 
       return {
         success: true,
         resume,
         data: resume,
-        isScanned,
-        confidence,
-        confidenceMessage,
-        warnings,
-        score,
-        analysis
+        isScanned: parseResult.isScanned,
+        confidence: parseResult.confidence,
+        confidenceMessage: parseResult.confidenceMessage,
+        warnings: parseResult.warnings,
+        score: parseResult.score,
+        analysis: parseResult.analysis
       };
     } catch (err: any) {
       resumeImport.status = "failed";
@@ -774,13 +835,13 @@ export class ResumeController {
   }
 
   /**
-   * 22. Restore a previous version snapshot safely
+   * 22. Restore a previous version snapshot safely (creates a NEW version, preserves history)
    */
   static async restoreVersion(
     request: FastifyRequest<{ Params: { id: string; versionId: string } }>,
     reply: FastifyReply
   ) {
-    const userId = (request as any).user.sub;
+    const userId = ResumeSecurity.getUserId(request);
     const { id, versionId } = request.params;
 
     const version = await ResumeVersion.findOne({ _id: versionId, resumeId: id, userId });
@@ -794,10 +855,12 @@ export class ResumeController {
     }
 
     const snapshot = version.snapshot;
-    if (snapshot.profileData) resume.profileData = snapshot.profileData;
+    if (snapshot.profileData) resume.profileData = ResumeSecurity.ensureStableIds(snapshot.profileData);
     if (snapshot.targetRole) resume.targetRole = snapshot.targetRole;
     if (snapshot.template) resume.template = snapshot.template;
     if (snapshot.sections) resume.sections = snapshot.sections;
+    if (snapshot.theme) resume.theme = snapshot.theme;
+    if (snapshot.layout) resume.layout = snapshot.layout;
 
     const atsText = resume.rawText || ResumeATS.getWhatAtsSees(resume.profileData);
     const atsReport = AtsEvaluator.analyze({
@@ -810,24 +873,38 @@ export class ResumeController {
     resume.atsScore = score;
     resume.atsAnalysis = analysis;
     resume.version = (resume.version || 1) + 1;
+    resume.revision = (resume.revision || 1) + 1;
     resume.updatedAt = new Date();
 
     await resume.save();
+
+    const newSnapshotObj = resume.toObject();
+    const checksum = crypto.createHash("sha256").update(JSON.stringify(newSnapshotObj.profileData)).digest("hex");
 
     await ResumeVersion.create({
       resumeId: resume._id,
       userId,
       versionNumber: resume.version,
-      snapshot: resume.toObject(),
+      parentVersionId: version._id,
+      checksum,
+      snapshot: newSnapshotObj,
       atsScore: score,
       targetRole: resume.targetRole,
       name: `${resume.name} (Restored v${version.versionNumber})`,
+      template: resume.template,
+      theme: resume.theme,
+      layout: resume.layout,
       changeSummary: `Restored from version ${version.versionNumber}`
     });
 
     await ResumeController.logActivity(userId, resume._id, "restored", `Restored version v${version.versionNumber}`);
 
-    return { success: true, message: `Version ${version.versionNumber} restored successfully`, resume };
+    return {
+      success: true,
+      message: `Version ${version.versionNumber} restored successfully`,
+      resume,
+      data: resume
+    };
   }
 
   /**
@@ -3054,9 +3131,10 @@ export class ResumeController {
   // ==========================================
 
   static async generateArtifact(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
-    const userId = (request as any).user?.sub || (request as any).user?.id || `guest_${crypto.randomUUID().slice(0, 8)}`;
+    const userId = ResumeSecurity.getUserId(request);
     const { id } = request.params;
     const { templateId, pageSize = "A4", format = "PDF" } = (request.body as any) || {};
+    const idempotencyKey = (request.headers["x-idempotency-key"] as string) || `art_${id}_${templateId}_${format}`;
 
     const resume = await Resume.findOne({ _id: id, userId });
     if (!resume) {
@@ -3068,67 +3146,96 @@ export class ResumeController {
       return reply.status(400).send({ success: false, message: "Invalid template ID" });
     }
 
-    // Convert canonical data to render model
-    const renderDoc = buildRenderDocument(resume.profileData, resume.sections);
-
-    let buffer: Buffer;
-    let artifactHash: string;
     try {
-      if (format === "DOCX") {
-        buffer = await DocxRenderer.render(renderDoc, templateId, pageSize);
-      } else {
-        buffer = await PdfRenderer.render(renderDoc, templateId, pageSize);
-      }
-      artifactHash = crypto.createHash("sha256").update(buffer).digest("hex");
+      const artifact = await ResumeWorkerQueue.getInstance().add(
+        "ARTIFACT_GEN",
+        userId,
+        { resume, templateDef, templateId, pageSize, format },
+        async (payload) => {
+          const renderDoc = buildRenderDocument(payload.resume.profileData, payload.resume.sections);
+          let buffer: Buffer;
+
+          if (payload.format === "DOCX") {
+            buffer = await DocxRenderer.render(renderDoc, payload.templateId, payload.pageSize);
+          } else {
+            buffer = await PdfRenderer.render(renderDoc, payload.templateId, payload.pageSize);
+          }
+
+          // Artifact validation (Phase 37: verify non-empty and valid structural header)
+          if (!buffer || buffer.length < 100) {
+            throw new Error("Generated artifact is empty or truncated.");
+          }
+
+          if (payload.format === "PDF" && (buffer[0] !== 0x25 || buffer[1] !== 0x50)) {
+            throw new Error("Generated PDF artifact failed magic header validation.");
+          }
+
+          if (payload.format === "DOCX" && (buffer[0] !== 0x50 || buffer[1] !== 0x4B)) {
+            throw new Error("Generated DOCX artifact failed ZIP signature validation.");
+          }
+
+          const artifactHash = crypto.createHash("sha256").update(buffer).digest("hex");
+          const artifactsDir = path.join(process.cwd(), "uploads", "artifacts");
+          if (!fs.existsSync(artifactsDir)) {
+            fs.mkdirSync(artifactsDir, { recursive: true });
+          }
+
+          const storageKey = `${userId}_${payload.resume._id}_${Date.now()}.${payload.format.toLowerCase()}`;
+          const filePath = path.join(artifactsDir, storageKey);
+          await fs.promises.writeFile(filePath, buffer);
+
+          let validationStatus: any = { parsing: "Good", structure: "Good", formattingRisk: "Low" };
+          try {
+            const { text } = await ResumeParser.extractRawText(
+              buffer,
+              payload.format === "PDF"
+                ? "application/pdf"
+                : "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            );
+            if (text && text.length > 50) {
+              const analysis = await AtsEvaluator.analyze({ resumeText: text });
+              validationStatus = {
+                parsing: "Good",
+                structure: (analysis.categoryScores?.structure || 0) > 70 ? "Good" : "Warning",
+                formattingRisk: payload.templateDef.atsProfile?.riskLevel || "Low"
+              };
+            }
+          } catch (valErr) {
+            validationStatus = { parsing: "Warning", structure: "Warning", formattingRisk: "Unknown" };
+          }
+
+          const createdArtifact = await ResumeArtifact.create({
+            userId,
+            resumeId: payload.resume._id,
+            resumeVersionId: (payload.resume.version || 1).toString(),
+            templateId: payload.templateId,
+            templateVersion: payload.templateDef.version || "1.0",
+            pageSize: payload.pageSize,
+            artifactType: payload.format,
+            rendererVersion: "2.0",
+            storageKey,
+            artifactHash,
+            fileSize: buffer.length,
+            status: "READY",
+            atsValidationStatus: validationStatus
+          });
+
+          return createdArtifact;
+        },
+        { priority: 15, timeoutMs: 30000, idempotencyKey }
+      );
+
+      return { success: true, artifact };
     } catch (e: any) {
       console.error("[generateArtifact] Rendering failed:", e);
-      return reply.status(500).send({ success: false, message: "Failed to generate artifact", error: e.message });
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "ARTIFACT_GENERATION_FAILED",
+          message: e.message || "Failed to generate artifact"
+        }
+      });
     }
-
-    // Save to disk temporarily
-    const artifactsDir = path.join(process.cwd(), "uploads", "artifacts");
-    if (!fs.existsSync(artifactsDir)) {
-      fs.mkdirSync(artifactsDir, { recursive: true });
-    }
-    const storageKey = `${userId}_${resume._id}_${Date.now()}.${format.toLowerCase()}`;
-    const filePath = path.join(artifactsDir, storageKey);
-    fs.writeFileSync(filePath, buffer);
-
-    // Validate with ATS Evaluator (Day 8 reuse)
-    let validationStatus: any = null;
-    let atsScanId: string | undefined = undefined;
-    try {
-      const { text } = await ResumeParser.extractRawText(buffer, "application/" + (format === "PDF" ? "pdf" : "vnd.openxmlformats-officedocument.wordprocessingml.document"));
-      if (text && text.length > 50) {
-         const analysis = await AtsEvaluator.analyze({ resumeText: text });
-         validationStatus = {
-           parsing: "Good", // Removed confidence check
-           structure: (analysis.categoryScores?.structure || 0) > 70 ? "Good" : "Warning",
-           formattingRisk: templateDef.atsProfile.riskLevel
-         };
-         // Note: We don't save a full ATS report to DB for every generated template to save space, just the validation status.
-      }
-    } catch (e) {
-      console.warn("[generateArtifact] ATS validation failed", e);
-      validationStatus = { parsing: "Failed", structure: "Failed", formattingRisk: "Unknown" };
-    }
-
-    const artifact = await ResumeArtifact.create({
-      userId,
-      resumeId: resume._id,
-      resumeVersionId: resume.version.toString(),
-      templateId,
-      templateVersion: templateDef.version,
-      pageSize,
-      artifactType: format,
-      rendererVersion: "1.0",
-      storageKey,
-      artifactHash,
-      atsValidationStatus: validationStatus,
-      atsScanId
-    });
-
-    return { success: true, artifact };
   }
 
   static async getArtifacts(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {

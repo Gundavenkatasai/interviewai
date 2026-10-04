@@ -19,13 +19,13 @@ window.addEventListener('error', (event) => {
 });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-    <HelmetProvider>
-      <BrowserRouter>
-        <ReactQueryProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </ReactQueryProvider>
-      </BrowserRouter>
-    </HelmetProvider>,
+  <HelmetProvider>
+    <BrowserRouter>
+      <ReactQueryProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ReactQueryProvider>
+    </BrowserRouter>
+  </HelmetProvider>,
 )

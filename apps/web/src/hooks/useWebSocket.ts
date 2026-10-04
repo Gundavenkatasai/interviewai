@@ -6,6 +6,9 @@ export interface WebSocketEvent {
   sequence: number;
   type: string;
   timestamp: string;
+  sessionId?: string;
+  stateVersion?: number;
+  questionId?: string;
   correlationId?: string;
   payload?: any;
 }

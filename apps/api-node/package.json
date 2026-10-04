@@ -9,8 +9,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "seed:e2e": "NODE_ENV=test tsx tests/seed/e2e-seed.ts",
-    "scrape": "tsx src/scripts/run-scraper.ts",
-    "test": "vitest run tests/docx-preservation.test.ts tests/structure-preservation.test.ts tests/optimization-pipeline.test.ts tests/resume-ats.test.ts tests/critical-e2e-preservation.test.ts"
+    "test": "vitest run tests/docx-preservation.test.ts tests/structure-preservation.test.ts tests/optimization-pipeline.test.ts tests/resume-ats.test.ts tests/critical-e2e-preservation.test.ts tests/resume-production-hardening.test.ts",
+    "test:load": "tsx scripts/run-resume-load-test.ts"
   },
   "keywords": [],
   "type": "commonjs",

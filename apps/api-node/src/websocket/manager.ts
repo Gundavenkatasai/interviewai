@@ -28,7 +28,6 @@ export class WebSocketManager {
   }
 
   static addConnection(sessionId: string, socket: WebSocket) {
-    // If an existing connection is there, close it to enforce single-tab authority
     const existing = this.connections.get(sessionId);
     if (existing && existing.socket.readyState === WebSocket.OPEN) {
       existing.socket.close(1008, "New connection established from another tab");
@@ -65,17 +64,31 @@ export class WebSocketManager {
     sessionId: string,
     eventType: string,
     payload?: any,
+    questionId?: string,
     correlationId?: string
   ) {
     const meta = this.connections.get(sessionId);
     if (meta && meta.socket.readyState === WebSocket.OPEN) {
-      // Get the latest sequence from the database or just use in-memory sequence for performance.
-      // We will increment and save it asynchronously to avoid blocking the event loop.
       meta.sequence += 1;
-      
+
+      // Asynchronously fetch current state version
+      let stateVersion = 1;
+      try {
+        const sess = await InterviewSession.findById(sessionId).select("stateVersion currentQuestionId");
+        if (sess) {
+          stateVersion = sess.stateVersion || 1;
+          if (!questionId && sess.currentQuestionId) {
+            questionId = sess.currentQuestionId;
+          }
+        }
+      } catch (_) {}
+
       const event: ServerEvent = {
-        sequence: meta.sequence,
         type: eventType,
+        sessionId,
+        sequence: meta.sequence,
+        stateVersion,
+        questionId,
         timestamp: new Date().toISOString(),
         correlationId,
         payload,
@@ -83,7 +96,6 @@ export class WebSocketManager {
 
       meta.socket.send(JSON.stringify(event));
 
-      // Asynchronously update sequence in db
       InterviewSession.updateOne(
         { _id: sessionId },
         { lastSequence: meta.sequence }
@@ -96,8 +108,10 @@ export class WebSocketManager {
       if (meta.socket.readyState === WebSocket.OPEN) {
         meta.sequence += 1;
         const event: ServerEvent = {
-          sequence: meta.sequence,
           type: eventType,
+          sessionId,
+          sequence: meta.sequence,
+          stateVersion: 1,
           timestamp: new Date().toISOString(),
           payload,
         };

@@ -125,8 +125,8 @@ export class LinkedInBackendManager {
          return { jobs: [], hasNextPage: false, totalFetched: 0, stoppedReason };
       }
 
-      const listings = await page.$$eval('ul.jobs-search__results-list li', (elements) => {
-        return elements.map(el => {
+      const listings = await page.$$eval('ul.jobs-search__results-list li', (elements: any[]) => {
+        return elements.map((el: any) => {
           const titleEl = el.querySelector('h3.base-search-card__title');
           const title = titleEl?.textContent?.trim() || 'Unknown Title';
           

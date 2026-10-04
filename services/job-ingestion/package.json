@@ -1,0 +1,16 @@
+{
+  "name": "@interview-ai/job-ingestion",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@interview-ai/logger": "*",
+    "@interview-ai/types": "*",
+    "@interview-ai/validation": "*",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

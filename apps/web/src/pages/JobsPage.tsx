@@ -149,18 +149,30 @@ function TrustScoreBadge({ score }: { score: number }) {
 }
 
 function SourceBadge({ source }: { source: string }) {
+  const s = source || "UNKNOWN";
   const colors: Record<string, string> = {
     linkedin: "bg-blue-600/10 text-blue-400 border-blue-500/20",
+    indeed: "bg-indigo-600/10 text-indigo-400 border-indigo-500/20",
     naukri: "bg-red-500/10 text-red-400 border-red-500/20",
+    internshala: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
     instahyre: "bg-violet-500/10 text-violet-400 border-violet-500/20",
     cutshort: "bg-pink-500/10 text-pink-400 border-pink-500/20",
-    foundit: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    wellfound: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    foundit: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    hirist: "bg-teal-500/10 text-teal-400 border-teal-500/20",
+    shine: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+    timesjobs: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    glassdoor: "bg-green-500/10 text-green-400 border-green-500/20",
+    greenhouse: "bg-emerald-600/10 text-emerald-400 border-emerald-600/20",
+    lever: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    ashby: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+    unknown: "bg-slate-800 text-slate-500 border-slate-700",
     default: "bg-slate-800 text-slate-400 border-slate-700",
   };
-  const cls = colors[source?.toLowerCase()] || colors.default;
+  const cls = colors[s.toLowerCase()] || colors.default;
   return (
     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${cls}`}>
-      {source || "India"}
+      {s}
     </span>
   );
 }
@@ -233,9 +245,15 @@ function JobCard({
             <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
               <SourceBadge source={job.source} />
               {job.duplicate_sources?.length > 0 && job.duplicate_sources
-                .filter((dup: any) => dup.source !== job.source)
+                .filter((dup: any) => dup.source && dup.source.toLowerCase() !== (job.source || "").toLowerCase())
                 .map((dup: any, i: number) => (
-                  <SourceBadge key={`${dup.source}-${i}`} source={dup.source} />
+                  <span
+                    key={`${dup.source}-${i}`}
+                    className="px-1.5 py-0.5 rounded text-[9px] font-semibold text-slate-400 bg-slate-800/80 border border-slate-700/60"
+                    title={`Also found on ${dup.source}`}
+                  >
+                    +{dup.source}
+                  </span>
                 ))}
               <WorkModeBadge mode={job.work_mode} />
               {job.match_score != null && <MatchScoreBadge score={Math.round(job.match_score)} />}
@@ -604,7 +622,12 @@ export default function JobsPage() {
   const [postedDays, setPostedDays] = useState(getParam("posted_days"));
   const [skills, setSkills] = useState<string[]>(getArrayParam("skills"));
   const [company, setCompany] = useState(getParam("company"));
-  const [sources, setSources] = useState<string[]>(getArrayParam("sources") || getArrayParam("source"));
+  const getInitialSources = () => {
+    const s = getArrayParam("sources");
+    if (s.length > 0) return s;
+    return getArrayParam("source");
+  };
+  const [sources, setSources] = useState<string[]>(getInitialSources);
   const [matchScore, setMatchScore] = useState(getParam("match_score"));
   const [trustScore, setTrustScore] = useState(getParam("trust_score"));
   const [sort, setSort] = useState(getParam("sort", "newest"));
@@ -639,6 +662,23 @@ export default function JobsPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Bi-directional synchronization for browser Back / Forward buttons and deep-linking
+  useEffect(() => {
+    const urlSources = searchParams.get("sources")?.split(",").filter(Boolean)
+      || searchParams.get("source")?.split(",").filter(Boolean) || [];
+    if (urlSources.join(",") !== sources.join(",")) {
+      setSources(urlSources);
+    }
+    const urlSearch = searchParams.get("search") || "";
+    if (urlSearch !== search) setSearch(urlSearch);
+    const urlLocation = searchParams.get("location") || "";
+    if (urlLocation !== location) setLocation(urlLocation);
+    const urlSort = searchParams.get("sort") || "newest";
+    if (urlSort !== sort) setSort(urlSort);
+    const urlPage = parseInt(searchParams.get("page") || "1") || 1;
+    if (urlPage !== page) setPage(urlPage);
+  }, [searchParams]);
+
   // Build query params
   const buildParams = useCallback(() => {
     const p: Record<string, string> = {};
@@ -655,6 +695,7 @@ export default function JobsPage() {
     if (skills.length) p.skills = skills.join(",");
     if (company) p.company = company;
     if (sources.length) {
+      p.sources = sources.join(",");
       p.source = sources.join(",");
     }
     if (matchScore) p.match_score = matchScore;
@@ -975,6 +1016,48 @@ export default function JobsPage() {
             );
           })}
         </div>
+
+        {/* Platform / Source Quick Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
+          <span className="text-slate-500 font-semibold shrink-0 text-[11px] uppercase tracking-wider flex items-center gap-1">
+            <Building2 className="w-3 h-3 text-cyan-400" /> Platform:
+          </span>
+          {(jobSourcesData?.sources || []).map((s: any) => {
+            const key = (s.key || s.name || "").toLowerCase();
+            const label = s.label || s.name;
+            const count = counts.sources?.[key] ?? counts.sources?.[s.key] ?? counts.sources?.[s.name];
+            const isSelected = sources.map((x: string) => x.toLowerCase()).includes(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setSources(prev => {
+                    const normalized = prev.map((x: string) => x.toLowerCase());
+                    if (normalized.includes(key)) {
+                      return prev.filter((x: string) => x.toLowerCase() !== key);
+                    } else {
+                      return [...prev, key];
+                    }
+                  });
+                  setPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isSelected
+                    ? "bg-indigo-600 text-white font-bold shadow-sm shadow-indigo-600/30 ring-1 ring-indigo-400"
+                    : "bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800"
+                }`}
+              >
+                <span>{label}</span>
+                {count != null && count > 0 ? (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isSelected ? "bg-white/20 text-white" : "bg-slate-800 text-slate-400"}`}>
+                    {count}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Active Filter Badges ── */}
@@ -1153,8 +1236,7 @@ export default function JobsPage() {
               <PillGroup
                 options={(jobSourcesData?.sources || []).map((s: any) => ({ 
                   value: s.key?.toLowerCase() || s.name?.toLowerCase(), 
-                  label: s.status === 'restricted' ? `${s.label || s.name} (Restricted)` : (s.label || s.name),
-                  disabled: s.status === 'restricted'
+                  label: s.label || s.name,
                 }))}
                 selected={sources}
                 onChange={v => { setSources(v); setPage(1); }}
@@ -1201,11 +1283,19 @@ export default function JobsPage() {
       ) : jobs.length === 0 ? (
         <div className="min-h-[40vh] flex flex-col items-center justify-center gap-4 text-center p-8 rounded-3xl bg-slate-900/40 border border-slate-800">
           <Briefcase className="w-12 h-12 text-slate-600" />
-          <h3 className="text-base font-bold text-white">No Matching India Jobs Found</h3>
+          <h3 className="text-base font-bold text-white">
+            {sources.length > 0 
+              ? `No Jobs Found from ${sources.map((s: string) => s.toUpperCase()).join(", ")}`
+              : activeFilters.length > 0 
+                ? "No Jobs Match Your Filters" 
+                : "No Jobs Found"}
+          </h3>
           <p className="text-sm text-slate-400 max-w-sm">
-            {activeFilters.length > 0
-              ? "Try relaxing or clearing some of your filters to see more results."
-              : "Sync jobs to fetch the latest Indian tech opportunities."}
+            {sources.length > 0
+              ? `We didn't find any active India tech openings from the selected platform(s). We ingest new jobs regularly or you can clear this filter to view all available sources.`
+              : activeFilters.length > 0
+                ? "Try relaxing or clearing some of your filters to see more results."
+                : "Sync jobs to fetch the latest Indian tech opportunities."}
           </p>
           <div className="flex items-center gap-3 pt-2">
             {activeFilters.length > 0 && (

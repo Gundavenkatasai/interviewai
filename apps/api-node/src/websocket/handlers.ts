@@ -2,14 +2,17 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { WebSocket } from "ws";
 import { WebSocketManager } from "./manager";
 import { ClientEventSchema } from "./types";
-import { InterviewSession, InterviewQuestion } from "../modules/interview/interview.model";
+import {
+  InterviewSession,
+  InterviewQuestion,
+  InterviewState,
+  VALID_STATE_TRANSITIONS,
+} from "../modules/interview/interview.model";
 
-// Simple in-memory LRU for deduplicating client event IDs
 const processedEvents = new Set<string>();
 function isDuplicate(eventId: string): boolean {
   if (processedEvents.has(eventId)) return true;
   processedEvents.add(eventId);
-  // Keep set size manageable
   if (processedEvents.size > 10000) {
     const iterator = processedEvents.values();
     for (let i = 0; i < 1000; i++) {
@@ -21,104 +24,97 @@ function isDuplicate(eventId: string): boolean {
 }
 
 export async function websocketRoutes(app: FastifyInstance) {
-  app.get("/ws/interview/:sessionId", { websocket: true }, async (connection: WebSocket, req: FastifyRequest<{ Params: { sessionId: string } }>) => {
-    const { sessionId } = req.params;
-    
-    try {
-      // Decode JWT token to verify authentication
-      const token = (req.query as any)?.token || req.cookies?.token || req.headers?.authorization?.replace("Bearer ", "");
-      if (!token) {
-        console.error("WS Auth Failed: No token provided", { query: req.query, headers: req.headers });
-        connection.close(1008, "Unauthorized: No token provided");
-        return;
-      }
-      
-      const decoded = app.jwt.verify(token);
-      if (!decoded) {
-        console.error("WS Auth Failed: Invalid token", token);
-        connection.close(1008, "Unauthorized: Invalid token");
-        return;
-      }
-      
-      // Additional check: Does the user own this session?
-      const session = await InterviewSession.findOne({ _id: sessionId, userId: (decoded as any).sub });
-      if (!session) {
-        console.error("WS Auth Failed: Session not found or owned by user", { sessionId, userId: (decoded as any).sub });
-        connection.close(1008, "Unauthorized: Session not found or owned by user");
-        return;
-      }
+  app.get(
+    "/ws/interview/:sessionId",
+    { websocket: true },
+    async (connection: WebSocket, req: FastifyRequest<{ Params: { sessionId: string } }>) => {
+      const { sessionId } = req.params;
 
-      console.log("WS Auth Success: Connected session", sessionId);
-
-      WebSocketManager.addConnection(sessionId, connection);
-
-      connection.on("message", async (message: string) => {
-        try {
-          const rawData = JSON.parse(message);
-          
-          // Zod Validation
-          const parsed = ClientEventSchema.safeParse(rawData);
-          if (!parsed.success) {
-            WebSocketManager.sendToSession(sessionId, "ERROR", { 
-              code: "INVALID_EVENT", 
-              message: "Event does not match expected schema",
-              errors: parsed.error.issues
-            });
-            return;
-          }
-
-          const clientEvent = parsed.data;
-
-          // Deduplication
-          if (isDuplicate(clientEvent.eventId)) {
-            // Drop duplicate
-            return;
-          }
-
-          // In standard Fastify hooks context isn't preserved here, so we pass dependencies directly
-          await handleMessage(sessionId, clientEvent, session.userId);
-        } catch (err) {
-          console.error("Failed to parse websocket message", err);
+      try {
+        const token =
+          (req.query as any)?.token ||
+          req.cookies?.token ||
+          req.headers?.authorization?.replace("Bearer ", "");
+        if (!token) {
+          connection.close(1008, "Unauthorized: No token provided");
+          return;
         }
-      });
-    } catch (error) {
-      console.error("WS Auth Exception:", error);
-      connection.close(1008, "Unauthorized: Token verification failed");
+
+        const decoded = app.jwt.verify(token);
+        if (!decoded) {
+          connection.close(1008, "Unauthorized: Invalid token");
+          return;
+        }
+
+        const session = await InterviewSession.findOne({ _id: sessionId, userId: (decoded as any).sub });
+        if (!session) {
+          connection.close(1008, "Unauthorized: Session not found or owned by user");
+          return;
+        }
+
+        WebSocketManager.addConnection(sessionId, connection);
+
+        connection.on("message", async (message: string) => {
+          try {
+            const rawData = JSON.parse(message);
+            const parsed = ClientEventSchema.safeParse(rawData);
+            if (!parsed.success) {
+              WebSocketManager.sendToSession(sessionId, "ERROR", {
+                code: "INVALID_EVENT",
+                message: "Event does not match expected schema",
+                errors: parsed.error.issues,
+              });
+              return;
+            }
+
+            const clientEvent = parsed.data;
+            const eventKey = clientEvent.eventId || `${clientEvent.type}_${Date.now()}`;
+            if (isDuplicate(eventKey)) {
+              return;
+            }
+
+            await handleMessage(sessionId, clientEvent, session.userId);
+          } catch (err) {
+            console.error("Failed to parse websocket message", err);
+          }
+        });
+      } catch (error) {
+        console.error("WS Auth Exception:", error);
+        connection.close(1008, "Unauthorized: Token verification failed");
+      }
     }
-  });
+  );
 }
 
 async function handleMessage(sessionId: string, clientEvent: any, userId: string) {
-  const { type, payload, eventId } = clientEvent;
-  
+  const { type, payload, eventId, stateVersion } = clientEvent;
+
   switch (type) {
     case "STATE_SYNC_REQUEST":
       await handleStateSync(sessionId, userId, eventId);
       break;
 
     case "AI_SPEAKING_STARTED":
-      await updateStateIfValid(sessionId, ["setup", "SETUP", "ready", "READY", "CANDIDATE_READY", "CREATED", "GENERATING_NEXT"], "speaking", "AI_SPEAKING", eventId);
+      await transitionState(sessionId, "AI_SPEAKING", eventId);
       break;
 
+    case "AI_SPEAKING_COMPLETED":
     case "CANDIDATE_READY":
-      // Valid transition from SETUP/AI_SPEAKING/EVALUATING/GENERATING_NEXT to CANDIDATE_READY
-      await updateStateIfValid(sessionId, ["setup", "SETUP", "AI_SPEAKING", "CREATED", "EVALUATING", "GENERATING_NEXT"], "ready", "CANDIDATE_READY", eventId);
+      await transitionState(sessionId, "CANDIDATE_READY", eventId);
       break;
-      
+
     case "CANDIDATE_SPEAKING_STARTED":
-      await updateStateIfValid(sessionId, ["ready", "READY", "CANDIDATE_READY"], "speaking", "CANDIDATE_SPEAKING", eventId);
+      await transitionState(sessionId, "CANDIDATE_SPEAKING", eventId);
       break;
 
+    case "TRANSCRIPT_UPDATE":
     case "TRANSCRIPT_PARTIAL":
-      // Optional: Broadcast back to other potential viewers, but normally just ignored or logged
-      break;
-
     case "TRANSCRIPT_FINAL":
-      // Save transcript chunk directly to DB if needed
+      // Echo or log if needed
       break;
 
     case "PING":
-      // Answered automatically by ws module 'pong' or explicitly here
+      await WebSocketManager.sendToSession(sessionId, "PONG", {}, undefined, eventId);
       break;
 
     default:
@@ -126,7 +122,7 @@ async function handleMessage(sessionId: string, clientEvent: any, userId: string
   }
 }
 
-async function handleStateSync(sessionId: string, userId: string, correlationId: string) {
+async function handleStateSync(sessionId: string, userId: string, correlationId?: string) {
   try {
     const session = await InterviewSession.findOne({ _id: sessionId, userId });
     if (!session) return;
@@ -135,56 +131,62 @@ async function handleStateSync(sessionId: string, userId: string, correlationId:
     const currentQuestion = questions[session.currentQuestionIndex || 0];
 
     const syncPayload = {
-      state: session.state, // the detailed frontend state
-      status: session.status, // the high level backend state
+      state: session.state,
+      status: session.status,
       stateVersion: session.stateVersion,
       currentQuestionIndex: session.currentQuestionIndex,
-      currentQuestion: currentQuestion ? {
-        id: currentQuestion._id,
-        _id: currentQuestion._id,
-        question_id: currentQuestion._id,
-        question_text: currentQuestion.questionText,
-        questionText: currentQuestion.questionText,
-      } : null,
-      totalQuestions: questions.length,
+      currentQuestion: currentQuestion
+        ? {
+            id: currentQuestion._id,
+            _id: currentQuestion._id,
+            question_id: currentQuestion._id,
+            question_text: currentQuestion.questionText,
+            questionText: currentQuestion.questionText,
+            category: currentQuestion.category,
+            difficulty: currentQuestion.difficulty,
+          }
+        : null,
+      totalQuestions: session.maxQuestions || questions.length,
       elapsedSeconds: session.elapsedSeconds,
       score: session.score,
     };
 
-    await WebSocketManager.sendToSession(sessionId, "STATE_SYNC_RESPONSE", syncPayload, correlationId);
+    await WebSocketManager.sendToSession(
+      sessionId,
+      "STATE_SYNC_RESPONSE",
+      syncPayload,
+      currentQuestion?._id,
+      correlationId
+    );
   } catch (error) {
     console.error("State sync failed", error);
   }
 }
 
-async function updateStateIfValid(
-  sessionId: string, 
-  allowedCurrentStates: string[], 
-  newStatus: string, 
-  newState: string,
-  correlationId: string
-) {
-  // Use optimistic locking or simple findOneAndUpdate with state check
-  const session = await InterviewSession.findOneAndUpdate(
-    { 
-      _id: sessionId, 
-      $or: [
-        ...allowedCurrentStates.map(s => ({ state: s })),
-        ...allowedCurrentStates.map(s => ({ status: s }))
-      ]
-    },
-    { 
-      $set: { status: newStatus, state: newState },
-      $inc: { stateVersion: 1 }
-    },
-    { new: true }
-  );
+async function transitionState(sessionId: string, targetState: InterviewState, correlationId?: string) {
+  const session = await InterviewSession.findById(sessionId);
+  if (!session) return;
 
-  if (session) {
-    WebSocketManager.sendToSession(sessionId, "INTERVIEW_STATE", { 
-      state: session.state, 
-      status: session.status,
-      stateVersion: session.stateVersion
-    }, correlationId);
+  const currentState = session.state as InterviewState;
+  const allowed = VALID_STATE_TRANSITIONS[currentState] || [];
+
+  if (targetState !== currentState && !allowed.includes(targetState)) {
+    console.warn(`Rejected invalid WS transition from ${currentState} to ${targetState}`);
+    return;
   }
+
+  session.state = targetState;
+  session.stateVersion += 1;
+  await session.save();
+
+  await WebSocketManager.sendToSession(
+    sessionId,
+    "INTERVIEW_STATE",
+    {
+      state: session.state,
+      stateVersion: session.stateVersion,
+    },
+    session.currentQuestionId,
+    correlationId
+  );
 }

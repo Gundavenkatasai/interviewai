@@ -1,17 +1,16 @@
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import type { Browser, Page } from 'puppeteer';
 
 // Add stealth plugin
 puppeteer.use(StealthPlugin());
 
 export class BrowserService {
-  private static browser: Browser | null = null;
+  private static browser: any = null;
 
-  static async init(): Promise<Browser> {
+  static async init(): Promise<any> {
     if (!this.browser) {
       this.browser = await puppeteer.launch({
-        headless: "new",
+        headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -27,7 +26,7 @@ export class BrowserService {
     return this.browser;
   }
 
-  static async getPage(): Promise<Page> {
+  static async getPage(): Promise<any> {
     const browser = await this.init();
     const page = await browser.newPage();
     

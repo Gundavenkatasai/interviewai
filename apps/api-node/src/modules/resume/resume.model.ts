@@ -249,6 +249,7 @@ export interface IResume {
   atsScore: number;
   atsAnalysis: IResumeATSAnalysis;
   version: number;
+  revision: number;
   status: "draft" | "active" | "archived";
   shareSlug?: string;
   isShared?: boolean;
@@ -406,6 +407,7 @@ const resumeSchema = new Schema<IResume>(
     atsScore: { type: Number, default: 0 },
     atsAnalysis: { type: Object, default: defaultATSAnalysis },
     version: { type: Number, default: 1 },
+    revision: { type: Number, default: 1 },
     status: { type: String, enum: ["draft", "active", "archived"], default: "active" },
     shareSlug: { type: String, unique: true, sparse: true, index: true },
     isShared: { type: Boolean, default: false },
@@ -486,6 +488,9 @@ const resumeImportSchema = new Schema<IResumeImport>(
   { timestamps: true }
 );
 
+resumeImportSchema.index({ userId: 1, status: 1 });
+resumeImportSchema.index({ resumeId: 1, createdAt: -1 });
+
 export const ResumeImport = mongoose.model<IResumeImport>("ResumeImport", resumeImportSchema);
 
 // Resume Version Model
@@ -494,6 +499,8 @@ export interface IResumeVersion {
   resumeId: string;
   userId: string;
   versionNumber: number;
+  parentVersionId?: string;
+  checksum?: string;
   snapshot: any;
   atsScore: number;
   targetRole: string;
@@ -511,6 +518,8 @@ const resumeVersionSchema = new Schema<IResumeVersion>(
     resumeId: { type: String, ref: "Resume", required: true, index: true },
     userId: { type: String, ref: "User", required: true, index: true },
     versionNumber: { type: Number, required: true },
+    parentVersionId: { type: String },
+    checksum: { type: String },
     snapshot: { type: Schema.Types.Mixed, required: true },
     atsScore: { type: Number, default: 0 },
     targetRole: { type: String, default: "" },
@@ -1067,6 +1076,9 @@ export interface IResumeArtifact {
   rendererVersion: string;
   storageKey: string;
   artifactHash: string;
+  fileSize?: number;
+  status: "PENDING" | "READY" | "FAILED";
+  error?: string;
   atsValidationStatus?: {
     parsing: string;
     structure: string;
@@ -1090,10 +1102,15 @@ const resumeArtifactSchema = new Schema<IResumeArtifact>(
     rendererVersion: { type: String, required: true },
     storageKey: { type: String, required: true },
     artifactHash: { type: String, required: true, index: true },
+    fileSize: { type: Number },
+    status: { type: String, enum: ["PENDING", "READY", "FAILED"], default: "READY" },
+    error: { type: String },
     atsValidationStatus: { type: Schema.Types.Mixed },
     atsScanId: { type: String }
   },
   { timestamps: true }
 );
+
+resumeArtifactSchema.index({ storageKey: 1 }, { unique: true });
 
 export const ResumeArtifact = mongoose.model<IResumeArtifact>("ResumeArtifact", resumeArtifactSchema);

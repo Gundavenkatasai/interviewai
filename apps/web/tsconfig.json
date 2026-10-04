@@ -17,7 +17,12 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@interview-ai/ui": ["../../packages/ui/src/index.tsx"],
+      "@interview-ai/contracts": ["../../packages/contracts/src/index.ts"],
+      "@interview-ai/types": ["../../packages/types/src/index.ts"],
+      "@interview-ai/api-client": ["../../packages/api-client/src/index.ts"],
+      "@interview-ai/validation": ["../../packages/validation/src/index.ts"]
     }
   },
   "include": ["src"],

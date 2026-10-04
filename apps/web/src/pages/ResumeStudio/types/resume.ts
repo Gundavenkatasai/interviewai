@@ -137,7 +137,9 @@ export interface IResume {
   theme: IResumeTheme;
   layout: IResumeLayout;
   atsScore: number;
-  updatedAt: string;
+  updatedAt?: string;
+  version?: number;
+  revision?: number;
   /** Set when this resume was imported from an uploaded file */
   fileType?: "pdf" | "docx" | "txt";
   /** True when the original raw text is stored on the backend (imported resume) */

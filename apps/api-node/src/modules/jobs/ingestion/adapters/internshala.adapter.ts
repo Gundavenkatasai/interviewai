@@ -27,7 +27,9 @@ export class InternshalaAdapter implements JobSourceAdapter {
   async healthCheck(): Promise<SourceHealth> {
     return {
       source: this.source,
-      health: { status: "HEALTHY", lastChecked: new Date(), errors: 0, successes: 0 },
+      status: "HEALTHY",
+      jobsFetched: 0,
+      jobsAccepted: 0,
       jobsRejected: 0,
       duplicates: 0,
       averageLatency: 500,

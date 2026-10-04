@@ -45,8 +45,13 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Register plugins
   await app.register(fastifyHelmet);
   await app.register(fastifyRateLimit, {
-    max: 100,
-    timeWindow: '1 minute'
+    global: true,
+    max: process.env.NODE_ENV === "production" ? 3000 : 10000,
+    timeWindow: '1 minute',
+    keyGenerator: (req) => {
+      return (req as any).user?.sub || (req as any).user?.id || req.ip;
+    },
+    allowList: ['/health', '/healthz', '/docs']
   });
 
   await app.register(cors, {

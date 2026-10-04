@@ -1,0 +1,36 @@
+{
+  "name": "interview-ai-monorepo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Interview AI — Complete Career Acceleration & Mock Interview SaaS Platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --prefix apps/web",
+    "dev:api": "npm run dev --prefix apps/api-node",
+    "dev:web": "npm run dev --prefix apps/web",
+    "build": "npm run build --prefix apps/api-node && npm run build --prefix apps/web",
+    "build:api": "npm run build --prefix apps/api-node",
+    "build:web": "npm run build --prefix apps/web",
+    "test": "npm run test --prefix apps/api-node",
+    "test:all": "npm run test --prefix apps/api-node",
+    "lint": "npm run lint --prefix apps/web",
+    "typecheck": "npm run typecheck --prefix apps/api-node",
+    "db:migrate": "node scripts/database/migrate.cjs",
+    "db:seed": "npm run seed:e2e --prefix apps/api-node",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "keywords": [
+    "interview-ai",
+    "mock-interview",
+    "ats-resume",
+    "job-discovery",
+    "monorepo"
+  ],
+  "author": "Interview AI Team",
+  "license": "MIT"
+}
