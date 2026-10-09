@@ -69,6 +69,11 @@ Return strictly valid JSON matching the schema.`;
         { task: "INTERVIEW_FOLLOWUP_GENERATION", temperature: 0.3 }
       );
 
+      // Normalize alternative question field names
+      if (questionData && !(questionData as any).questionText) {
+        (questionData as any).questionText = (questionData as any).question || (questionData as any).text || (questionData as any).prompt;
+      }
+
       // Verify not duplicate or missing
       if (!questionData?.questionText || askedTexts.has((questionData.questionText || "").toLowerCase().trim())) {
         questionData = this.getFallbackQuestion(session, askedTexts, order);
@@ -82,11 +87,15 @@ Return strictly valid JSON matching the schema.`;
       questionData = this.getFallbackQuestion(session, askedTexts, order);
     }
 
+    const finalQuestionText =
+      questionData?.questionText?.trim() ||
+      "How do you approach diagnosing performance bottlenecks under high concurrent traffic in production?";
+
     const newQuestion = await InterviewQuestion.create({
       sessionId: session._id,
       questionOrder: order,
       sequenceNumber: order,
-      questionText: questionData.questionText,
+      questionText: finalQuestionText,
       category: questionData.category || session.interviewType,
       topic: questionData.topic || "Technical",
       difficulty: session.difficulty,

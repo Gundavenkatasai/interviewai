@@ -45,7 +45,7 @@ export interface ILinkedInProfile {
   fetchedAt: Date;
   sourceStatus: "SUCCESS" | "PARTIAL" | "NOT_PUBLIC" | "BLOCKED" | "INVALID_URL" | "TEMPORARY_ERROR";
   dataConfidence: "high" | "medium" | "low";
-  source: "agent_reach" | "public_scraper" | "pasted" | "upload";
+  source: "agent_reach" | "public_scraper" | "pasted" | "upload" | "public_guest" | "playwright_browser" | "manual_input" | "imported";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,8 +70,8 @@ const linkedInProfileSchema = new Schema<ILinkedInProfile>(
     },
     source: {
       type: String,
-      enum: ["agent_reach", "public_scraper", "pasted", "upload"],
-      default: "agent_reach"
+      enum: ["agent_reach", "public_scraper", "pasted", "upload", "public_guest", "playwright_browser", "manual_input", "imported"],
+      default: "public_guest"
     }
   },
   { timestamps: true }
@@ -730,4 +730,177 @@ const storyReferenceSchema = new Schema<ILinkedInStoryReference>(
 );
 storyReferenceSchema.index({ userId: 1, draftId: 1 });
 export const LinkedInStoryReference = mongoose.model<ILinkedInStoryReference>("LinkedInStoryReference", storyReferenceSchema);
+
+// 14. LinkedIn Post Snapshot
+export interface ILinkedInPostSnapshot {
+  _id: string;
+  userId: string;
+  postId: string;
+  postUrl: string;
+  authorName: string;
+  authorHeadline?: string;
+  authorProfileUrl?: string;
+  publishedAt?: Date;
+  publishedText: string;
+  mediaUrls: string[];
+  reactionCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  urn?: string;
+  source: string;
+  retrievedAt: Date;
+  contentHash: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+const postSnapshotSchema = new Schema<ILinkedInPostSnapshot>(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    userId: { type: String, required: true, index: true },
+    postId: { type: String, required: true, index: true },
+    postUrl: { type: String, required: true, index: true },
+    authorName: { type: String, default: "Author" },
+    authorHeadline: { type: String },
+    authorProfileUrl: { type: String },
+    publishedAt: { type: Date },
+    publishedText: { type: String, required: true },
+    mediaUrls: { type: [String], default: [] },
+    reactionCount: { type: Number, default: 0 },
+    commentCount: { type: Number, default: 0 },
+    shareCount: { type: Number, default: 0 },
+    urn: { type: String },
+    source: { type: String, default: "public_guest" },
+    retrievedAt: { type: Date, default: Date.now, index: true },
+    contentHash: { type: String, required: true, index: true },
+  },
+  { timestamps: true }
+);
+postSnapshotSchema.index({ userId: 1, postUrl: 1 });
+postSnapshotSchema.index({ userId: 1, retrievedAt: -1 });
+export const LinkedInPostSnapshot = mongoose.model<ILinkedInPostSnapshot>("LinkedInPostSnapshot", postSnapshotSchema);
+
+// 15. LinkedIn Analytics Snapshot
+export interface ILinkedInAnalyticsSnapshot {
+  _id: string;
+  userId: string;
+  snapshotDate: Date;
+  profileId?: string;
+  postsCount: number;
+  totalReactions: number;
+  totalComments: number;
+  totalShares: number;
+  engagementRate?: number;
+  postingFrequencyPerWeek?: number;
+  topPosts: Array<{
+    postId: string;
+    postUrl: string;
+    headline: string;
+    reactionCount: number;
+    commentCount: number;
+  }>;
+  topTopics: string[];
+  source: string;
+  retrievedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+const analyticsSnapshotSchema = new Schema<ILinkedInAnalyticsSnapshot>(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    userId: { type: String, required: true, index: true },
+    snapshotDate: { type: Date, default: Date.now, index: true },
+    profileId: { type: String, index: true },
+    postsCount: { type: Number, default: 0 },
+    totalReactions: { type: Number, default: 0 },
+    totalComments: { type: Number, default: 0 },
+    totalShares: { type: Number, default: 0 },
+    engagementRate: { type: Number },
+    postingFrequencyPerWeek: { type: Number },
+    topPosts: { type: [Object], default: [] },
+    topTopics: { type: [String], default: [] },
+    source: { type: String, default: "actual_snapshots" },
+    retrievedAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
+analyticsSnapshotSchema.index({ userId: 1, snapshotDate: -1 });
+export const LinkedInAnalyticsSnapshot = mongoose.model<ILinkedInAnalyticsSnapshot>(
+  "LinkedInAnalyticsSnapshot",
+  analyticsSnapshotSchema
+);
+
+// 16. LinkedIn Content Idea
+export interface ILinkedInContentIdea {
+  _id: string;
+  userId: string;
+  title: string;
+  hook: string;
+  pillar: string;
+  format: string;
+  audience: string;
+  status: "IDEA" | "CONVERTED_TO_DRAFT" | "DISMISSED";
+  draftId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+const contentIdeaSchema = new Schema<ILinkedInContentIdea>(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    userId: { type: String, required: true, index: true },
+    title: { type: String, required: true },
+    hook: { type: String, required: true },
+    pillar: { type: String, required: true },
+    format: { type: String, default: "Post" },
+    audience: { type: String, default: "Engineers" },
+    status: {
+      type: String,
+      enum: ["IDEA", "CONVERTED_TO_DRAFT", "DISMISSED"],
+      default: "IDEA",
+      index: true,
+    },
+    draftId: { type: String },
+  },
+  { timestamps: true }
+);
+contentIdeaSchema.index({ userId: 1, createdAt: -1 });
+export const LinkedInContentIdea = mongoose.model<ILinkedInContentIdea>(
+  "LinkedInContentIdea",
+  contentIdeaSchema
+);
+
+// 17. LinkedIn Voice Profile
+export interface ILinkedInVoiceProfile {
+  _id: string;
+  userId: string;
+  tone: string;
+  sentenceLength: "short" | "balanced" | "detailed";
+  technicalDepth: "introductory" | "intermediate" | "advanced";
+  formality: "conversational" | "professional" | "academic";
+  preferredPhrases: string[];
+  bannedPhrases: string[];
+  contentStyle: string;
+  storytellingStyle: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+const voiceProfileSchema = new Schema<ILinkedInVoiceProfile>(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    userId: { type: String, required: true, unique: true, index: true },
+    tone: { type: String, default: "Direct, technical, and reflective" },
+    sentenceLength: { type: String, enum: ["short", "balanced", "detailed"], default: "balanced" },
+    technicalDepth: { type: String, enum: ["introductory", "intermediate", "advanced"], default: "advanced" },
+    formality: { type: String, enum: ["conversational", "professional", "academic"], default: "conversational" },
+    preferredPhrases: { type: [String], default: [] },
+    bannedPhrases: { type: [String], default: [] },
+    contentStyle: { type: String, default: "Engineering insights with architectural takeaways" },
+    storytellingStyle: { type: String, default: "Factual problem-solving narrative" },
+  },
+  { timestamps: true }
+);
+export const LinkedInVoiceProfile = mongoose.model<ILinkedInVoiceProfile>(
+  "LinkedInVoiceProfile",
+  voiceProfileSchema
+);
+
 

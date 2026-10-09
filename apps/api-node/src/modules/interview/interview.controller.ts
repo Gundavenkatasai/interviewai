@@ -70,7 +70,15 @@ function shuffle<T>(array: T[]): T[] {
 
 function pickFallbackQuestions(role: string, interviewType: string, difficulty: string, count: number): string[] {
   const diffKey = (difficulty || "medium").toLowerCase();
-  const pool = QUESTION_BANK[`technical:${diffKey}`] || QUESTION_BANK["technical:medium"];
+  const typeKey = (interviewType || "technical").toLowerCase();
+  const pool =
+    QUESTION_BANK[`${typeKey}:${diffKey}`] ||
+    QUESTION_BANK[`technical:${diffKey}`] ||
+    QUESTION_BANK["technical:medium"] || [
+      "Can you explain an interesting technical problem you solved recently and the trade-offs you considered?",
+      "How do you design a scalable web application from scratch?",
+      "What are the most critical factors you consider when reviewing code for production readiness?",
+    ];
   return shuffle(pool).slice(0, count);
 }
 
@@ -209,20 +217,42 @@ Difficulty: ${difficulty}
 Technologies: ${technologies.join(", ") || "General"}
 Target Question Count: 1 (Generate the strong opening technical question)
 
-Return valid JSON matching the schema.`;
+Return valid JSON strictly matching this schema:
+{
+  "questions": [
+    {
+      "questionText": "Technical question text here",
+      "category": "${interviewType}",
+      "topic": "Core topic name",
+      "difficulty": "${difficulty}",
+      "expectedConcepts": ["concept1", "concept2"]
+    }
+  ]
+}
+
+Return strictly valid JSON matching the schema above.`;
 
       const aiResponse = await AIService.generateStructured<QuestionGenerationResponse>(
         [{ role: "user", content: prompt }],
         QuestionGenerationResponseSchema,
-        { task: "INTERVIEW_QUESTION_GENERATION", temperature: 0.2 }
+        { task: "INTERVIEW_QUESTION", temperature: 0.2 }
       );
 
-      if (aiResponse.questions?.length > 0) {
-        initialQuestions = aiResponse.questions.slice(0, 1).map(q => ({
-          questionText: q.questionText,
-          category: q.category || interviewType,
-          topic: q.topic || "Core Architecture",
-        }));
+      if (aiResponse && Array.isArray((aiResponse as any).questions) && (aiResponse as any).questions.length > 0) {
+        initialQuestions = (aiResponse as any).questions
+          .map((q: any) => {
+            const text = (
+              typeof q === "string"
+                ? q
+                : q?.questionText || q?.question || q?.text || q?.prompt || ""
+            ).trim();
+            return {
+              questionText: text,
+              category: (typeof q === "object" ? q?.category : undefined) || interviewType,
+              topic: (typeof q === "object" ? q?.topic : undefined) || "Core Architecture",
+            };
+          })
+          .filter((q: any) => q.questionText && q.questionText.length > 0);
       }
     } catch (err) {
       console.warn("Dynamic opening question generation failed, using fallback", err);
@@ -230,21 +260,29 @@ Return valid JSON matching the schema.`;
 
     if (initialQuestions.length === 0) {
       const fallback = pickFallbackQuestions(role, interviewType, difficulty, 1);
-      initialQuestions = fallback.map(text => ({
-        questionText: text,
-        category: interviewType,
-        topic: "Core Fundamentals",
-      }));
+      initialQuestions = fallback
+        .map(text => ({
+          questionText: (text || "").trim(),
+          category: interviewType,
+          topic: "Core Fundamentals",
+        }))
+        .filter(q => q.questionText && q.questionText.length > 0);
     }
 
     const firstQ = initialQuestions[0];
+    const finalQuestionText =
+      firstQ?.questionText?.trim() ||
+      "Can you describe an interesting technical challenge you worked on recently and how you resolved it?";
+    const finalCategory = firstQ?.category || interviewType || "technical";
+    const finalTopic = firstQ?.topic || "Core Architecture";
+
     const questionDoc = await InterviewQuestion.create({
       sessionId: session._id,
       questionOrder: 1,
       sequenceNumber: 1,
-      questionText: firstQ.questionText,
-      category: firstQ.category,
-      topic: firstQ.topic,
+      questionText: finalQuestionText,
+      category: finalCategory,
+      topic: finalTopic,
       difficulty,
       source: "initial_generation",
       status: "GENERATED",

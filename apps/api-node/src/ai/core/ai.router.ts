@@ -45,7 +45,13 @@ export const ROUTING_TABLE: Record<AITask, TaskRoute> = {
     primaryModel: "gpt-oss-20b",
     fallbackModel: "qwen-27b",
     defaultTemperature: 0.7,
-    defaultMaxTokens: 800,
+    defaultMaxTokens: 1500,
+  },
+  INTERVIEW_QUESTION_GENERATION: {
+    primaryModel: "gpt-oss-20b",
+    fallbackModel: "qwen-27b",
+    defaultTemperature: 0.3,
+    defaultMaxTokens: 1500,
   },
   INTERVIEW_EVALUATION: {
     primaryModel: "qwen-27b",
@@ -63,7 +69,7 @@ export const ROUTING_TABLE: Record<AITask, TaskRoute> = {
     primaryModel: "gpt-oss-20b",
     fallbackModel: "qwen-27b",
     defaultTemperature: 0.4,
-    defaultMaxTokens: 800,
+    defaultMaxTokens: 1500,
   },
   INTERVIEW_FINAL_REPORT: {
     primaryModel: "qwen-27b",
@@ -94,6 +100,90 @@ export const ROUTING_TABLE: Record<AITask, TaskRoute> = {
     fallbackModel: "qwen-27b-fallback",
     defaultTemperature: 0.6,
     defaultMaxTokens: 800,
+  },
+  LINKEDIN_PROFILE_ANALYSIS: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.1,
+    defaultMaxTokens: 2500,
+  },
+  LINKEDIN_PROFILE_OPTIMIZATION: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 2500,
+  },
+  LINKEDIN_HEADLINE_GENERATION: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.3,
+    defaultMaxTokens: 1200,
+  },
+  LINKEDIN_ABOUT_GENERATION: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.3,
+    defaultMaxTokens: 2000,
+  },
+  LINKEDIN_EXPERIENCE_OPTIMIZATION: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 2000,
+  },
+  LINKEDIN_POST_GENERATION: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.5,
+    defaultMaxTokens: 2500,
+  },
+  LINKEDIN_HUMANIZATION: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 2500,
+  },
+  LINKEDIN_HOOK_GENERATION: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.4,
+    defaultMaxTokens: 1500,
+  },
+  LINKEDIN_COMMENT_GENERATION: {
+    primaryModel: "gpt-oss-20b",
+    fallbackModel: "qwen-27b",
+    defaultTemperature: 0.4,
+    defaultMaxTokens: 1000,
+  },
+  LINKEDIN_REPLY_GENERATION: {
+    primaryModel: "gpt-oss-20b",
+    fallbackModel: "qwen-27b",
+    defaultTemperature: 0.4,
+    defaultMaxTokens: 1000,
+  },
+  LINKEDIN_CONTENT_IDEAS: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.6,
+    defaultMaxTokens: 2000,
+  },
+  LINKEDIN_POST_ANALYSIS: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.1,
+    defaultMaxTokens: 2000,
+  },
+  LINKEDIN_AUDIENCE_ANALYSIS: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 1500,
+  },
+  LINKEDIN_CONTENT_REPURPOSING: {
+    primaryModel: "qwen-27b",
+    fallbackModel: "gpt-oss-120b",
+    defaultTemperature: 0.3,
+    defaultMaxTokens: 2500,
   }
 };
 

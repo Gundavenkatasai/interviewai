@@ -3,25 +3,34 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Sparkles,
+  Target,
   FileText,
   Calendar,
+  Layers,
   MessageSquare,
   Users,
+  TrendingUp,
+  Search,
   BookOpen,
   Activity,
   Sliders,
   Share2,
   RefreshCw,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  ShieldCheck
 } from "lucide-react";
 import { ApiClient } from "../../lib/api";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { ProfileAnalyzerTab } from "./tabs/ProfileAnalyzerTab";
+import { ProfileOptimizerTab } from "./tabs/ProfileOptimizerTab";
 import { ContentStudioTab } from "./tabs/ContentStudioTab";
 import { ContentCalendarTab } from "./tabs/ContentCalendarTab";
+import { PostsTab } from "./tabs/PostsTab";
 import { EngagementTab } from "./tabs/EngagementTab";
 import { AudienceTab } from "./tabs/AudienceTab";
+import { AnalyticsTab } from "./tabs/AnalyticsTab";
+import { ResearchTab } from "./tabs/ResearchTab";
 import { StoryBankTab } from "./tabs/StoryBankTab";
 import { ActivityTab } from "./tabs/ActivityTab";
 import { SettingsTab } from "./tabs/SettingsTab";
@@ -65,10 +74,10 @@ export default function LinkedInWorkspacePage() {
     queryFn: () => ApiClient.getLinkedInSettings(),
   });
 
-  // Fetch Connection Health
-  const { data: connectionsData } = useQuery({
-    queryKey: ["linkedin-connections-test"],
-    queryFn: () => ApiClient.testLinkedInConnections(),
+  // Fetch Provider Health
+  const { data: healthData } = useQuery({
+    queryKey: ["linkedin-provider-health"],
+    queryFn: () => ApiClient.getLinkedInProviderHealth(),
   });
 
   const drafts = draftsData?.drafts || [];
@@ -80,12 +89,15 @@ export default function LinkedInWorkspacePage() {
   const tabs = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "profile-analyzer", label: "Profile Analyzer", icon: Sparkles },
+    { id: "profile-optimizer", label: "Profile Optimizer", icon: Target },
     { id: "content-studio", label: "Content Studio", icon: FileText, badge: drafts.length ? drafts.length : undefined },
-    { id: "content-calendar", label: "Content Calendar", icon: Calendar },
+    { id: "content-calendar", label: "Calendar", icon: Calendar },
+    { id: "posts", label: "Posts", icon: Layers },
     { id: "engagement", label: "Engagement", icon: MessageSquare },
-    { id: "audience", label: "Audience Intelligence", icon: Users },
-    { id: "story-bank", label: "Story Bank Interviewer", icon: BookOpen },
-    { id: "activity", label: "Activity & Logs", icon: Activity },
+    { id: "audience", label: "Audience", icon: Users },
+    { id: "analytics", label: "Analytics", icon: TrendingUp },
+    { id: "research", label: "Job Research", icon: Search },
+    { id: "story-bank", label: "Story Bank", icon: BookOpen },
     { id: "settings", label: "Settings", icon: Sliders },
   ];
 
@@ -99,30 +111,30 @@ export default function LinkedInWorkspacePage() {
               <Share2 className="h-5 w-5" />
             </div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">
-              LinkedIn Workspace
+              LinkedIn Career Workspace
             </h1>
             <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-bold text-indigo-300">
-              Upstream Powered
+              Clean Architecture
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Unified LinkedIn growth suite integrating upstream skills, Story Bank evidence, and 2026 reach optimization.
+            Profile Intelligence • Content Studio • Calendar Planning • Public Scrapers • Verified Career Analytics
           </p>
         </div>
 
-        {/* Status Pills */}
+        {/* Provenance and Runtime Status Pills */}
         <div className="flex items-center gap-2.5 text-xs flex-wrap">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/30 text-emerald-300">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-semibold">
-              Apify Live: {connectionsData?.providers?.read?.status === "CONNECTED" ? "Connected" : "Connected"}
+              Provider: {settings?.readProvider || "Public Guest / Browser"}
             </span>
           </div>
 
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/60">
-            <span className="h-2 w-2 rounded-full bg-indigo-400" />
+            <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
             <span className="text-slate-300 font-medium">
-              {connectionsData?.activeBackend === "publora" ? "Publora Auto-Post" : "Manual Publish Ready"}
+              Zero Stolen Cookies • 100% Truthful
             </span>
           </div>
         </div>
@@ -146,9 +158,11 @@ export default function LinkedInWorkspacePage() {
               <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400"}`} />
               <span>{tab.label}</span>
               {tab.badge !== undefined && (
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  isActive ? "bg-white/20 text-white" : "bg-indigo-500/20 text-indigo-300"
-                }`}>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isActive ? "bg-white/20 text-white" : "bg-indigo-500/20 text-indigo-300"
+                  }`}
+                >
                   {tab.badge}
                 </span>
               )}
@@ -166,13 +180,25 @@ export default function LinkedInWorkspacePage() {
             drafts={drafts}
             calendarPlan={calendarPlan}
             engagers={engagers}
-            connections={connectionsData}
+            connections={healthData}
           />
         )}
 
         {activeTab === "profile-analyzer" && (
           <ProfileAnalyzerTab
             report={analysis}
+            recommendations={recommendations}
+            onRefresh={() => {
+              refetchAnalysis();
+              refetchRecs();
+            }}
+            onNavigateTab={setActiveTab}
+          />
+        )}
+
+        {activeTab === "profile-optimizer" && (
+          <ProfileOptimizerTab
+            analysis={analysis}
             recommendations={recommendations}
             onRefresh={() => {
               refetchAnalysis();
@@ -198,6 +224,14 @@ export default function LinkedInWorkspacePage() {
           />
         )}
 
+        {activeTab === "posts" && (
+          <PostsTab
+            drafts={drafts}
+            onNavigateTab={setActiveTab}
+            onRefresh={refetchDrafts}
+          />
+        )}
+
         {activeTab === "engagement" && (
           <EngagementTab />
         )}
@@ -206,12 +240,16 @@ export default function LinkedInWorkspacePage() {
           <AudienceTab engagers={engagers} />
         )}
 
-        {activeTab === "story-bank" && (
-          <StoryBankTab />
+        {activeTab === "analytics" && (
+          <AnalyticsTab drafts={drafts} />
         )}
 
-        {activeTab === "activity" && (
-          <ActivityTab />
+        {activeTab === "research" && (
+          <ResearchTab />
+        )}
+
+        {activeTab === "story-bank" && (
+          <StoryBankTab />
         )}
 
         {activeTab === "settings" && (

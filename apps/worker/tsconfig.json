@@ -3,10 +3,21 @@
     "target": "ES2022",
     "module": "Node16",
     "moduleResolution": "node16",
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "rootDir": "../../",
+    "outDir": "./dist",
+    "types": ["node"],
+    "typeRoots": ["../api-node/node_modules/@types"],
+    "paths": {
+      "@interview-ai/contracts": ["../../packages/contracts/src/index.ts"],
+      "@interview-ai/types": ["../../packages/types/src/index.ts"],
+      "@interview-ai/logger": ["../../packages/logger/src/index.ts"],
+      "@interview-ai/config": ["../../packages/config/src/index.ts"]
+    }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

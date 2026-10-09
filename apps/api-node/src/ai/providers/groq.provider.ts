@@ -56,9 +56,17 @@ export class GroqProvider implements AIProvider {
       let content = data.choices?.[0]?.message?.content?.trim() || "";
       
       if (content.includes("<think>")) {
-        content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+        content = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
       }
       
+      if (!content && (data.choices?.[0]?.message?.reasoning || data.choices?.[0]?.message?.reasoning_content)) {
+        const reasoning = String(data.choices?.[0]?.message?.reasoning || data.choices?.[0]?.message?.reasoning_content || "").trim();
+        const jsonMatch = reasoning.match(/\{[\s\S]*\}/) || reasoning.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          content = jsonMatch[0];
+        }
+      }
+
       if (!content) {
         throw new AIError("INVALID_RESPONSE", this.id, true, "Groq returned empty response");
       }

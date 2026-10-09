@@ -13,7 +13,10 @@ import {
   FileText,
   ThumbsUp,
   ThumbsDown,
-  Edit3
+  Edit3,
+  HelpCircle,
+  Clock,
+  Info
 } from "lucide-react";
 import { ApiClient } from "../../../lib/api";
 
@@ -21,81 +24,109 @@ interface ProfileAnalyzerTabProps {
   report: any;
   recommendations: any[];
   onRefresh: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
+
+const SECTION_LABELS: Record<string, { label: string; desc: string }> = {
+  PHOTO: { label: "Profile Photo", desc: "Professional headshot discoverability and presence." },
+  BANNER: { label: "Background Banner", desc: "Branded visual positioning and career focus." },
+  HEADLINE: { label: "Headline Formula", desc: "Algorithmic search ranking and value proposition." },
+  ABOUT: { label: "About / Summary", desc: "Structured career narrative and core accomplishments." },
+  FEATURED: { label: "Featured Section", desc: "Artifacts, links, open source, and top articles." },
+  EXPERIENCE: { label: "Experience Impact", desc: "Action verbs, quantifiable results, and technical scope." },
+  EDUCATION: { label: "Education & Degrees", desc: "Academic background and institutional pedigree." },
+  SKILLS: { label: "Technical Skills", desc: "Endorsement depth and job-demand alignment." },
+  CERTIFICATIONS: { label: "Licenses & Certs", desc: "Industry certifications and accredited competencies." },
+  PROJECTS: { label: "Engineering Projects", desc: "Repositories, shipped systems, and practical proofs." },
+  CUSTOM_URL: { label: "Custom LinkedIn URL", desc: "Clean public identifier (no random alphanumeric tail)." },
+  RECOMMENDATIONS: { label: "Social Proof", desc: "Peer and manager recommendations." },
+  ACTIVITY: { label: "Public Activity", desc: "Recent posting frequency and technical dialogue." },
+  KEYWORDS: { label: "Keyword Density", desc: "Target role ATS and recruiter search terms." },
+};
 
 export const ProfileAnalyzerTab: React.FC<ProfileAnalyzerTabProps> = ({
   report,
   recommendations,
   onRefresh,
+  onNavigateTab,
 }) => {
   const [inputMode, setInputMode] = useState<"url" | "paste">("url");
   const [profileUrl, setProfileUrl] = useState("https://www.linkedin.com/in/");
   const [pastedText, setPastedText] = useState("");
-  const [targetRole, setTargetRole] = useState("Software Engineer");
+  const [targetRole, setTargetRole] = useState("Senior Software Engineer");
   const [analyzing, setAnalyzing] = useState(false);
-  const [activeSection, setActiveSection] = useState<string>("headline");
-  const [editingRecId, setEditingRecId] = useState<string | null>(null);
-  const [editedText, setEditedText] = useState("");
+  const [activeSectionKey, setActiveSectionKey] = useState<string>("HEADLINE");
+
+  const overallScore = report?.score !== undefined ? report.score : null;
+  const sectionsData = report?.sections || {};
+  const sectionKeys = Object.keys(SECTION_LABELS);
 
   const handleRunAnalysis = async (e: React.FormEvent) => {
     e.preventDefault();
     setAnalyzing(true);
     try {
       if (inputMode === "url") {
-        await ApiClient.analyzeLinkedInUrl(profileUrl.trim(), targetRole);
+        await ApiClient.analyzeLinkedInProfile({
+          profileUrl: profileUrl.trim(),
+          targetRole: targetRole.trim(),
+          forceRefresh: true,
+        });
       } else {
-        await ApiClient.analyzeLinkedInPasted(pastedText.trim(), targetRole);
+        await ApiClient.analyzeLinkedInProfile({
+          rawText: pastedText.trim(),
+          targetRole: targetRole.trim(),
+          forceRefresh: true,
+        });
       }
       onRefresh();
     } catch (err: any) {
-      alert(err.message || "Analysis failed. Please check inputs.");
+      alert(err.message || "Profile analysis failed. Please verify provider connectivity.");
     } finally {
       setAnalyzing(false);
     }
   };
 
-  const handleApproveRec = async (id: string, userEditedValue?: string) => {
-    try {
-      await ApiClient.approveLinkedInRecommendation(id, userEditedValue);
-      setEditingRecId(null);
-      onRefresh();
-    } catch (err: any) {
-      alert(err.message || "Failed to approve recommendation");
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case "STRONG":
+        return <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full">STRONG</span>;
+      case "GOOD":
+        return <span className="bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold px-2 py-0.5 rounded-full">GOOD</span>;
+      case "NEEDS_WORK":
+        return <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-full">NEEDS WORK</span>;
+      case "MISSING":
+        return <span className="bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full">MISSING</span>;
+      case "UNKNOWN":
+      default:
+        return <span className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full">UNKNOWN</span>;
     }
   };
 
-  const handleRejectRec = async (id: string) => {
-    try {
-      await ApiClient.rejectLinkedInRecommendation(id);
-      onRefresh();
-    } catch (err: any) {
-      alert(err.message || "Failed to reject recommendation");
+  const getConfidenceBadge = (confidence?: string) => {
+    switch (confidence) {
+      case "high":
+        return <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">High Confidence</span>;
+      case "medium":
+        return <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Medium Confidence</span>;
+      default:
+        return <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Low Confidence</span>;
     }
   };
 
-  const sections = [
-    { id: "headline", label: "Headline", score: report?.sectionScores?.headline ?? 75 },
-    { id: "about", label: "About / Summary", score: report?.sectionScores?.about ?? 70 },
-    { id: "experience", label: "Experience", score: report?.sectionScores?.experience ?? 80 },
-    { id: "skills", label: "Skills & Gaps", score: report?.sectionScores?.skills ?? 65 },
-    { id: "featured", label: "Featured Work", score: report?.sectionScores?.projects ?? 60 },
-    { id: "custom_url", label: "Custom URL", score: 90 },
-    { id: "photo_banner", label: "Photo & Banner", score: 85 },
-    { id: "recommendations", label: "Recommendations", score: 70 },
-  ];
+  const selectedSection = sectionsData[activeSectionKey];
 
   return (
     <div className="space-y-6">
-      {/* Input / Scanner Bar */}
+      {/* Scanner Bar */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-indigo-400" />
-              Analyze & Optimize LinkedIn Profile
+              14-Section Deterministic Profile Analyzer
             </h3>
             <p className="text-xs text-slate-400">
-              Scored against 2026 technical recruitment algorithms and target job descriptions.
+              Zero mock scores. Audits all 14 LinkedIn sections with evidence, issues, confidence, and action recommendations.
             </p>
           </div>
 
@@ -114,317 +145,204 @@ export const ProfileAnalyzerTab: React.FC<ProfileAnalyzerTabProps> = ({
                 inputMode === "paste" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              Paste Content (Safe Fallback)
+              Paste Content
             </button>
           </div>
         </div>
 
         <form onSubmit={handleRunAnalysis} className="space-y-3">
-          <div className="flex flex-col md:flex-row gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
             {inputMode === "url" ? (
-              <input
-                type="text"
-                value={profileUrl}
-                onChange={(e) => setProfileUrl(e.target.value)}
-                placeholder="https://www.linkedin.com/in/username"
-                className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
-              />
+              <div className="md:col-span-8 bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2">
+                <span className="text-slate-500 font-medium">URL:</span>
+                <input
+                  type="text"
+                  value={profileUrl}
+                  onChange={(e) => setProfileUrl(e.target.value)}
+                  placeholder="https://www.linkedin.com/in/your-handle"
+                  className="bg-transparent text-white focus:outline-none w-full"
+                />
+              </div>
             ) : (
-              <textarea
-                value={pastedText}
-                onChange={(e) => setPastedText(e.target.value)}
-                rows={2}
-                placeholder="Paste your About section, experience bullets, or full profile text..."
-                className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
-              />
+              <div className="md:col-span-8 bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs">
+                <textarea
+                  rows={2}
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="Paste raw LinkedIn profile text (Experience, Headline, About, Skills)..."
+                  className="bg-transparent text-white focus:outline-none w-full resize-none"
+                />
+              </div>
             )}
 
-            <input
-              type="text"
-              value={targetRole}
-              onChange={(e) => setTargetRole(e.target.value)}
-              placeholder="Target Role (e.g. Senior Backend Engineer)"
-              className="w-full md:w-64 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
-            />
-
-            <button
-              type="submit"
-              disabled={analyzing}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {analyzing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {analyzing ? "Analyzing..." : "Run Analysis"}
-            </button>
+            <div className="md:col-span-4 flex gap-2">
+              <input
+                type="text"
+                value={targetRole}
+                onChange={(e) => setTargetRole(e.target.value)}
+                placeholder="Target Role"
+                className="bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-white focus:outline-none w-full"
+              />
+              <button
+                type="submit"
+                disabled={analyzing}
+                className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500 transition disabled:opacity-50"
+              >
+                {analyzing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Analyze
+              </button>
+            </div>
           </div>
         </form>
       </div>
 
-      {/* Main Analysis Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Section Navigation Tabs (1 Col) */}
-        <div className="space-y-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-3">
-            Profile Sections (9 Areas)
-          </span>
-          {sections.map((sec) => (
-            <button
-              key={sec.id}
-              onClick={() => setActiveSection(sec.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition ${
-                activeSection === sec.id
-                  ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/40"
-                  : "bg-slate-900/40 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-slate-800/60"
-              }`}
-            >
-              <span>{sec.label}</span>
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  sec.score >= 80 ? "bg-emerald-500/20 text-emerald-300" : sec.score >= 65 ? "bg-amber-500/20 text-amber-300" : "bg-red-500/20 text-red-300"
-                }`}
-              >
-                {sec.score}%
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Section Detail & Suggestions (3 Cols) */}
-        <div className="lg:col-span-3 space-y-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5">
-            {activeSection === "headline" && (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div>
-                    <h4 className="text-base font-bold text-white">Headline Analysis & Formulas</h4>
-                    <p className="text-xs text-slate-400">First impressions matter: headline drives search CTR and recruiter clicks.</p>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-semibold">
-                    Score: {report?.sectionScores?.headline || 75}/100
-                  </span>
-                </div>
-
-                {/* Current vs Suggested */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 space-y-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Current Headline</span>
-                    <p className="text-sm text-slate-300">
-                      {report?.headlineAnalysis?.current || "Software Engineer at Tech Company"}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-4 space-y-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5" /> High-Performing Formula
-                    </span>
-                    <p className="text-sm font-medium text-purple-200">
-                      {report?.headlineAnalysis?.suggestedVersions?.[0] ||
-                        "Senior Backend Engineer | Distributed Systems & Node.js | Scaled Services to 5M+ DAU"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Problems identified */}
-                <div className="space-y-2">
-                  <h5 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Observations</h5>
-                  <div className="space-y-1.5">
-                    {(report?.headlineAnalysis?.problems || [
-                      "Current headline lacks measurable impact or domain metrics",
-                      "Missing secondary keywords recruiters filter by (e.g. Distributed Systems, Kafka)",
-                    ]).map((prob: string, idx: number) => (
-                      <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
-                        <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-                        <span>{prob}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeSection === "about" && (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div>
-                    <h4 className="text-base font-bold text-white">About Summary Optimization</h4>
-                    <p className="text-xs text-slate-400">Craft a story-driven narrative without cliché buzzwords.</p>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-semibold">
-                    Score: {report?.sectionScores?.about || 70}/100
-                  </span>
-                </div>
-
-                <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-purple-300">Proposed Narrative Rewrite</span>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(report?.aboutAnalysis?.suggestedAbout || "")}
-                      className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
-                    >
-                      <Copy className="h-3.5 w-3.5" /> Copy
-                    </button>
-                  </div>
-                  <p className="text-sm text-slate-300 whitespace-pre-line leading-relaxed">
-                    {report?.aboutAnalysis?.suggestedAbout ||
-                      "I build high-throughput backend services and developer tooling. Over the past 5 years, I've designed architectures supporting millions of requests per second, led database refactoring projects reducing query latency by 40%, and mentored cross-functional engineering teams.\n\nCore Technologies: Node.js, TypeScript, PostgreSQL, Redis, Docker, AWS."}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {activeSection === "skills" && (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div>
-                    <h4 className="text-base font-bold text-white">Skills Matrix & Market Gaps</h4>
-                    <p className="text-xs text-slate-400">Comparing your profile against active market postings.</p>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-semibold">
-                    Score: {report?.sectionScores?.skills || 65}/100
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    High-Priority Gap Recommendations
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {(report?.skillsAnalysis?.missingSkills || ["Kubernetes", "System Design", "Microservices"]).map(
-                      (skill: string, idx: number) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/60"
-                        >
-                          <div className="space-y-0.5">
-                            <span className="text-sm font-semibold text-slate-200">{skill}</span>
-                            <span className="text-[10px] block text-emerald-400 font-medium">85% recruiter demand</span>
-                          </div>
-                          <span className="text-xs text-purple-400 font-medium bg-purple-500/10 px-2 py-1 rounded">
-                            Recommended Gap
-                          </span>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeSection !== "headline" && activeSection !== "about" && activeSection !== "skills" && (
-              <div className="space-y-4 py-8 text-center text-slate-400">
-                <FileText className="h-10 w-10 text-slate-600 mx-auto" />
-                <p className="text-sm">
-                  Section analysis for <span className="text-slate-200 font-semibold">{activeSection}</span> is loaded.
-                </p>
-                <p className="text-xs max-w-md mx-auto">
-                  All suggestions follow strict provenance. Approved recommendations will be versioned and presented for your confirmation before sync.
-                </p>
-              </div>
-            )}
+      {/* Profile Score Header & Provenance */}
+      {overallScore !== null && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-indigo-500/20 bg-slate-900/40 p-5">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col items-center justify-center h-16 w-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-white">
+              <span className="text-2xl font-bold">{overallScore}</span>
+              <span className="text-[10px] text-indigo-300">/ 100</span>
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-white">Comprehensive Profile Rubric</h4>
+              <p className="text-xs text-slate-400">
+                14-section rubric evaluated against 2026 hiring benchmarks for {report?.targetRole || targetRole}.
+              </p>
+            </div>
           </div>
 
-          {/* Actionable Recommendations List */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-base font-bold text-white flex items-center gap-2">
-                <Award className="h-4 w-4 text-indigo-400" />
-                Active Recommendations ({recommendations.length})
-              </h4>
-              <span className="text-xs text-slate-500">Requires explicit user approval</span>
+          <div className="text-right text-xs text-slate-400">
+            <div className="flex items-center gap-1.5 justify-end text-slate-300 font-medium">
+              <Clock className="h-3.5 w-3.5 text-indigo-400" />
+              <span>
+                {report.retrievedAt ? `Retrieved ${new Date(report.retrievedAt).toLocaleDateString()}` : "Live snapshot"}
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500">
+              Provider: {report.provider || "public_guest"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* 14 Sections Navigator & Inspector */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Sections List (4 cols) */}
+        <div className="lg:col-span-5 space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1 mb-2">
+            14 Profile Sections
+          </h4>
+
+          <div className="space-y-1.5">
+            {sectionKeys.map((key) => {
+              const sec = sectionsData[key];
+              const score = sec?.score !== undefined ? sec.score : "—";
+              const isSelected = activeSectionKey === key;
+
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveSectionKey(key)}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition ${
+                    isSelected
+                      ? "border-indigo-500 bg-indigo-600/10 text-white"
+                      : "border-slate-800/80 bg-slate-900/40 text-slate-300 hover:border-slate-700 hover:bg-slate-900/80"
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-semibold block">{SECTION_LABELS[key].label}</span>
+                    <span className="text-[10px] text-slate-500">{SECTION_LABELS[key].desc}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {sec && getStatusBadge(sec.status)}
+                    <span className="text-xs font-bold text-white min-w-[28px] text-right">
+                      {score !== "—" ? `${score}` : "—"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Section Detail Inspector (7 cols) */}
+        <div className="lg:col-span-7">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5 sticky top-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-indigo-400">
+                  Section Analysis
+                </span>
+                <h4 className="text-lg font-bold text-white pt-1">
+                  {SECTION_LABELS[activeSectionKey].label}
+                </h4>
+                <p className="text-xs text-slate-400">{SECTION_LABELS[activeSectionKey].desc}</p>
+              </div>
+
+              {selectedSection && (
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(selectedSection.status)}
+                    <span className="text-xl font-bold text-white">
+                      {selectedSection.score !== undefined ? `${selectedSection.score}/100` : "—"}
+                    </span>
+                  </div>
+                  {getConfidenceBadge(selectedSection.confidence)}
+                </div>
+              )}
             </div>
 
-            {recommendations.length === 0 ? (
-              <p className="text-xs text-slate-400 py-4 text-center">
-                No pending recommendations. Run an analysis above to generate targeted improvements.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recommendations.map((rec) => (
-                  <div
-                    key={rec._id}
-                    className="p-4 rounded-xl border border-slate-800/80 bg-slate-950/40 space-y-3 transition hover:border-slate-700"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
-                          {rec.field}
-                        </span>
-                        <span
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                            rec.status === "USER_APPROVED"
-                              ? "bg-emerald-500/20 text-emerald-300"
-                              : rec.status === "USER_REJECTED"
-                              ? "bg-red-500/20 text-red-300"
-                              : "bg-amber-500/20 text-amber-300"
-                          }`}
-                        >
-                          {rec.status}
-                        </span>
-                      </div>
-                      <span className="text-xs text-slate-500 font-mono">Confidence: {Math.round(rec.confidence * 100)}%</span>
-                    </div>
+            {selectedSection ? (
+              <div className="space-y-4 pt-2">
+                {/* Evidence */}
+                <div className="rounded-xl bg-slate-950 p-4 border border-slate-800/80 space-y-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Observed Evidence
+                  </span>
+                  <p className="text-xs text-slate-200 leading-relaxed font-mono">
+                    {selectedSection.evidence || "No textual evidence observed in source snapshot."}
+                  </p>
+                </div>
 
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-slate-200">
-                        {editingRecId === rec._id ? (
-                          <input
-                            type="text"
-                            value={editedText}
-                            onChange={(e) => setEditedText(e.target.value)}
-                            className="w-full rounded-lg border border-indigo-500 bg-slate-900 px-3 py-1.5 text-sm text-white"
-                          />
-                        ) : (
-                          rec.proposedValue
-                        )}
-                      </p>
-                      <p className="text-xs text-slate-400">{rec.reason}</p>
+                {/* Issues */}
+                {selectedSection.issues && selectedSection.issues.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                      Identified Issues
+                    </span>
+                    <div className="space-y-1.5">
+                      {selectedSection.issues.map((issue: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+                          <span>{issue}</span>
+                        </div>
+                      ))}
                     </div>
-
-                    {rec.status === "SUGGESTED" && (
-                      <div className="flex items-center justify-end gap-2 pt-1">
-                        {editingRecId === rec._id ? (
-                          <>
-                            <button
-                              onClick={() => handleApproveRec(rec._id, editedText)}
-                              className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:bg-emerald-500/10"
-                            >
-                              Save & Approve
-                            </button>
-                            <button
-                              onClick={() => setEditingRecId(null)}
-                              className="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5"
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => {
-                                setEditingRecId(rec._id);
-                                setEditedText(rec.proposedValue);
-                              }}
-                              className="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 flex items-center gap-1"
-                            >
-                              <Edit3 className="h-3 w-3" /> Edit
-                            </button>
-                            <button
-                              onClick={() => handleRejectRec(rec._id)}
-                              className="text-xs font-medium text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg border border-red-500/20 hover:bg-red-500/10 flex items-center gap-1"
-                            >
-                              <ThumbsDown className="h-3 w-3" /> Reject
-                            </button>
-                            <button
-                              onClick={() => handleApproveRec(rec._id)}
-                              className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:bg-emerald-500/10 flex items-center gap-1"
-                            >
-                              <ThumbsUp className="h-3 w-3" /> Approve
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
                   </div>
-                ))}
+                )}
+
+                {/* Recommendations */}
+                {selectedSection.recommendations && selectedSection.recommendations.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">
+                      Actionable Recommendations
+                    </span>
+                    <div className="space-y-1.5">
+                      {selectedSection.recommendations.map((rec: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2 text-xs text-slate-200 bg-indigo-500/5 p-2.5 rounded-lg border border-indigo-500/20">
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                          <span>{rec}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-slate-500 text-xs">
+                Run an analysis using the top scanner to inspect evidence and algorithmic suggestions for this section.
               </div>
             )}
           </div>

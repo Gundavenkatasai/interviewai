@@ -689,6 +689,60 @@ export class ApiClient {
     });
   }
 
+  static async getLinkedInProfile() {
+    return this.request<any>("/api/linkedin/profile");
+  }
+
+  static async analyzeLinkedInProfile(data: {
+    profileUrl?: string;
+    rawText?: string;
+    targetRole?: string;
+    jobId?: string;
+    forceRefresh?: boolean;
+  }) {
+    return this.request<any>("/api/linkedin/profile/analyze", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async refreshLinkedInProfile(data: { profileUrl: string }) {
+    return this.request<any>("/api/linkedin/profile/refresh", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async getLinkedInAnalytics() {
+    return this.request<any>("/api/linkedin/analytics");
+  }
+
+  static async refreshLinkedInAnalytics() {
+    return this.request<any>("/api/linkedin/analytics/refresh", {
+      method: "POST",
+    });
+  }
+
+  static async getLinkedInVoiceProfile() {
+    return this.request<any>("/api/linkedin/voice-profile");
+  }
+
+  static async updateLinkedInVoiceProfile(data: any) {
+    return this.request<any>("/api/linkedin/voice-profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async searchLinkedInJobs(params: { keywords: string; location?: string; limit?: number }) {
+    const qs = new URLSearchParams(params as any).toString();
+    return this.request<any>(`/api/linkedin/jobs?${qs}`);
+  }
+
+  static async getLinkedInProviderHealth() {
+    return this.request<any>("/api/linkedin/health");
+  }
+
   // ================= Analytics & Telemetry =================
   static async trackEvent(data: { eventType: string; page?: string; resourceId?: string; metadata?: any }) {
     return this.request<any>("/api/analytics/event", {

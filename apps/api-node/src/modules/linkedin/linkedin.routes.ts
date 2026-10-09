@@ -11,7 +11,13 @@ export async function linkedinRoutes(app: FastifyInstance) {
   app.patch("/settings", { preValidation: [authenticate] }, LinkedInController.updateSettings);
   app.post("/connections/test", { preValidation: [authenticate] }, LinkedInController.testConnections);
 
-  // Profile Analysis & Recommendations
+  // Profile Intelligence & Analysis
+  app.get("/profile", { preValidation: [authenticate] }, LinkedInController.getProfile);
+  app.post("/profile/analyze", { preValidation: [authenticate] }, LinkedInController.analyzeProfile);
+  app.post("/profile/optimize", { preValidation: [authenticate] }, LinkedInController.analyzeProfile);
+  app.post("/profile/refresh", { preValidation: [authenticate] }, LinkedInController.refreshProfile);
+
+  // Legacy/Compatibility Profile Endpoints
   app.post("/analyze", { preValidation: [authenticate] }, LinkedInController.analyzeProfile);
   app.post("/analyze-url", { preValidation: [authenticate] }, LinkedInController.analyzeUrl);
   app.post("/analyze-pasted-profile", { preValidation: [authenticate] }, LinkedInController.analyzePastedProfile);
@@ -26,7 +32,14 @@ export async function linkedinRoutes(app: FastifyInstance) {
   app.post("/recommendations/:id/reject", { preValidation: [authenticate] }, LinkedInController.rejectRecommendation);
   app.post("/sync-profile", { preValidation: [authenticate] }, LinkedInController.syncProfile);
 
-  // Content Studio
+  // Content Studio & Posts
+  app.get("/posts", { preValidation: [authenticate] }, LinkedInController.getDrafts);
+  app.post("/posts/analyze", { preValidation: [authenticate] }, LinkedInController.auditDraft);
+  app.post("/posts/generate", { preValidation: [authenticate] }, LinkedInController.createDraft);
+  app.post("/posts/humanize", { preValidation: [authenticate] }, LinkedInController.humanizeDraft);
+  app.post("/posts/repurpose", { preValidation: [authenticate] }, LinkedInController.repurposeContent);
+
+  // Drafts Management
   app.post("/content/draft", { preValidation: [authenticate] }, LinkedInController.createDraft);
   app.get("/content/drafts", { preValidation: [authenticate] }, LinkedInController.getDrafts);
   // @ts-ignore
@@ -35,11 +48,9 @@ export async function linkedinRoutes(app: FastifyInstance) {
   app.patch("/content/drafts/:id", { preValidation: [authenticate] }, LinkedInController.updateDraft);
   // @ts-ignore
   app.post("/content/drafts/:id/humanize", { preValidation: [authenticate] }, LinkedInController.humanizeDraft);
-  // @ts-ignore
   app.post("/content/humanize", { preValidation: [authenticate] }, LinkedInController.humanizeDraft);
   // @ts-ignore
   app.post("/content/drafts/:id/audit", { preValidation: [authenticate] }, LinkedInController.auditDraft);
-  // @ts-ignore
   app.post("/content/audit", { preValidation: [authenticate] }, LinkedInController.auditDraft);
   // @ts-ignore
   app.post("/content/drafts/:id/approve", { preValidation: [authenticate] }, LinkedInController.approveDraft);
@@ -47,12 +58,14 @@ export async function linkedinRoutes(app: FastifyInstance) {
   app.post("/content/drafts/:id/publish", { preValidation: [authenticate] }, LinkedInController.publishDraft);
   app.post("/content/repurpose", { preValidation: [authenticate] }, LinkedInController.repurposeContent);
 
-  // Hook Extractor
+  // Hooks
   app.post("/hooks/extract", { preValidation: [authenticate] }, LinkedInController.extractHook);
 
   // Engagement Workspace
   app.post("/comments/draft", { preValidation: [authenticate] }, LinkedInController.draftComment);
+  app.post("/comments/generate", { preValidation: [authenticate] }, LinkedInController.draftComment);
   app.post("/replies/draft", { preValidation: [authenticate] }, LinkedInController.draftReply);
+  app.post("/replies/generate", { preValidation: [authenticate] }, LinkedInController.draftReply);
   app.post("/threads/analyze", { preValidation: [authenticate] }, LinkedInController.analyzeThreads);
   app.get("/threads", { preValidation: [authenticate] }, LinkedInController.analyzeThreads);
 
@@ -63,6 +76,20 @@ export async function linkedinRoutes(app: FastifyInstance) {
   // Content Calendar
   app.get("/calendar", { preValidation: [authenticate] }, LinkedInController.getCalendar);
   app.post("/calendar/generate", { preValidation: [authenticate] }, LinkedInController.generateCalendar);
+  app.get("/content/calendar", { preValidation: [authenticate] }, LinkedInController.getCalendar);
+  app.post("/content/calendar", { preValidation: [authenticate] }, LinkedInController.generateCalendar);
+
+  // Analytics
+  app.get("/analytics", { preValidation: [authenticate] }, LinkedInController.getAnalytics);
+  app.post("/analytics/refresh", { preValidation: [authenticate] }, LinkedInController.refreshAnalytics);
+
+  // Voice Profile
+  app.get("/voice-profile", { preValidation: [authenticate] }, LinkedInController.getVoiceProfile);
+  app.patch("/voice-profile", { preValidation: [authenticate] }, LinkedInController.updateVoiceProfile);
+
+  // Public Jobs & Search
+  app.get("/jobs", { preValidation: [authenticate] }, LinkedInController.searchJobs);
+  app.get("/health", { preValidation: [authenticate] }, LinkedInController.getHealth);
 
   // Story Bank Interviewer
   app.post("/interviewer/turn", { preValidation: [authenticate] }, LinkedInController.interviewerTurn);

@@ -11,7 +11,11 @@ import {
   AlertTriangle,
   ArrowRight,
   PlusCircle,
-  ExternalLink
+  ExternalLink,
+  Target,
+  Clock,
+  Search,
+  Layers
 } from "lucide-react";
 
 interface OverviewTabProps {
@@ -31,10 +35,25 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   engagers,
   connections,
 }) => {
-  const score = analysis?.score || 68;
-  const scheduledCount = drafts.filter(d => d.publicationStatus === "SCHEDULED").length;
+  const hasAnalysis = Boolean(analysis && analysis.score !== undefined);
+  const score = hasAnalysis ? analysis.score : null;
+  const scheduledDrafts = drafts.filter((d) => d.publicationStatus === "SCHEDULED");
   const draftCount = drafts.length;
   const engagerCount = engagers.length;
+  const planItemsCount = calendarPlan?.items?.length || 0;
+
+  // Extract top 3 actual issues from 14 sections
+  const sections = analysis?.sections || {};
+  const issuesList: { section: string; issue: string }[] = [];
+  Object.entries(sections).forEach(([secKey, secVal]: [string, any]) => {
+    if (secVal?.issues && Array.isArray(secVal.issues)) {
+      secVal.issues.forEach((iss: string) => {
+        if (issuesList.length < 3) {
+          issuesList.push({ section: secKey, issue: iss });
+        }
+      });
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -44,13 +63,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-300">
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Native LinkedIn Skills Engine (sergebulaev/linkedin-skills)</span>
+              <span>Native LinkedIn Career & Content Engine</span>
             </div>
             <h2 className="text-2xl font-bold tracking-tight text-white">
-              LinkedIn Growth & Career Engine
+              Career Intelligence & Content Workspace
             </h2>
             <p className="text-sm text-slate-400 max-w-2xl">
-              Optimize your profile with proven formulas, draft uninvented long-form posts from your Story Bank, schedule safely, and turn engagement into career opportunities.
+              Deterministic 14-section profile rubric, uninvented Story Bank content generation, 4-pass humanizer, and verified career integration.
             </p>
           </div>
 
@@ -73,64 +92,85 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       </div>
 
-      {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Metric Cards Grid - 100% Real Stored Data */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Profile Health */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Profile Score</span>
-            <TrendingUp className="h-4 w-4 text-indigo-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">{score}</span>
-            <span className="text-xs text-slate-400">/ 100</span>
-          </div>
-          <div className="mt-3 w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${score > 75 ? "bg-emerald-500" : score > 50 ? "bg-amber-500" : "bg-red-500"}`}
-              style={{ width: `${score}%` }}
-            />
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-400 mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Profile Score</span>
+              <TrendingUp className="h-4 w-4 text-indigo-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white">
+                {score !== null ? score : "—"}
+              </span>
+              <span className="text-xs text-slate-400">
+                {score !== null ? "/ 100" : "Not Analyzed"}
+              </span>
+            </div>
+            {score !== null ? (
+              <div className="mt-3 w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${
+                    score > 75 ? "bg-emerald-500" : score > 50 ? "bg-amber-500" : "bg-red-500"
+                  }`}
+                  style={{ width: `${score}%` }}
+                />
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500">Run profile analysis to compute</p>
+            )}
           </div>
           <button
             onClick={() => onNavigateTab("profile-analyzer")}
             className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
           >
-            Review suggestions <ArrowRight className="h-3 w-3" />
+            {hasAnalysis ? "Review 14 sections" : "Run analysis"}{" "}
+            <ArrowRight className="h-3 w-3" />
           </button>
         </div>
 
         {/* Content Drafts */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Content Drafts</span>
-            <FileText className="h-4 w-4 text-purple-400" />
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-400 mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Content Repository</span>
+              <FileText className="h-4 w-4 text-purple-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white">{draftCount}</span>
+              <span className="text-xs text-slate-400">{scheduledDrafts.length} scheduled</span>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              {scheduledDrafts.length > 0
+                ? `${scheduledDrafts.length} approved in calendar`
+                : "No posts pending publication"}
+            </p>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">{draftCount}</span>
-            <span className="text-xs text-slate-400">{scheduledCount} scheduled</span>
-          </div>
-          <p className="mt-2 text-xs text-slate-400">
-            {scheduledCount > 0 ? `${scheduledCount} approved for publishing` : "No pending queue"}
-          </p>
           <button
-            onClick={() => onNavigateTab("content-studio")}
+            onClick={() => onNavigateTab("posts")}
             className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
           >
-            Open studio <ArrowRight className="h-3 w-3" />
+            View post repository <ArrowRight className="h-3 w-3" />
           </button>
         </div>
 
         {/* Content Calendar */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Weekly Plan</span>
-            <Calendar className="h-4 w-4 text-emerald-400" />
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-400 mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Scheduled Plan</span>
+              <Calendar className="h-4 w-4 text-emerald-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white">{planItemsCount}</span>
+              <span className="text-xs text-slate-400">planned slots</span>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              {planItemsCount > 0 ? "Strategic sprint active" : "No active calendar schedule"}
+            </p>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">{calendarPlan?.items?.length || 7}</span>
-            <span className="text-xs text-slate-400">planned slots</span>
-          </div>
-          <p className="mt-2 text-xs text-slate-400">Formulas F1–F20 mapped</p>
           <button
             onClick={() => onNavigateTab("content-calendar")}
             className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
@@ -140,157 +180,141 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
 
         {/* Audience Intelligence */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Audience Signals</span>
-            <Users className="h-4 w-4 text-cyan-400" />
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-400 mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Public Signals</span>
+              <Users className="h-4 w-4 text-cyan-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white">{engagerCount}</span>
+              <span className="text-xs text-slate-400">observed engagers</span>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              {engagerCount > 0 ? "Target company contacts" : "Scan post for public engagers"}
+            </p>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">{engagerCount || 12}</span>
-            <span className="text-xs text-slate-400">tracked contacts</span>
-          </div>
-          <p className="mt-2 text-xs text-slate-400">Target company engagers</p>
           <button
             onClick={() => onNavigateTab("audience")}
             className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
           >
-            Inspect ICPs <ArrowRight className="h-3 w-3" />
+            Inspect engagers <ArrowRight className="h-3 w-3" />
           </button>
         </div>
       </div>
 
-      {/* Next Best Actions & Integrations Health */}
+      {/* Top 3 Profile Problems & Next Best Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Next Best Actions (2 Cols) */}
+        {/* Top 3 Identified Problems */}
         <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-indigo-400" />
-              Next Best Actions (Career Intelligence)
+              <AlertTriangle className="h-4 w-4 text-amber-400" />
+              Top Profile Issues & Next Best Action
             </h3>
-            <span className="text-xs text-slate-500">Derived from actual state</span>
+            <span className="text-xs text-slate-500">Live Rubric Diagnostics</span>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-start justify-between rounded-xl border border-slate-800/80 bg-slate-950/40 p-3.5 hover:border-slate-700 transition">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">
-                    Profile Optimization
-                  </span>
-                  <h4 className="text-sm font-medium text-slate-200">
-                    Strengthen headline with keyword metrics
-                  </h4>
+          {issuesList.length > 0 ? (
+            <div className="space-y-3">
+              {issuesList.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-start justify-between rounded-xl border border-slate-800/80 bg-slate-950/40 p-3.5 hover:border-slate-700 transition"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded uppercase">
+                        {item.section}
+                      </span>
+                      <h4 className="text-xs font-medium text-slate-200">{item.issue}</h4>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onNavigateTab("profile-optimizer")}
+                    className="shrink-0 text-xs text-indigo-400 hover:text-indigo-300 font-medium px-3 py-1.5 rounded-lg border border-indigo-500/30 hover:bg-indigo-500/10"
+                  >
+                    Optimize
+                  </button>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Your headline could highlight high-demand skills like Node.js and Architecture to increase search frequency.
-                </p>
-              </div>
-              <button
-                onClick={() => onNavigateTab("profile-analyzer")}
-                className="shrink-0 text-xs text-indigo-400 hover:text-indigo-300 font-medium px-3 py-1.5 rounded-lg border border-indigo-500/30 hover:bg-indigo-500/10"
-              >
-                Review
-              </button>
+              ))}
             </div>
+          ) : (
+            <div className="p-6 rounded-xl bg-slate-950/40 border border-slate-800 text-center space-y-2">
+              <CheckCircle2 className="mx-auto h-6 w-6 text-emerald-400" />
+              <p className="text-xs text-slate-300">
+                {hasAnalysis
+                  ? "All audited sections meet or exceed baseline criteria. Keep headline keywords fresh."
+                  : "No profile issues recorded yet. Run a profile analysis to populate audit diagnostics."}
+              </p>
+            </div>
+          )}
 
-            <div className="flex items-start justify-between rounded-xl border border-slate-800/80 bg-slate-950/40 p-3.5 hover:border-slate-700 transition">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
-                    Content Creation
-                  </span>
-                  <h4 className="text-sm font-medium text-slate-200">
-                    Draft a number-first post using Formula F7
-                  </h4>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Odd-precision metrics in line 1 earn +34% median reach in the 2026 feed. Pull facts from your Story Bank.
-                </p>
+          {/* Quick Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <button
+              onClick={() => onNavigateTab("profile-optimizer")}
+              className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-500/40 text-left transition"
+            >
+              <div>
+                <span className="text-xs font-bold text-white block">Profile Optimizer</span>
+                <span className="text-[10px] text-slate-400">Headlines, About, Skills</span>
               </div>
-              <button
-                onClick={() => onNavigateTab("content-studio")}
-                className="shrink-0 text-xs text-indigo-400 hover:text-indigo-300 font-medium px-3 py-1.5 rounded-lg border border-indigo-500/30 hover:bg-indigo-500/10"
-              >
-                Draft Post
-              </button>
-            </div>
+              <ArrowRight className="h-3.5 w-3.5 text-indigo-400" />
+            </button>
 
-            <div className="flex items-start justify-between rounded-xl border border-slate-800/80 bg-slate-950/40 p-3.5 hover:border-slate-700 transition">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-                    Story Bank Interviewer
-                  </span>
-                  <h4 className="text-sm font-medium text-slate-200">
-                    Capture 2 turning points from your recent project
-                  </h4>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Run the conversational interviewer to extract defensible numbers and metrics without making anything up.
-                </p>
+            <button
+              onClick={() => onNavigateTab("research")}
+              className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-500/40 text-left transition"
+            >
+              <div>
+                <span className="text-xs font-bold text-white block">Job & Company Search</span>
+                <span className="text-[10px] text-slate-400">Public LinkedIn pipeline</span>
               </div>
-              <button
-                onClick={() => onNavigateTab("story-bank")}
-                className="shrink-0 text-xs text-indigo-400 hover:text-indigo-300 font-medium px-3 py-1.5 rounded-lg border border-indigo-500/30 hover:bg-indigo-500/10"
-              >
-                Interview Me
-              </button>
-            </div>
+              <Search className="h-3.5 w-3.5 text-indigo-400" />
+            </button>
+
+            <button
+              onClick={() => onNavigateTab("analytics")}
+              className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-500/40 text-left transition"
+            >
+              <div>
+                <span className="text-xs font-bold text-white block">Verified Analytics</span>
+                <span className="text-[10px] text-slate-400">Post reach & formula trends</span>
+              </div>
+              <TrendingUp className="h-3.5 w-3.5 text-indigo-400" />
+            </button>
           </div>
         </div>
 
-        {/* Integration Health Card (1 Col) */}
+        {/* Runtime & Connectors Health */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-indigo-400" />
-              Runtime & Connectors
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              Runtime Providers & Privacy
             </h3>
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">MIT Licensed</span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Verified</span>
           </div>
 
-          <p className="text-xs text-slate-400">
-            Interview AI invokes the upstream Python/CLI runtime through thin adapters with zero API-dependency lock-in.
-          </p>
-
-          <div className="space-y-2.5 pt-2">
-            <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60 text-xs">
-              <span className="text-slate-300 font-medium">Read Provider</span>
-              <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                {connections?.providers?.read?.status === "CONNECTED" ? "Apify Connected" : "Manual Paste Mode"}
-              </span>
+          <div className="space-y-3 text-xs">
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800">
+              <span className="text-slate-400">Active Provider</span>
+              <span className="font-semibold text-indigo-400">Public Guest / Browser</span>
             </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60 text-xs">
-              <span className="text-slate-300 font-medium">Publish Provider</span>
-              <span className="inline-flex items-center gap-1.5 text-indigo-400 font-medium">
-                <span className="h-2 w-2 rounded-full bg-indigo-400" />
-                {connections?.providers?.publish?.status === "CONNECTED" ? "Publora Auto-Post" : "Manual Copy-Ready"}
-              </span>
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800">
+              <span className="text-slate-400">API Key Requirement</span>
+              <span className="font-semibold text-emerald-400">None (Zero Cost)</span>
             </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60 text-xs">
-              <span className="text-slate-300 font-medium">Media Engine</span>
-              <span className="inline-flex items-center gap-1.5 text-purple-400 font-medium">
-                <span className="h-2 w-2 rounded-full bg-purple-400" />
-                {connections?.providers?.media?.status === "CONNECTED" ? "Pixfaro Connected" : "Prompt Generator"}
-              </span>
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800">
+              <span className="text-slate-400">Session Cookie Harvesting</span>
+              <span className="font-semibold text-emerald-400">Disabled (Safe)</span>
             </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60 text-xs">
-              <span className="text-slate-300 font-medium">Approval Policy</span>
-              <span className="text-slate-400 font-mono">Strict (Approval Gate)</span>
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800">
+              <span className="text-slate-400">Publish Approval Mode</span>
+              <span className="font-semibold text-amber-400">Strict (User Confirms)</span>
             </div>
           </div>
-
-          <button
-            onClick={() => onNavigateTab("settings")}
-            className="w-full text-center text-xs text-indigo-400 hover:text-indigo-300 font-medium pt-2 block"
-          >
-            Manage Provider Settings & Keys →
-          </button>
         </div>
       </div>
     </div>
