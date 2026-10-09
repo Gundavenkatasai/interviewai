@@ -626,18 +626,6 @@ Return strictly valid JSON matching the schema above.`;
     // Generate authoritative Report
     const report = await ReportEngine.generateReport(sessionId, userId, 1);
 
-    // Eagerly trigger Thank-You Note follow-up
-    try {
-      const { FollowUpEngine } = require("../outreach/followup.engine");
-      await FollowUpEngine.scheduleFollowUp({
-        userId,
-        type: "INTERVIEW_THANK_YOU",
-        reason: "Completed interview session",
-        interviewId: sessionId,
-        offsetBusinessDays: 1,
-      });
-    } catch (_) {}
-
     WebSocketManager.sendToSession(sessionId, "REPORT_READY", { reportId: report.reportId });
     WebSocketManager.sendToSession(sessionId, "INTERVIEW_COMPLETED", {});
 

@@ -1,10 +1,8 @@
 import { Profile } from "../profile/profile.model";
 import { Resume } from "../resume/resume.model";
 import { LinkedInAnalysis } from "../linkedin/linkedin.model";
-import { JobApplication } from "../applications/applications.model";
 import { InterviewSession } from "../interview/interview.model";
 import { SavedJob } from "../jobs/jobs.model";
-// AutoApplyConfig removed in Day 12
 
 export class DashboardService {
   static async getDashboardStats(userId: string) {
@@ -30,21 +28,7 @@ export class DashboardService {
     // 3. Saved Jobs Count
     const savedJobsCount = await SavedJob.countDocuments({ userId });
 
-    // 4. Applications Count
-    const totalApplicationsCount = await JobApplication.countDocuments({ userId });
-    const activeApplicationsCount = await JobApplication.countDocuments({
-      userId,
-      status: { $nin: ["SAVED", "REJECTED", "WITHDRAWN", "CLOSED"] }
-    });
-    const preparedApplicationsCount = await JobApplication.countDocuments({
-      userId,
-      status: "SAVED"
-    });
-
-    // 5. Auto Apply Config (Mocked for Day 12 pipeline)
-    const autoApplyConfig = { isActive: false, dailyLimit: 0, appliedToday: 0 };
-
-    // 6. Interview Sessions & Analytics
+    // 4. Interview Sessions & Analytics
     const allSessions = await InterviewSession.find({ userId }).sort({ createdAt: -1 });
     const total_interviews = allSessions.length;
     const completedSessions = allSessions.filter(s => s.status === "completed");
@@ -93,12 +77,7 @@ export class DashboardService {
       session: `#${idx + 1}`
     }));
 
-    // 7. Recent Activity
-    const recentApplications = await JobApplication.find({ userId })
-      .sort({ updatedAt: -1 })
-      .limit(5)
-      .lean();
-
+    // 5. Recent Activity from Interview Drills
     const recentSessions = allSessions.slice(0, 5).map(s => ({
       id: s._id,
       role: s.role,
@@ -130,14 +109,8 @@ export class DashboardService {
       resumeScore,
       linkedInScore,
       savedJobsCount,
-      totalApplicationsCount,
-      preparedApplicationsCount,
-      activeApplicationsCount,
       interviewCount: completed_interviews,
-      autoApplyActive: autoApplyConfig?.isActive || false,
-      autoApplyLimit: autoApplyConfig?.dailyLimit || 10,
-      autoApplyToday: autoApplyConfig?.appliedToday || 0,
-      recentActivity: recentApplications,
+      recentActivity: recentSessions,
     };
   }
 }

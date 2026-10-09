@@ -1,5 +1,4 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
-import AnalyticsPage from './pages/Analytics/AnalyticsPage';
 
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 import { Sidebar } from './components/common/Sidebar'
@@ -25,14 +24,9 @@ import AdminPage from './pages/AdminPage'
 import JobsPage from './pages/JobsPage'
 import JobDetailPage from './pages/JobDetailPage'
 import TailorResumePage from './pages/TailorResumePage'
-import JobApplicationPage from './pages/JobApplicationPage'
 import SavedJobsPage from './pages/SavedJobsPage'
 import SourceHealthPage from './pages/SourceHealthPage'
-import ApplicationsPage from './pages/ApplicationsPage'
-import AutoApplyPage from './pages/AutoApplyPage'
-import OutreachPage from './pages/OutreachPage'
 import LinkedInPage from './pages/LinkedIn/LinkedInWorkspacePage'
-import PortfolioPage from './pages/PortfolioPage'
 import ResumeStudioPage from './pages/ResumeStudioPage'
 import InterviewIntelligencePage from './pages/InterviewIntelligencePage'
 import StoryBankPage from './pages/StoryBankPage'
@@ -82,22 +76,16 @@ export default function App() {
             {/* Job Discovery & Career Copilot routes */}
             <Route path="/jobs" element={<ProtectedRoute><JobsPage /></ProtectedRoute>} />
             <Route path="/jobs/saved" element={<ProtectedRoute><SavedJobsPage /></ProtectedRoute>} />
-            <Route path="/jobs/:id/apply" element={<ProtectedRoute><JobApplicationPage /></ProtectedRoute>} />
             <Route path="/jobs/:id" element={<ProtectedRoute><JobDetailPage /></ProtectedRoute>} />
             <Route path="/jobs/:id/tailor" element={<ProtectedRoute><TailorResumePage /></ProtectedRoute>} />
-            <Route path="/applications" element={<ProtectedRoute><ApplicationsPage /></ProtectedRoute>} />
-            <Route path="/auto-apply" element={<ProtectedRoute><AutoApplyPage /></ProtectedRoute>} />
             <Route path="/resume" element={<ProtectedRoute><ResumeStudioPage /></ProtectedRoute>} />
             <Route path="/resume/studio" element={<ProtectedRoute><ResumeStudioPage /></ProtectedRoute>} />
             <Route path="/resume/imported/:id" element={<ProtectedRoute><ImportedDocxEditorPage /></ProtectedRoute>} />
-            <Route path="/outreach" element={<ProtectedRoute><OutreachPage /></ProtectedRoute>} />
             <Route path="/linkedin" element={<ProtectedRoute><LinkedInPage /></ProtectedRoute>} />
-            <Route path="/portfolio" element={<ProtectedRoute><PortfolioPage /></ProtectedRoute>} />
             <Route path="/studio" element={<ProtectedRoute><ResumeStudioPage /></ProtectedRoute>} />
             <Route path="/intelligence/:id" element={<ProtectedRoute><InterviewIntelligencePage /></ProtectedRoute>} />
             <Route path="/stories" element={<ProtectedRoute><StoryBankPage /></ProtectedRoute>} />
             <Route path="/debrief/:id" element={<ProtectedRoute><InterviewDebriefPage /></ProtectedRoute>} />
-            <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
             <Route path="/admin/sources" element={<ProtectedRoute><SourceHealthPage /></ProtectedRoute>} />
 
             {/* 404 fallback */}

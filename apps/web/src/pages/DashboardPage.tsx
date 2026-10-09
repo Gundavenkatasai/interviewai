@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  LayoutDashboard, TrendingUp, Award, Clock, PlayCircle, ArrowRight,
-  Briefcase, Zap, Send, Share2, Globe, FileText, CheckCircle2,
-  AlertCircle, ChevronRight, BarChart2, Sparkles, ExternalLink
+  LayoutDashboard, TrendingUp, Clock, PlayCircle, ArrowRight,
+  Briefcase, Bookmark, Share2, FileText, CheckCircle2,
+  AlertCircle, ChevronRight, BarChart2, Sparkles, ExternalLink,
+  History, Activity
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -48,10 +49,6 @@ export default function DashboardPage() {
     profileReadiness: stats?.profileReadiness ?? 60,
     resumeScore: stats?.resumeScore ?? 85,
     savedJobsCount: stats?.savedJobsCount ?? 0,
-    activeApplicationsCount: stats?.activeApplicationsCount ?? stats?.totalApplicationsCount ?? 0,
-    autoApplyActive: stats?.autoApplyActive ?? false,
-    autoApplyToday: stats?.autoApplyToday ?? 0,
-    autoApplyLimit: stats?.autoApplyLimit ?? 10,
     recentActivity: stats?.recentActivity || [],
   };
 
@@ -67,7 +64,7 @@ export default function DashboardPage() {
             </span>
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Track your mock interview metrics, active job pipelines, automation bots, and career tools.
+            Track your mock interview metrics, technical drills, and career preparation suite.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -107,13 +104,13 @@ export default function DashboardPage() {
           <span className="text-[11px] text-slate-400 mt-1 block">Tech {s.technical_score} • Comm {s.communication_score}</span>
         </div>
 
-        <Link to="/applications" className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-slate-700 transition-all">
-          <span className="text-xs text-slate-400 uppercase font-semibold block">Active Applications</span>
+        <Link to="/jobs/saved" className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-slate-700 transition-all">
+          <span className="text-xs text-slate-400 uppercase font-semibold block">Saved Roles</span>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-3xl font-extrabold text-purple-400">{s.activeApplicationsCount}</span>
-            <span className="text-xs text-slate-500">in pipeline</span>
+            <span className="text-3xl font-extrabold text-blue-400">{s.savedJobsCount}</span>
+            <span className="text-xs text-slate-500">bookmarked</span>
           </div>
-          <span className="text-[11px] text-purple-400 font-medium mt-1 inline-block">Manage ATS tracker →</span>
+          <span className="text-[11px] text-blue-400 font-medium mt-1 inline-block">Explore saved roles →</span>
         </Link>
 
         <Link to="/profile" className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-slate-700 transition-all">
@@ -126,7 +123,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Feature Navigation Grid (All 8 Modules) */}
+      {/* Feature Navigation Grid */}
       <div className="space-y-4">
         <h2 className="text-base font-bold text-white flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-400" /> Complete Platform Features Suite
@@ -136,12 +133,12 @@ export default function DashboardPage() {
           {[
             { title: "Mock Interviews", desc: "Interactive AI drills with real-time feedback", to: "/setup", icon: PlayCircle, color: "text-indigo-400", border: "hover:border-indigo-500/50" },
             { title: "Job Discovery", desc: "Browse 300+ curated roles with match scores", to: "/jobs", icon: Briefcase, color: "text-blue-400", border: "hover:border-blue-500/50" },
-            { title: "Applications ATS", desc: "Track application pipelines & interview rounds", to: "/applications", icon: Award, color: "text-purple-400", border: "hover:border-purple-500/50" },
-            { title: "Auto-Apply Bot", desc: "Autonomous matching & application copilot", to: "/auto-apply", icon: Zap, color: "text-amber-400", border: "hover:border-amber-500/50" },
-            { title: "AI Outreach", desc: "Cover letters, cold emails, & LinkedIn notes", to: "/outreach", icon: Send, color: "text-pink-400", border: "hover:border-pink-500/50" },
-            { title: "Developer Portfolio", desc: "Live public portfolio generated from profile", to: "/portfolio", icon: Globe, color: "text-emerald-400", border: "hover:border-emerald-500/50" },
-            { title: "LinkedIn Optimizer", desc: "AI audit for recruiter search algorithms", to: "/linkedin", icon: Share2, color: "text-cyan-400", border: "hover:border-cyan-500/50" },
+            { title: "Saved Jobs", desc: "Track bookmarked jobs and matched positions", to: "/jobs/saved", icon: Bookmark, color: "text-amber-400", border: "hover:border-amber-500/50" },
             { title: "Resume Studio", desc: "Score ATS, tailor for jobs & export PDF/DOCX", to: "/resume", icon: FileText, color: "text-orange-400", border: "hover:border-orange-500/50" },
+            { title: "LinkedIn Workspace", desc: "AI audit & optimization for recruiter visibility", to: "/linkedin", icon: Share2, color: "text-cyan-400", border: "hover:border-cyan-500/50" },
+            { title: "Story Bank", desc: "STAR behavioral story vault with AI coaching", to: "/stories", icon: Sparkles, color: "text-emerald-400", border: "hover:border-emerald-500/50" },
+            { title: "Performance", desc: "Detailed competency analytics and history", to: "/performance", icon: Activity, color: "text-purple-400", border: "hover:border-purple-500/50" },
+            { title: "Practice History", desc: "Review past session reports and transcripts", to: "/history", icon: History, color: "text-rose-400", border: "hover:border-rose-500/50" },
           ].map((tool) => {
             const Icon = tool.icon;
             return (

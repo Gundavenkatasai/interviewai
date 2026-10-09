@@ -294,93 +294,7 @@ export class ApiClient {
     return this.request<any>(`/api/interviews/${sessionId}`, { method: "DELETE" });
   }
 
-  // ================= Applications Tracker =================
-  static async getApplications() {
-    const res = await this.request<any>("/api/applications");
-    return res?.data || res?.applications || (Array.isArray(res) ? res : []);
-  }
 
-  static async getApplication(id: string) {
-    const res = await this.request<any>(`/api/applications/${id}`);
-    return res?.data || res;
-  }
-
-  static async createApplication(data: any) {
-    return this.request('/applications', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  static async updateApplication(id: string, data: any) {
-    return this.request(`/applications/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-
-  static async deleteApplication(id: string) {
-    return this.request(`/applications/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Day 11 specific methods
-  static async prepareApplication(id: string, data: { resumeVersionId: string, tailoringRunId?: string }) {
-    return this.request(`/applications/${id}/prepare`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  static async generateApplicationAnswer(id: string, fieldId: string) {
-    return this.request(`/applications/${id}/answers/${fieldId}`, {
-      method: 'POST',
-    });
-  }
-
-  static async verifyApplicationFields(id: string, data: { fields: Partial<any>[] }) {
-    return this.request(`/applications/${id}/verify`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  static async markApplicationSubmitted(id: string) {
-    return this.request(`/applications/${id}/mark-submitted`, {
-      method: 'POST',
-    });
-  }
-
-  // ================= Pipeline (Auto-Apply V2) =================
-  static async startPipeline(jobId: string) {
-    return this.request<any>("/api/pipeline/run", {
-      method: "POST",
-      body: JSON.stringify({ jobId }),
-    });
-  }
-
-  static async getPipelineRuns() {
-    const res = await this.request<any>("/api/pipeline/runs");
-    return res?.data || (Array.isArray(res) ? res : []);
-  }
-
-  static async getPipelineRun(id: string) {
-    const res = await this.request<any>(`/api/pipeline/runs/${id}`);
-    return res?.data || res;
-  }
-
-  static async retryPipeline(id: string) {
-    return this.request<any>(`/api/pipeline/runs/${id}/retry`, {
-      method: "POST",
-    });
-  }
-
-  static async cancelPipeline(id: string) {
-    return this.request<any>(`/api/pipeline/runs/${id}/cancel`, {
-      method: "POST",
-    });
-  }
 
   // ================= Interview Intelligence =================
   static async generateIntelligence(data: { jobId: string; resumeVersionId: string; interviewType?: string }) {
@@ -436,18 +350,7 @@ export class ApiClient {
     return res?.data || res || [];
   }
 
-  // ================= AI Outreach Studio =================
-  static async generateOutreach(data: {
-    jobId: string;
-    type: "cover_letter" | "cold_email" | "linkedin_message";
-    tone?: string;
-    resumeId?: string;
-  }) {
-    return this.request<any>("/api/outreach/generate", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
+
 
   // ================= LinkedIn Reviewer =================
   static async analyzeLinkedIn(profileUrl: string) {
@@ -457,11 +360,6 @@ export class ApiClient {
     });
   }
 
-  // ================= Developer Portfolio =================
-  static async getPortfolio() {
-    const res = await this.request<any>("/api/portfolio");
-    return res?.data || res?.portfolio || res;
-  }
 
   // ================= User Profile =================
   static async getProfile() {
@@ -929,30 +827,7 @@ export class ApiClient {
     return this.request<any>("/api/jobs/saved");
   }
 
-  static async getJobApplications() {
-    return this.request<any>("/api/jobs/applications");
-  }
 
-  static async applyToJob(id: string, data: any) {
-    return this.createApplication({
-      jobId: id,
-      companyName: data.company_name || data.companyName || "Company",
-      jobTitle: data.title || data.jobTitle || "Role",
-      status: "applied",
-      notes: data.cover_note || data.notes || "",
-      url: data.url || "",
-    });
-  }
-
-  static async trackJobApplication(id: string, status: string, notes?: string) {
-    return this.createApplication({
-      jobId: id,
-      companyName: "Company",
-      jobTitle: "Role",
-      status,
-      notes,
-    });
-  }
 
   static async prepareJobInterview(id: string) {
     return this.request<any>(`/api/jobs/${id}/prepare-interview`, {

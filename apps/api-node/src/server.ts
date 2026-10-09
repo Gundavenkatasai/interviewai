@@ -12,16 +12,12 @@ async function startServer() {
     app.log.info(`📚 Swagger docs available at http://localhost:${env.PORT}/docs`);
     
     // Start background tasks
-    const { OutreachQueue } = require("./modules/outreach/outreach.queue");
-    // OutreachQueue.start(); // Disabled temporarily as Redis is not running
-    
     const { JobScheduler } = require("./modules/jobs/ingestion/scheduler");
     JobScheduler.start();
 
     // Graceful Shutdown
     const gracefulShutdown = async (signal: string) => {
       app.log.info(`Received ${signal}, shutting down gracefully...`);
-      OutreachQueue.stop();
       const { JobScheduler } = require("./modules/jobs/ingestion/scheduler");
       JobScheduler.stop();
       try {

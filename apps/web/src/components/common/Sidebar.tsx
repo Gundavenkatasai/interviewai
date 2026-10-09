@@ -45,26 +45,22 @@ export function Sidebar() {
   const navGroups = user
     ? [
         {
-          title: "PRACTICE & ANALYTICS",
+          title: "PRACTICE & INTERVIEWS",
           links: [
             { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
             { href: "/setup", label: "Mock Interview", icon: PlayCircle },
-            { href: "/analytics", label: "Career Analytics", icon: BarChart3 },
             { href: "/history", label: "Practice History", icon: History },
             { href: "/performance", label: "Performance", icon: Activity },
+            { href: "/stories", label: "Story Bank", icon: Sparkles },
           ]
         },
         {
-          title: "CAREER COPILOT",
+          title: "CAREER ACCELERATION",
           links: [
             { href: "/jobs", label: "Job Discovery", icon: Briefcase },
             { href: "/jobs/saved", label: "Saved Jobs", icon: Bookmark },
             { href: "/resume", label: "Resume Studio", icon: FileText, badge: "ATS" },
-            { href: "/applications", label: "ATS Tracker", icon: Award },
-            { href: "/auto-apply", label: "Auto-Apply Bot", icon: Zap },
-            { href: "/outreach", label: "AI Outreach", icon: Send },
             { href: "/linkedin", label: "LinkedIn Workspace", icon: Share2 },
-            { href: "/portfolio", label: "Live Portfolio", icon: Globe },
           ]
         },
         {

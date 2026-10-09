@@ -146,33 +146,16 @@ export default function JobDetailPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => navigate(`/jobs/${id}/apply`)}
-                    className="py-2.5 px-4 rounded-xl text-sm font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/jobs/${id}/tailor`)}
+                    className="py-2.5 px-4 rounded-xl text-sm font-semibold text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center gap-2 transition-colors cursor-pointer"
                   >
-                    <FileText className="w-4 h-4" /> Log Application
-                  </button>
-                  <button
-                    onClick={() => navigate(`/outreach?jobId=${id}`)}
-                    className="py-2.5 px-4 rounded-xl text-sm font-semibold text-pink-300 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/30 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 text-pink-400" /> AI Outreach
+                    <FileText className="w-4 h-4 text-indigo-400" /> Tailor Resume
                   </button>
                   <button
                     onClick={() => navigate(`/intelligence/${id}`)}
                     className="py-2.5 px-4 rounded-xl text-sm font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center gap-2 transition-colors cursor-pointer"
                   >
                     <Brain className="w-4 h-4 text-emerald-400" /> Interview Prep
-                  </button>
-                  <button
-                    onClick={async () => {
-                       try {
-                         await ApiClient.startPipeline(id!);
-                         navigate('/auto-apply'); // Routes to Pipeline Dashboard
-                       } catch (e) { console.error(e) }
-                    }}
-                    className="py-2.5 px-4 rounded-xl text-sm font-semibold text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                  >
-                    <Zap className="w-4 h-4 text-indigo-400" /> Prepare Application
                   </button>
                   <button onClick={handleSave}
                     className={`p-2.5 rounded-xl border transition-colors cursor-pointer ${saved ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400" : "border-slate-700 text-slate-400 hover:text-white"}`}>

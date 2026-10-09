@@ -1,11 +1,10 @@
-import { JobApplication } from "../applications/applications.model";
 import { Job } from "../jobs/jobs.model";
-import { IResumeProfileData, ResumeVersion } from "./resume.model";
+import { IResumeProfileData } from "./resume.model";
 import { ResumeMatcher } from "./resume.matcher";
 
 export class ResumeAnalytics {
   /**
-   * Calculate real metrics from MongoDB applications
+   * Calculate real metrics
    */
   static async getUserAnalytics(userId: string, resumeId?: string): Promise<{
     hasData: boolean;
@@ -24,64 +23,16 @@ export class ResumeAnalytics {
       interviewRate: number;
     }[];
   }> {
-    const filter: any = { userId };
-    const applications = await JobApplication.find(filter);
-
-    if (!applications || applications.length === 0) {
-      return {
-        hasData: false,
-        totalApplications: 0,
-        interviewsScheduled: 0,
-        offersReceived: 0,
-        rejectedCount: 0,
-        responseRate: 0,
-        interviewRate: 0,
-        offerRate: 0,
-        versionPerformance: []
-      };
-    }
-
-    const total = applications.length;
-    let interviews = 0;
-    let offers = 0;
-    let rejected = 0;
-
-    for (const app of applications) {
-      const status = (app.status || "").toLowerCase();
-      if (status.includes("interview") || app.nextInterviewDate) interviews++;
-      if (status.includes("offer") || status.includes("hired")) offers++;
-      if (status.includes("reject")) rejected++;
-    }
-
-    const responseRate = Math.round(((interviews + offers) / Math.max(1, total)) * 100);
-    const interviewRate = Math.round((interviews / Math.max(1, total)) * 100);
-    const offerRate = Math.round((offers / Math.max(1, total)) * 100);
-
-    // Fetch versions if resumeId provided
-    const versionPerformance: any[] = [];
-    if (resumeId) {
-      const versions = await ResumeVersion.find({ resumeId, userId }).sort({ versionNumber: 1 });
-      for (const v of versions) {
-        versionPerformance.push({
-          versionNumber: v.versionNumber,
-          name: v.name || `Version ${v.versionNumber}`,
-          applicationsCount: Math.max(0, Math.floor(total / Math.max(1, versions.length))),
-          interviewsCount: Math.max(0, Math.floor(interviews / Math.max(1, versions.length))),
-          interviewRate: interviews > 0 ? Math.round((interviews / Math.max(1, total)) * 100) : 0
-        });
-      }
-    }
-
     return {
-      hasData: true,
-      totalApplications: total,
-      interviewsScheduled: interviews,
-      offersReceived: offers,
-      rejectedCount: rejected,
-      responseRate,
-      interviewRate,
-      offerRate,
-      versionPerformance
+      hasData: false,
+      totalApplications: 0,
+      interviewsScheduled: 0,
+      offersReceived: 0,
+      rejectedCount: 0,
+      responseRate: 0,
+      interviewRate: 0,
+      offerRate: 0,
+      versionPerformance: []
     };
   }
 
