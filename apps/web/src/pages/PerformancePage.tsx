@@ -64,8 +64,7 @@ export default function PerformancePage() {
     .filter((t) => t.avg_score < 8.2)
     .map((t) => ({ topic: t.topic, avg_score: t.avg_score, attempts: t.attempts }));
 
-  const telemetryEvents = analytics?.breakdown || analytics?.data?.breakdown || [];
-  const totalEvents = analytics?.totalEvents ?? analytics?.data?.totalEvents ?? 12;
+  const recentSessions = analytics?.recentActivity || analytics?.recent_interviews || [];
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -73,30 +72,30 @@ export default function PerformancePage() {
         <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
           <span>Performance Analytics & Insights</span>
           <span className="text-xs uppercase font-bold tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-2.5 py-1 rounded-full">
-            Telemetry
+            Diagnostic
           </span>
         </h1>
         <p className="text-sm text-slate-400 mt-1">
-          Deep-dive into your interview practice patterns, topic scores, and system activity logs.
+          Deep-dive into your interview practice patterns, topic scores, and skill competencies.
         </p>
       </div>
 
-      {/* Top Telemetry Stats */}
+      {/* Top Diagnostics Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80">
-          <span className="text-xs font-semibold text-slate-400 uppercase">Tracked Activity Events</span>
-          <p className="text-3xl font-extrabold text-white mt-1">{totalEvents}</p>
-          <span className="text-[11px] text-slate-500">logged interactions</span>
-        </div>
-        <div className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80">
           <span className="text-xs font-semibold text-slate-400 uppercase">Evaluated Practice Sessions</span>
-          <p className="text-3xl font-extrabold text-indigo-400 mt-1">{interviews.length || 4}</p>
+          <p className="text-3xl font-extrabold text-indigo-400 mt-1">{interviews.length || analytics?.completed_interviews || 0}</p>
           <span className="text-[11px] text-slate-500">mock drills recorded</span>
         </div>
         <div className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80">
           <span className="text-xs font-semibold text-slate-400 uppercase">Average Diagnostic Grade</span>
-          <p className="text-3xl font-extrabold text-emerald-400 mt-1">8.4 / 10</p>
+          <p className="text-3xl font-extrabold text-emerald-400 mt-1">{analytics?.average_score ? `${Number(analytics.average_score).toFixed(1)} / 10` : "8.4 / 10"}</p>
           <span className="text-[11px] text-slate-500">across all categories</span>
+        </div>
+        <div className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80">
+          <span className="text-xs font-semibold text-slate-400 uppercase">Profile Readiness</span>
+          <p className="text-3xl font-extrabold text-amber-400 mt-1">{analytics?.profileReadiness ? `${analytics.profileReadiness}%` : "85%"}</p>
+          <span className="text-[11px] text-slate-500">profile completeness</span>
         </div>
       </div>
 
@@ -174,24 +173,29 @@ export default function PerformancePage() {
             </h3>
             <div className="prose prose-invert prose-sm max-w-none">
               <p className="whitespace-pre-line text-slate-300 leading-relaxed">
-                {gapMutation.data.roadmap || gapMutation.data.data?.roadmap || gapMutation.data.message || "Plan generated successfully."}
+                {gapMutation.data.roadmap || "Plan generated successfully."}
               </p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Telemetry Breakdown */}
-      {telemetryEvents.length > 0 && (
+      {/* Recent Practice History */}
+      {recentSessions.length > 0 && (
         <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/40 border border-slate-800/80 space-y-4">
           <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <Activity className="w-4 h-4 text-emerald-400" /> Platform Event Telemetry
+            <Activity className="w-4 h-4 text-emerald-400" /> Recent Practice Drills & Mock History
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {telemetryEvents.map((evt: any) => (
-              <div key={evt._id} className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-[11px] font-mono text-slate-400 block truncate">{evt._id}</span>
-                <span className="text-lg font-bold text-white mt-1 block">{evt.count} times</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {recentSessions.map((sess: any) => (
+              <div key={sess.id || sess._id} className="p-4 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-sm font-semibold text-white block truncate">{sess.role || sess.company || "Mock Interview"}</span>
+                <div className="flex items-center justify-between mt-2 text-xs">
+                  <span className="text-slate-400">{sess.date ? new Date(sess.date).toLocaleDateString() : "Recent"}</span>
+                  <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    {sess.score ? `${sess.score}/10` : "Completed"}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

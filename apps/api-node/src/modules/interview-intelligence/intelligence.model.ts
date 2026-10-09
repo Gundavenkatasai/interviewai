@@ -41,10 +41,10 @@ export interface IReadinessBreakdown {
 }
 
 export interface IInterviewIntelligence extends Document {
-  userId: mongoose.Types.ObjectId;
-  jobId: mongoose.Types.ObjectId;
-  jobSnapshotId: mongoose.Types.ObjectId;
-  resumeVersionId: mongoose.Types.ObjectId;
+  userId: string;
+  jobId: string;
+  jobSnapshotId?: string;
+  resumeVersionId?: string;
   
   interviewType: string; // HR_SCREEN, HIRING_MANAGER, TECHNICAL, etc.
   targetRole: string;
@@ -102,16 +102,16 @@ const PrepQuestionSchema = new Schema<IPrepQuestion>({
 }, { _id: false });
 
 const InterviewIntelligenceSchema = new Schema<IInterviewIntelligence>({
-  userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  jobId: { type: Schema.Types.ObjectId, ref: "Job", required: true },
-  jobSnapshotId: { type: Schema.Types.ObjectId, ref: "Job", required: true },
-  resumeVersionId: { type: Schema.Types.ObjectId, ref: "ResumeVersion", required: true },
+  userId: { type: String, ref: "User", required: true, index: true },
+  jobId: { type: String, ref: "Job", required: true },
+  jobSnapshotId: { type: String },
+  resumeVersionId: { type: String },
   
   interviewType: { type: String, default: "GENERAL" },
   targetRole: { type: String },
   seniority: { type: String },
 
-  inputFingerprint: { type: String, required: true, unique: true },
+  inputFingerprint: { type: String, required: true },
   status: { type: String, default: "PENDING" },
 
   readinessScore: { type: Number, default: 0 },

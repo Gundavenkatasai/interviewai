@@ -11,7 +11,7 @@ export interface IStoryVersion {
 }
 
 export interface IInterviewStory extends Document {
-  userId: mongoose.Types.ObjectId;
+  userId: string;
   title: string;
   sourceEvidenceIds: string[]; // e.g. resumeExperience:123
   
@@ -52,7 +52,7 @@ const StoryVersionSchema = new Schema<IStoryVersion>({
 }, { _id: false });
 
 const InterviewStorySchema = new Schema<IInterviewStory>({
-  userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  userId: { type: String, ref: "User", required: true, index: true },
   title: { type: String, required: true },
   sourceEvidenceIds: [{ type: String }],
   
