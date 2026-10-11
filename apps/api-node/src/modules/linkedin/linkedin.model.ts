@@ -184,7 +184,7 @@ const linkedInAnalysisVersionSchema = new Schema<ILinkedInAnalysisVersion>(
     profileId: { type: String, ref: "LinkedInProfile", required: true, index: true },
     userId: { type: String, ref: "User", required: true, index: true },
     snapshot: { type: Schema.Types.Mixed, required: true },
-    score: { type: Number, required: true }
+    score: { type: Number, required: false, default: 0 }
   },
   { timestamps: true }
 );

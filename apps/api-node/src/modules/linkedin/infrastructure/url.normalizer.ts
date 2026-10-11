@@ -66,11 +66,11 @@ export class UrlNormalizer {
     const pathname = parsed.pathname.replace(/\/+/g, "/");
 
     // Profile URL: /in/<username>
-    if (pathname.startsWith("/in/")) {
+    if (pathname.startsWith("/in/") || pathname === "/in") {
       const parts = pathname.split("/").filter(Boolean);
       const username = (parts[1] || "").toLowerCase().replace(/[^a-z0-9_-]/g, "");
       if (!username) {
-        throw new InvalidUrlError("LinkedIn profile URL is missing a valid username path.", rawUrl);
+        throw new InvalidUrlError("Please include your LinkedIn profile username (e.g. https://www.linkedin.com/in/your-name).", rawUrl);
       }
       return {
         canonicalUrl: `https://www.linkedin.com/in/${username}/`,

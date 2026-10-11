@@ -241,6 +241,7 @@ export class LinkedInService {
         profileId: profileData.canonicalUrl,
         userId,
         snapshot: analysisDoc.toObject(),
+        score: analysisResult.overallScore,
       });
 
       const responsePayload = {
