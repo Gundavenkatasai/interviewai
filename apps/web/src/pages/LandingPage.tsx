@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Sparkles, Mic, BarChart2, Briefcase, ArrowRight, CheckCircle, Star, Zap } from "lucide-react";
+import { Footer } from "../components/common/Footer";
 
 const features = [
   { icon: Briefcase, title: "AI Job Discovery", desc: "Search 8 Tier-1 job boards aggregated in real-time. Filter by role, skills, location, salary.", color: "text-indigo-400" },
@@ -98,6 +99,8 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      <Footer />
     </div>
   );
 }

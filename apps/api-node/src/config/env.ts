@@ -10,12 +10,18 @@ const envSchema = z.object({
   PORT: z.string().default("3000").transform((val) => parseInt(val, 10)),
   MONGODB_URI: z.string().default(isProd ? "" : "mongodb://localhost:27017").refine(val => val !== "", { message: "MONGODB_URI is required in production" }),
   MONGODB_DB_NAME: z.string().default("applyhustle"),
-  JWT_SECRET: z.string().default(isProd ? "" : "super_secret_jwt_key_change_in_production").refine(val => val !== "", { message: "JWT_SECRET is required in production" }),
+  JWT_SECRET: z.string()
+    .default(isProd ? "" : "super_secret_jwt_key_change_in_production")
+    .refine(val => val !== "", { message: "JWT_SECRET is required in production" })
+    .refine(val => !isProd || val !== "super_secret_jwt_key_change_in_production", { message: "Insecure JWT_SECRET default cannot be used in production" }),
   JWT_EXPIRES_IN: z.string().default("7d"),
   FRONTEND_URL: z.string().default(isProd ? "" : "http://localhost:5173").refine(val => val !== "", { message: "FRONTEND_URL is required in production" }),
   QWEN_BASE_URL: z.string().optional(),
   QWEN_API_KEY: z.string().optional(),
   GROQ_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
   APIFY_TOKEN: z.string().optional(),
   REDIS_URL: z.string().optional()
 });

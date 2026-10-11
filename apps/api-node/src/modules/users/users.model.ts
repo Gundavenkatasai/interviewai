@@ -10,6 +10,8 @@ export interface IUser {
   role: string;
   isActive: boolean;
   isAdmin: boolean;
+  termsAcceptedVersion?: string;
+  termsAcceptedAt?: Date;
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -25,6 +27,8 @@ const userSchema = new Schema<IUser>(
     role: { type: String, default: "user" },
     isActive: { type: Boolean, default: true },
     isAdmin: { type: Boolean, default: false },
+    termsAcceptedVersion: { type: String, default: "v2.0" },
+    termsAcceptedAt: { type: Date, default: Date.now },
     lastLoginAt: { type: Date },
   },
   { timestamps: true }

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Sparkles, ArrowRight, Lock, Mail, User, AlertCircle, LogIn } from "lucide-react";
+import { Sparkles, ArrowRight, Lock, Mail, User, AlertCircle, LogIn, CheckSquare, Square } from "lucide-react";
 import { ApiClient } from "../lib/api";
 import { useAuth } from "../contexts/AuthProvider";
 
@@ -10,16 +10,28 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!termsAccepted) {
+      setError("You must acknowledge and accept the Terms of Service and Privacy Policy to register.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
 
     try {
-      await ApiClient.register({ full_name: fullName, email, password });
+      await ApiClient.register({
+        full_name: fullName,
+        fullName,
+        email,
+        password,
+        termsAccepted: true,
+        termsVersion: "v2.0"
+      });
       refetchUser();
       navigate("/dashboard");
     } catch (err: any) {
@@ -68,7 +80,10 @@ export default function RegisterPage() {
             <div className="relative">
               <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               <input
-                type="text" required value={fullName}
+                type="text"
+                name="fullName"
+                required
+                value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Alex Developer"
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none transition-colors"
@@ -81,7 +96,10 @@ export default function RegisterPage() {
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               <input
-                type="email" required value={email}
+                type="email"
+                name="email"
+                required
+                value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none transition-colors"
@@ -94,7 +112,11 @@ export default function RegisterPage() {
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               <input
-                type="password" required minLength={6} value={password}
+                type="password"
+                name="password"
+                required
+                minLength={6}
+                value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none transition-colors"
@@ -102,8 +124,33 @@ export default function RegisterPage() {
             </div>
           </div>
 
+          {/* Terms & Privacy acceptance */}
+          <div className="pt-1">
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-400 select-none">
+              <input
+                type="checkbox"
+                name="termsAccepted"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-0.5 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900"
+              />
+              <span className="leading-relaxed">
+                I acknowledge and accept the{" "}
+                <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline font-medium">
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline font-medium">
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
+          </div>
+
           <button
-            type="submit" disabled={isLoading}
+            type="submit"
+            disabled={isLoading}
             className="w-full py-3 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 transition-all mt-2"
           >
             <span>{isLoading ? "Creating Account..." : "Create Account"}</span>

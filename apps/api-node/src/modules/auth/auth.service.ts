@@ -16,6 +16,8 @@ export class AuthService {
       email: data.email,
       fullName: data.fullName,
       passwordHash,
+      termsAcceptedVersion: data.termsVersion || "v2.0",
+      termsAcceptedAt: new Date(),
     });
 
     return user;

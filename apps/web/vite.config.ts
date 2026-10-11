@@ -32,4 +32,36 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('superdoc') || id.includes('@superdoc')) {
+              return 'superdoc-vendor';
+            }
+            if (id.includes('pdfjs-dist') || id.includes('jspdf') || id.includes('html2canvas')) {
+              return 'pdf-vendor';
+            }
+            if (id.includes('@monaco-editor') || id.includes('monaco-editor')) {
+              return 'monaco-vendor';
+            }
+            if (id.includes('recharts')) {
+              return 'charts-vendor';
+            }
+            if (id.includes('react-dom') || id.includes('react-router-dom') || id.includes('/react/')) {
+              return 'react-core';
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons-vendor';
+            }
+            if (id.includes('@tanstack') || id.includes('zustand')) {
+              return 'state-vendor';
+            }
+          }
+        },
+      },
+    },
+  },
 })

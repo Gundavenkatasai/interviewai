@@ -5,12 +5,29 @@ export class TrustEngine {
   /**
    * Analyze a job posting and return a Trust Score (0-100) and details.
    */
-  static analyzeJob(job: Partial<IJob>): { trustScore: number; details: any, engineVersion: string } {
+  static analyzeJob(job: Partial<IJob>): { trustScore: number; score: number; details: any; engineVersion: string } {
     let score = 100;
     const evidence: string[] = [];
     
     let isOfficialDomain = false;
     let suspiciousWording = false;
+    let suspiciousPayment = false;
+
+    // Check description for payment / scam terms
+    const descLower = (job.description || "").toLowerCase();
+    if (
+      descLower.includes("wire transfer") ||
+      descLower.includes("send money") ||
+      descLower.includes("startup kit") ||
+      descLower.includes("western union") ||
+      descLower.includes("processing fee") ||
+      descLower.includes("cashier check")
+    ) {
+      suspiciousPayment = true;
+      suspiciousWording = true;
+      score -= 30;
+      evidence.push("Suspicious payment or fee request detected in description");
+    }
 
     // Day 4 Integration: jobQualitySignals
     if (job.jobQualitySignals) {
@@ -60,13 +77,13 @@ export class TrustEngine {
     if (job.freshness === "STALE") {
       score -= 20;
       evidence.push("Job posting is marked as STALE (>30 days old)");
-    } else if (job.freshness === "FRESH") {
+    } else if (job.freshness === "FRESH" || job.freshness?.startsWith("FRESH")) {
       evidence.push("Job posting is FRESH (<48 hours)");
       score = Math.min(100, score + 5);
     }
 
     // Completeness
-    if (!job.description || job.description.length < 200) {
+    if (!job.description || job.description.length < 20) {
       score -= 20;
       evidence.push("Job description is suspiciously short or missing");
     }
@@ -81,9 +98,11 @@ export class TrustEngine {
 
     return {
       trustScore: score,
+      score,
       details: {
         isOfficialDomain,
         suspiciousWording,
+        suspiciousPayment,
         evidence
       },
       engineVersion: TRUST_ENGINE_VERSION

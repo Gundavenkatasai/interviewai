@@ -1,278 +1,147 @@
-# InterviewAI — Production-Ready AI Mock Interview Platform
+# Interview AI — Career Acceleration & Mock Interview Platform
 
-InterviewAI is a personal AI mock interview practice platform engineered to simulate realistic, high-bar technical, HR, and coding interviews with live speech transcription, dynamic follow-up questioning, real-time 8-dimensional rubric evaluation, and post-interview diagnostic reports.
-
----
-
-## 🐳 One-Click Docker Desktop & Dev Environment Setup
-
-Share this repository link with anyone so they can run the website and edit code immediately:  
-🔗 **`https://github.com/Gundavenkatasai/interviewai.git`**
-
-### Option 1: Run with Docker Desktop / Docker Compose
-1. Make sure **Docker Desktop** is running.
-2. Clone and start:
-   ```bash
-   git clone https://github.com/Gundavenkatasai/interviewai.git
-   cd interviewai
-   docker compose up
-   ```
-3. Open in your browser:
-   * 🌐 **Frontend Web App**: [http://localhost:5173](http://localhost:5173)
-   * ⚡ **Backend Fastify API**: [http://localhost:8001](http://localhost:8001) (Swagger docs at [http://localhost:8001/docs](http://localhost:8001/docs))
-   * 🤖 **Job Market Sidecar**: [http://localhost:8000](http://localhost:8000)
-   * 🍃 **Database**: MongoDB on port `27017`
-
-> 💡 **Live Code Editing**: Code modifications in `apps/web` and `apps/api-node` automatically sync and hot-reload inside the running containers!
-
-### Option 2: Docker Desktop "Dev Environments" (1-Click VS Code in Docker)
-1. Open **Docker Desktop**.
-2. Click **Dev Environments** on the left sidebar.
-3. Click **Create** ➔ Select **From Git Repository**.
-4. Paste: `https://github.com/Gundavenkatasai/interviewai.git`
-5. Click **Continue**. Docker Desktop will spin up the entire multi-container environment with VS Code attached so anyone can edit code and run the app right away!
+Interview AI is an enterprise-grade career preparation and interview intelligence platform engineered with a high-performance **React 19 + Vite** frontend, a scalable **Fastify + Node.js + TypeScript** backend, and **MongoDB Atlas**. It integrates multi-source job ingestion, resume parsing, ATS compatibility analysis, and real-time AI mock technical/behavioral interviews.
 
 ---
 
-## 🚀 Key Highlights & Philosophy
-
-* **100% Selective Input & Privacy First**: Zero desktop scraping, zero hidden overlays, no Google Meet injection, and no surveillance evasion techniques. Explicit microphone permissions via standard browser APIs with visible indicators.
-* **Single Free Groq Cloud Key**: Powered completely by Groq's high-speed free tier for both **LLM reasoning** (`openai/gpt-oss-120b`) and **Whisper transcription** (`whisper-large-v3-turbo`).
-* **Modular Speech Transcription**: Pluggable `SpeechProvider` abstraction combining Web Speech API (zero-latency local interim) with cloud Whisper (high-accuracy audio chunking).
-* **Live Coding Interview Sandbox**: Interactive Monaco Editor supporting Python, JavaScript, Java, and C++ with test cases, execution output, and AI algorithmic code review.
-* **8-Dimensional Evaluator**: Graded from 0 to 10 on correctness, relevance, technical depth, completeness, communication, confidence, examples, and problem-solving.
-
----
-
-## 🏛️ System Architecture
+## 🌟 Production Architecture Overview
 
 ```
-                                  BROWSER (Next.js 15)
-     ┌──────────────────────────────────────┬──────────────────────────────────┐
-     │  Landing → Setup → Session Dashboard │  Live Monaco Editor + Tests     │
-     │  Mic (getUserMedia) + Audio Visual   │  WebSocket Client (ws://:8001)   │
-     └──────────────────┬───────────────────┴──────────────────┬───────────────┘
-                        │ HTTP / Audio Blobs                   │ WebSockets
-                        ▼                                      ▼
-     ┌─────────────────────────────────────────────────────────────────────────┐
-     │                         FastAPI Backend (Port 8001)                     │
-     │  - REST APIs: /api/auth, /api/interviews, /api/ai, /api/code, etc.      │
-     │  - Real-Time WebSocket Manager: /ws/interview/{session_id}              │
-     │                                                                         │
-     │  ┌───────────────────────┐  ┌───────────────────────┐  ┌─────────────┐  │
-     │  │  AI Service (Groq)    │  │  Whisper STT (Groq)   │  │ Code Runner │  │
-     │  │  openai/gpt-oss-120b  │  │  whisper-large-v3-turb│  │ Piston /    │  │
-     │  │  Strict Pydantic JSON │  │  Audio Chunk Pipeline │  │ Sandbox     │  │
-     │  └───────────────────────┘  └───────────────────────┘  └─────────────┘  │
-     └────────────────────────────────────┬────────────────────────────────────┘
-                                          │
-                                          ▼
-     ┌─────────────────────────────────────────────────────────────────────────┐
-     │                   PostgreSQL 15 Container (Port 5433)                   │
-     │  Users, Sessions, Questions, Answers, Evaluations, Transcripts, Scores   │
-     └─────────────────────────────────────────────────────────────────────────┘
+                                    CLIENT LAYER
+                             React 19 + Vite (apps/web)
+          ┌──────────────────────────────────────────────────────────────┐
+          │  Route-Level Lazy Loading (React.lazy + Suspense)            │
+          │  Tailwind CSS Dark Theme + Glassmorphic UI                   │
+          │  Code-Split Vendor Chunks (Monaco, PDFjs, Recharts, Superdoc) │
+          │  SEO Metadata, Sitemap, Robots, Canonical URLs               │
+          └──────────────────────────────┬───────────────────────────────┘
+                                         │ HTTPS / wss:// (Strict CORS)
+                                         ▼
+                                   API GATEWAY
+                         Fastify + Node.js (apps/api-node)
+          ┌──────────────────────────────────────────────────────────────┐
+          │  Fastify Helmet (CSP, X-Frame-Options: DENY, nosniff, HSTS)  │
+          │  Multi-Tenant Object Ownership Authorization (Anti-IDOR)     │
+          │  Centralized Zod Schema Validation & Sanitized Error Handler │
+          │  Rate Limiting (100 req/min on Auth) & Request Correlation   │
+          │  Health Probes: /health/live, /health/ready                  │
+          └───────────────┬──────────────────────────────┬───────────────┘
+                          │ Mongoose Connection Pool     │ Streaming AI
+                          ▼                              ▼
+                 DATA PERSISTENCE                 AI PROVIDERS
+               MongoDB Atlas Cluster          Groq / OpenAI / Gemini
+               (Compound Indexed Schemas)     (Whisper STT + LLM Rubrics)
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & Key Highlights
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | Next.js 15, TypeScript, Tailwind CSS, Monaco Editor, Recharts, Lucide Icons |
-| **Backend** | FastAPI (Python 3.13), Uvicorn, Pydantic v2, SQLAlchemy, SlowAPI, PyPDF |
-| **AI LLM** | Groq Cloud API (`openai/gpt-oss-120b` / `qwen/qwen3.8-27b`) |
-| **Speech-to-Text** | Groq Whisper (`whisper-large-v3-turbo`) + Browser Web Speech API fallback |
-| **Database** | PostgreSQL 15 (Docker port 5433) with SQLite fallback |
-| **Code Sandbox** | Piston (Docker port 2000) with local safe subprocess runner fallback |
-| **PDF Generation**| jsPDF + html2canvas |
+| Component | Technology | Description |
+|---|---|---|
+| **Frontend** | React 19, Vite 6, Tailwind CSS | Code-split SPA with sub-second page transitions, dark-mode glassmorphic design system |
+| **Backend** | Fastify 5, Node.js 22, TypeScript | Ultra-low latency asynchronous API gateway with schema validation and correlation IDs |
+| **Database** | MongoDB Atlas (Mongoose 8) | Multi-replica cluster with compound indexing, connection pooling, and automated point-in-time recovery |
+| **Security** | Fastify Helmet, CORS, bcrypt, JWT | HSTS preload, clickjacking prevention, fail-fast secrets validation, anti-IDOR guards |
+| **AI Integrations** | Groq, OpenAI, Gemini | High-speed LLM reasoning, multi-dimensional rubric scoring, and Whisper transcription |
+| **Legal & Trust** | Statutory Privacy & Terms | Terms acceptance tracking (`termsAcceptedVersion: "v2.0"`), user export/delete rights |
+| **Testing** | Vitest, Playwright | 23 backend test suites (118 tests passed), multi-user authorization regression tests |
 
 ---
 
-## 📁 Project Directory Tree
+## 🚀 Quickstart & Local Development
 
+### Prerequisites
+- **Node.js**: v20 or v22 (LTS recommended)
+- **npm**: v10+
+- **MongoDB**: Local MongoDB instance or MongoDB Atlas connection string
+
+### 1. Installation
+Clone the repository and install dependencies using the committed lockfile:
+```bash
+git clone https://github.com/Gundavenkatasai/interviewai.git
+cd interviewai
+npm install --legacy-peer-deps
 ```
-c:\Users\venka\OneDrive\Desktop\interview\
-├── docker-compose.yml              # PostgreSQL + Piston containers
-├── .env.example                    # Environment variables template
-├── .env                            # Active environment configuration
-├── README.md                       # Master documentation
-│
-├── apps/
-│   ├── api/                        # FastAPI Backend
-│   │   ├── main.py                 # FastAPI application entrypoint & WebSockets
-│   │   ├── requirements.txt        # Python dependencies
-│   │   ├── src/
-│   │   │   ├── config.py           # Settings & .env loading
-│   │   │   ├── database.py         # SQLAlchemy engine & sessionmaker
-│   │   │   ├── models/             # 10 Database models
-│   │   │   │   └── models.py
-│   │   │   ├── schemas/            # Pydantic schemas & AI JSON specs
-│   │   │   │   └── schemas.py
-│   │   │   ├── auth/               # Bcrypt password hashing & JWT tokens
-│   │   │   │   └── auth.py
-│   │   │   ├── services/           # Core domain logic
-│   │   │   │   ├── ai_service.py   # Groq LLM & structured JSON prompts
-│   │   │   │   ├── transcription_service.py # Groq Whisper SpeechProvider
-│   │   │   │   ├── resume_service.py # PDF/DOCX parser
-│   │   │   │   └── code_executor_service.py # Sandbox runner
-│   │   │   ├── routes/             # REST endpoints
-│   │   │   │   ├── auth_routes.py
-│   │   │   │   ├── interview_routes.py
-│   │   │   │   ├── dashboard_routes.py
-│   │   │   │   ├── ai_routes.py
-│   │   │   │   ├── transcription_routes.py
-│   │   │   │   ├── resume_routes.py
-│   │   │   │   ├── code_routes.py
-│   │   │   │   └── user_routes.py
-│   │   │   └── websocket/
-│   │   │       └── manager.py      # Real-time WebSocket connection manager
-│   │   └── tests/                  # Automated pytest suite
-│   │       ├── conftest.py
-│   │       ├── test_auth.py
-│   │       ├── test_code_executor.py
-│   │       └── test_interviews.py
-│   │
-│   └── web/                        # Next.js 15 Frontend
-│       ├── package.json
-│       ├── tsconfig.json
-│       ├── tailwind.config.ts
-│       ├── next.config.mjs
-│       └── src/
-│           ├── app/
-│           │   ├── layout.tsx      # Global layout & ambient styling
-│           │   ├── globals.css     # Glassmorphic utilities
-│           │   ├── page.tsx        # Modern Landing Page
-│           │   ├── setup/page.tsx  # Interview setup & resume upload
-│           │   ├── interview/[id]/page.tsx # Core 3-Panel Dashboard
-│           │   ├── dashboard/page.tsx # Performance charts & statistics
-│           │   ├── history/page.tsx # Interview archives & deletion
-│           │   ├── report/[id]/page.tsx # Post-interview report & PDF export
-│           │   ├── privacy/page.tsx # Privacy guarantees & data purge
-│           │   └── auth/           # Login & Registration pages
-│           ├── components/
-│           │   ├── common/Navbar.tsx
-│           │   └── interview/
-│           │       ├── AudioControls.tsx
-│           │       ├── TranscriptPanel.tsx
-│           │       ├── AICoachPanel.tsx
-│           │       ├── CodingSandbox.tsx
-│           │       └── InterviewerMode.tsx
-│           ├── hooks/
-│           │   ├── useAudio.ts
-│           │   └── useWebSocket.ts
-│           ├── lib/
-│           │   ├── api.ts
-│           │   └── utils.ts
-│           ├── services/
-│           │   └── speechProvider.ts
-│           └── types/
-│               └── index.ts
+
+### 2. Environment Configuration
+Copy sample environment templates:
+```bash
+cp apps/api-node/.env.example apps/api-node/.env
+cp apps/web/.env.example apps/web/.env
+```
+
+Key environment variables:
+- `MONGODB_URI`: MongoDB connection string (e.g. `mongodb://localhost:27017/interviewai`)
+- `JWT_SECRET`: Minimum 32-character high-entropy secret
+- `NODE_ENV`: Set to `development` locally (`production` enforces strict security constraints)
+- `GROQ_API_KEY`: API key for Groq Cloud LLM and Whisper transcription
+
+*(Refer to [`docs/deployment/environment-matrix.md`](docs/deployment/environment-matrix.md) for full variable reference)*
+
+### 3. Running Locally
+Run both frontend and backend concurrently:
+```bash
+# Start backend API (port 8001 / 5000)
+npm run dev --prefix apps/api-node
+
+# Start frontend development server (port 5173)
+npm run dev --prefix apps/web
+```
+
+Access the application in your browser:
+- **Frontend App**: [http://localhost:5173](http://localhost:5173)
+- **API Health Check**: [http://localhost:8001/health/ready](http://localhost:8001/health/ready)
+
+---
+
+## 🧪 Testing & Verification
+
+### Unit & Integration Tests (Backend)
+Run Vitest across all 23 backend test suites (118 passing tests):
+```bash
+npm test --prefix apps/api-node
+```
+
+Run specific cross-user security and health tests:
+```bash
+npx vitest run tests/cross-user-authorization.test.ts --prefix apps/api-node
+npx vitest run tests/health.test.ts --prefix apps/api-node
+```
+
+### End-to-End Tests (Frontend)
+Run Playwright end-to-end user journeys (Auth, Jobs, Resumes, Interviews):
+```bash
+npx playwright test --prefix apps/web
+```
+
+### Monorepo Production Build Verification
+Verify TypeScript compilation and Rollup vendor chunking:
+```bash
+npm run build
 ```
 
 ---
 
-## ⚙️ Environment Variables
+## 🚢 Production Deployment & Health Probes
 
-Located at `.env` in the workspace root:
+### Container Health Probes
+The API exposes standardized Kubernetes/Docker liveness and readiness probes:
+- `GET /health/live`: Lightweight process liveness probe (returns HTTP 200 `{"status":"ok"}`).
+- `GET /health/ready`: Deep dependency readiness probe verifying active MongoDB connection ping (returns HTTP 200 or 503).
 
-```env
-# Database Configuration
-DATABASE_URL=postgresql://postgres:postgrespassword@localhost:5433/interviewai
-SQLITE_FALLBACK=true
-
-# Security
-JWT_SECRET=interviewai-secret-jwt-token-production-quality-98234791
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-
-# AI Provider (Groq Cloud)
-GROQ_API_KEY=gsk_your_groq_key_here
-GROQ_MODEL=openai/gpt-oss-120b
-GROQ_WHISPER_MODEL=whisper-large-v3-turbo
-
-# Code Sandbox
-PISTON_API_URL=http://localhost:2000
-
-# Service URLs
-PORT=8001
-NEXT_PUBLIC_API_URL=http://localhost:8001
-NEXT_PUBLIC_WS_URL=ws://localhost:8001
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-```
+### Deployment Runbooks
+- [**Production Readiness Audit**](docs/production/production-readiness-audit.md): Phase 1–26 audit matrix and verification evidence.
+- [**Final Production Audit**](docs/production/final-production-audit.md): Comprehensive pre-launch verification sign-off.
+- [**Release Checklist**](docs/production/release-checklist.md): Step-by-step launch checklist.
+- [**Production Security Review**](docs/security/production-security-review.md): Threat modeling, anti-IDOR, Helmet CSP, and rate limiting.
+- [**Performance Report**](docs/performance/production-performance-report.md): Code splitting, bundle sizes, and Core Web Vitals targets.
+- [**Environment Matrix**](docs/deployment/environment-matrix.md): Exhaustive environment variable scopes and classifications.
+- [**Backup & Disaster Recovery**](docs/deployment/backup-and-recovery.md): MongoDB Atlas point-in-time recovery runbooks (RPO $\le 15\text{min}$, RTO $\le 30\text{min}$).
+- [**Rollback Plan**](docs/deployment/rollback-plan.md): Zero-downtime rollback procedures for container images, CDNs, and database migrations.
 
 ---
 
-## 🏃 Setup & Execution Commands
+## 📄 License & Attribution
 
-### 1. Start Docker Containers
-Starts all services including PostgreSQL (port 5433), Piston code execution sandbox (port 2000), backend API (port 8001), and Next.js frontend (port 3000):
-```powershell
-# From project root
-$env:PATH = "C:\Users\venka\AppData\Local\Programs\DockerDesktop\resources\bin;$env:PATH"
-docker compose up -d
-```
-
-### 2. Run Backend Tests
-Run automated test suite verifying auth, code execution, and AI lifecycle:
-```powershell
-$env:PYTHONPATH = "apps/api"
-apps/api/.venv/Scripts/pytest.exe apps/api/tests -v
-```
-
-### 3. Start Backend Server
-```powershell
-$env:PYTHONPATH = "apps/api"
-apps/api/.venv/Scripts/python.exe -m uvicorn main:app --app-dir apps/api --host 0.0.0.0 --port 8001 --reload
-```
-Health check: `http://localhost:8001/health`
-Interactive Swagger Docs: `http://localhost:8001/docs`
-
-### 4. Start Frontend Web Server
-```powershell
-cd apps/web
-npm run dev
-```
-Open in browser: **`http://localhost:3000`**
-
----
-
-## 🎙️ How Audio Flows Through The System
-
-1. **User Action**: The candidate clicks "Start Speaking" on the audio controls bar.
-2. **Explicit Consent**: Browser triggers standard `navigator.mediaDevices.getUserMedia({ audio: true })`.
-3. **Audio Capture**: A live `AudioContext` and `AnalyserNode` analyze frequency bins to animate real-time volume meters on the UI.
-4. **Speech-to-Text Pipeline**:
-   * *Local Interim Stream*: If supported by browser, the `WebSpeechApiProvider` displays real-time interim transcription bubbles instantly as the user speaks.
-   * *Cloud Whisper Transcription*: Audio chunks recorded via `MediaRecorder` are dispatched to `POST /api/transcription`. The backend `GroqWhisperSpeechProvider` transcribes the audio using Groq's high-performance `whisper-large-v3-turbo` model.
-5. **Real-Time Display**: Transcripts are broadcast over WebSockets (`/ws/interview/{session_id}`) and displayed in the central conversation panel.
-
----
-
-## 🧠 How AI Evaluation Works
-
-1. **Answer Submission**: When the candidate finishes speaking or typing, their answer is posted to `POST /api/interviews/{session_id}/answers`.
-2. **WebSocket Status Signal**: The backend immediately broadcasts status `"Analyzing..."` to the UI.
-3. **Structured Prompts with JSON Enforcement**: The backend packages the question, expected concepts, and candidate's answer into a calibrated prompt sent to Groq (`openai/gpt-oss-120b`).
-4. **8-Dimension Scoring**:
-   * **Correctness (0-10)**: Factual accuracy against standard principles.
-   * **Relevance (0-10)**: Directly addressing the specific question asked.
-   * **Technical Depth (0-10)**: Deep architectural understanding and awareness of internals.
-   * **Completeness (0-10)**: Coverage of edge-cases and critical trade-offs.
-   * **Communication (0-10)**: Clarity, structure, and professional phrasing.
-   * **Confidence (0-10)**: Certainty and conviction in technical decisions.
-   * **Concrete Examples (0-10)**: Real-world analogies, code, or production metrics.
-   * **Problem Solving (0-10)**: Systematic decomposition and analytical approach.
-5. **Schema Validation**: The AI response is parsed and validated using Pydantic's `AnswerEvaluationAIResponse`.
-6. **Dynamic Follow-Up**: If the answer warrants deeper probing, the AI dynamically inserts a follow-up question into the interview queue.
-7. **Broadcast**: The evaluation score, feedback, missing points, and follow-up are broadcast live to the candidate's right AI Coach panel.
-
----
-
-## 🔒 Security & Privacy Considerations
-
-* **No Secret Recording**: The platform explicitly prohibits and excludes screen scraping, hidden video streams, and browser injection.
-* **Passwords**: Never stored in plaintext; salted and hashed using `bcrypt`.
-* **API Keys**: Stored strictly server-side in `.env`; never leaked into frontend client bundles.
-* **Code Execution**: Run within the isolated Piston Docker sandbox with resource quotas, or an isolated temporary sandbox with strict 5.0-second CPU timeouts.
-* **Data Sovereignty**: Complete "Delete Interview" and "Delete All Data" features empower users to permanently purge their transcripts, audio files, and resumes.
+Interview AI is licensed under the MIT License. See [LICENSE](LICENSE) for details. Third-party library attributions and open-source licenses are detailed in [docs/legal/attribution.md](docs/legal/attribution.md).

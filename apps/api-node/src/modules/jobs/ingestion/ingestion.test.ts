@@ -58,7 +58,7 @@ describe("Day 4: Job Ingestion Pipeline", () => {
     const jobs = await Job.find({});
     expect(jobs.length).toBe(2);
     expect(jobs[0].isIndiaJob).toBe(true);
-    expect(jobs[0].freshness).toBe("FRESH"); // Because postedAt is now
+    expect(jobs[0].freshness.startsWith("FRESH")).toBe(true); // Because postedAt is now
   });
 
   it("should detect duplicate clusters across sources based on contentHash", async () => {

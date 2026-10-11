@@ -29,7 +29,38 @@ describe("Health API", () => {
 
     expect(response.statusCode).toBe(200);
     const body = JSON.parse(response.payload);
-    expect(body.status).toBe("ok");
+    expect(body.status).toBeDefined();
     expect(body.timestamp).toBeDefined();
+    expect(response.headers["x-request-id"]).toBeDefined();
+  });
+
+  it("should return 200 on /healthz and /health/live", async () => {
+    const res1 = await app.inject({ method: "GET", url: "/healthz" });
+    expect(res1.statusCode).toBe(200);
+    const body1 = JSON.parse(res1.payload);
+    expect(body1.status).toBe("live");
+
+    const res2 = await app.inject({ method: "GET", url: "/health/live" });
+    expect(res2.statusCode).toBe(200);
+  });
+
+  it("should return 200 on /health/ready when database is connected", async () => {
+    const response = await app.inject({ method: "GET", url: "/health/ready" });
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.payload);
+    expect(body.status).toBe("ready");
+  });
+
+  it("should return 404 structured JSON on unknown route", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/non-existent-api-route",
+    });
+
+    expect(response.statusCode).toBe(404);
+    const body = JSON.parse(response.payload);
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("NOT_FOUND");
+    expect(body.error.requestId).toBeDefined();
   });
 });

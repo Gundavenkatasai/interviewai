@@ -476,10 +476,10 @@ export interface IResumeImport {
 const resumeImportSchema = new Schema<IResumeImport>(
   {
     _id: { type: String, default: () => randomUUID() },
-    userId: { type: String, ref: "User", required: true, index: true },
+    userId: { type: String, ref: "User", default: "anonymous", index: true },
     resumeId: { type: String, ref: "Resume" },
-    sourceDocumentId: { type: String, ref: "ResumeDocument", required: true },
-    status: { type: String, enum: ["processing", "success", "partial", "failed", "duplicate"], required: true },
+    sourceDocumentId: { type: String, ref: "ResumeDocument", default: () => randomUUID() },
+    status: { type: String, enum: ["processing", "success", "partial", "failed", "duplicate", "parsed"], default: "success" },
     duplicateOf: { type: String },
     error: { type: String },
     warnings: { type: [String], default: [] },

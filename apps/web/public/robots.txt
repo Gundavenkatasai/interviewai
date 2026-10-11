@@ -1,0 +1,33 @@
+# Interview AI - robots.txt
+# https://interviewai.app
+
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /login
+Allow: /register
+Allow: /ats
+Allow: /resume-checker
+Allow: /favicon.svg
+Allow: /og-image.png
+
+# Prevent indexing of private applicant data, private session reports, and authenticated dashboards
+Disallow: /dashboard
+Disallow: /setup
+Disallow: /interview/
+Disallow: /report/
+Disallow: /history
+Disallow: /performance
+Disallow: /settings
+Disallow: /profile
+Disallow: /admin
+Disallow: /api/
+Disallow: /resume/studio
+Disallow: /resume/imported/
+Disallow: /linkedin
+Disallow: /intelligence/
+Disallow: /stories
+Disallow: /debrief/
+
+Sitemap: https://interviewai.app/sitemap.xml

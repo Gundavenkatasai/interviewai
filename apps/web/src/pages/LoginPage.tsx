@@ -7,8 +7,8 @@ import { useAuth } from "../contexts/AuthProvider";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { refetchUser } = useAuth();
-  const [email, setEmail] = useState("venkatasaigunda82@gmail.com");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -123,6 +123,7 @@ export default function LoginPage() {
               <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               <input
                 type="email"
+                name="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -150,6 +151,7 @@ export default function LoginPage() {
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               <input
                 type="password"
+                name="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -208,11 +210,22 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="pt-4 border-t border-slate-800/60 text-center text-xs text-slate-400">
-          Don't have an account?{" "}
-          <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-semibold">
-            Create Account
-          </Link>
+        <div className="pt-4 border-t border-slate-800/60 text-center text-xs text-slate-400 space-y-2">
+          <div>
+            Don't have an account?{" "}
+            <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-semibold">
+              Create Account
+            </Link>
+          </div>
+          <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500">
+            <Link to="/privacy" className="hover:text-slate-400 transition-colors">
+              Privacy Policy
+            </Link>
+            <span>•</span>
+            <Link to="/terms" className="hover:text-slate-400 transition-colors">
+              Terms of Service
+            </Link>
+          </div>
         </div>
       </div>
     </div>

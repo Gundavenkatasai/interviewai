@@ -14,10 +14,11 @@ export class HardConstraintEngine {
     const results: ConstraintResult[] = [];
 
     // 1. India Only constraint 
-    // The candidate object typically expects an India location in this MVP
-    // If the job is explicitly not India, and the candidate is not remote-worldwide, block it.
-    if (job.isIndiaJob === false) {
-      // For now, if the job is explicitly marked not India, we block it for the India MVP
+    // If the candidate explicitly requires India or has Indian preferred locations, and job is not an India job, block it.
+    const isCandidateIndiaFocused = (candidate.preferredLocations || []).some(
+      (loc: string) => /india|bangalore|bengaluru|mumbai|delhi|hyderabad|pune|chennai|noida|gurgaon/i.test(loc)
+    );
+    if (isCandidateIndiaFocused && job.isIndiaJob === false) {
       results.push({
         status: "BLOCKER",
         field: "Location",

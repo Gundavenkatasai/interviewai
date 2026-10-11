@@ -696,6 +696,11 @@ Return strictly valid JSON matching the schema above.`;
     const userId = (request as any).user.sub;
     const { id: sessionId } = request.params;
 
+    const session = await InterviewSession.findOne({ _id: sessionId, userId });
+    if (!session) {
+      return reply.status(404).send({ success: false, message: "Session not found or access denied" });
+    }
+
     const report = await ReportEngine.generateReport(sessionId, userId, 1);
     return { success: true, report, data: report };
   }
@@ -717,6 +722,11 @@ Return strictly valid JSON matching the schema above.`;
     const { id: sessionId } = request.params;
     const body = request.body as any;
 
+    const session = await InterviewSession.findOne({ _id: sessionId, userId });
+    if (!session) {
+      return reply.status(404).send({ success: false, message: "Session not found or access denied" });
+    }
+
     const entry = await Transcript.create({
       sessionId,
       speaker: body.speaker || "candidate",
@@ -730,6 +740,11 @@ Return strictly valid JSON matching the schema above.`;
     const userId = (request as any).user.sub;
     const { id: sessionId } = request.params;
     const body = request.body as any;
+
+    const session = await InterviewSession.findOne({ _id: sessionId, userId });
+    if (!session) {
+      return reply.status(404).send({ success: false, message: "Session not found or access denied" });
+    }
 
     await InterviewEvent.create({
       sessionId,

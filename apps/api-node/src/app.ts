@@ -8,6 +8,8 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import { env } from "./config/env";
 import { connectDB } from "./db/mongo";
+import mongoose from "mongoose";
+import { randomUUID } from "crypto";
 import multipart from "@fastify/multipart";
 import fastifyWebsocket from "@fastify/websocket";
 import { authRoutes } from "./modules/auth/auth.routes";
@@ -26,6 +28,9 @@ import { importedDocxRoutes } from "./modules/resume/imported-docx/imported-docx
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
+    requestIdHeader: "x-request-id",
+    genReqId: (req) => (req.headers["x-request-id"] as string) || randomUUID(),
+    trustProxy: process.env.NODE_ENV === "production",
     logger: {
       transport: {
         target: "pino-pretty",
@@ -37,36 +42,87 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
-  // Register plugins
-  await app.register(fastifyHelmet);
+  // Inject correlation ID header in all responses
+  app.addHook("onSend", async (request, reply) => {
+    reply.header("x-request-id", request.id);
+  });
+
+  // Register Helmet with Content Security Policy, Frameguard, and HSTS
+  await app.register(fastifyHelmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "https:", "wss:", "ws:"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    frameguard: { action: "deny" },
+    hsts:
+      process.env.NODE_ENV === "production"
+        ? {
+            maxAge: 31536000,
+            includeSubDomains: true,
+            preload: true,
+          }
+        : false,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    noSniff: true,
+  });
+
+  // Global Rate Limiting with user/ip key generator
   await app.register(fastifyRateLimit, {
     global: true,
-    max: process.env.NODE_ENV === "production" ? 3000 : 10000,
-    timeWindow: '1 minute',
+    max: process.env.NODE_ENV === "production" ? 1500 : 10000,
+    timeWindow: "1 minute",
     keyGenerator: (req) => {
       return (req as any).user?.sub || (req as any).user?.id || req.ip;
     },
-    allowList: ['/health', '/healthz', '/docs']
+    allowList: ["/health", "/healthz", "/health/live", "/health/ready", "/docs"],
   });
 
+  // Restrictive CORS Allowlist
+  const allowedOrigins = (env.FRONTEND_URL || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   await app.register(cors, {
-    origin: process.env.NODE_ENV === "production" ? env.FRONTEND_URL : true,
+    origin: (origin, cb) => {
+      if (!origin || process.env.NODE_ENV !== "production") {
+        return cb(null, true);
+      }
+      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        return cb(null, true);
+      }
+      return cb(new Error("CORS policy violation: Origin not allowed"), false);
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-request-id"],
+    exposedHeaders: ["x-request-id"],
   });
 
   // Allow empty JSON bodies (Fastify 5 rejects Content-Type: application/json with no body)
-  app.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body: string, done) {
-    if (!body || body.trim() === '') {
-      done(null, {});
-      return;
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "string" },
+    function (req, body: string, done) {
+      if (!body || body.trim() === "") {
+        done(null, {});
+        return;
+      }
+      try {
+        done(null, JSON.parse(body));
+      } catch (err: any) {
+        err.statusCode = 400;
+        done(err, undefined);
+      }
     }
-    try {
-      done(null, JSON.parse(body));
-    } catch (err: any) {
-      err.statusCode = 400;
-      done(err, undefined);
-    }
-  });
+  );
 
   await app.register(cookie, {
     secret: env.JWT_SECRET,
@@ -86,7 +142,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       info: {
         title: "INTERVIEW AI API",
         description: "Node.js/Fastify Backend API for INTERVIEW AI",
-        version: "1.0.0",
+        version: "2.0.0",
       },
       components: {
         securitySchemes: {
@@ -103,7 +159,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(multipart, {
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB
-    }
+    },
   });
 
   await app.register(fastifyWebsocket);
@@ -116,20 +172,69 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.setErrorHandler((error: any, request, reply) => {
     app.log.error(error);
     const statusCode = error.statusCode || 500;
-    const message = error.message || "Internal Server Error";
+    const message =
+      statusCode === 500 && process.env.NODE_ENV === "production"
+        ? "An internal server error occurred"
+        : error.message || "Internal Server Error";
+
     reply.status(statusCode).send({
       success: false,
       error: {
         code: statusCode === 500 ? "INTERNAL_ERROR" : "API_ERROR",
         message,
+        requestId: request.id,
         details: process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
     });
   });
 
-  // Health Check
+  // 404 Handler for unknown routes
+  app.setNotFoundHandler((request, reply) => {
+    reply.status(404).send({
+      success: false,
+      error: {
+        code: "NOT_FOUND",
+        message: `Route ${request.method} ${request.url} not found`,
+        requestId: request.id,
+      },
+    });
+  });
+
+  // Liveness Probes
+  app.get("/healthz", async () => {
+    return { status: "live", timestamp: new Date().toISOString() };
+  });
+  app.get("/health/live", async () => {
+    return { status: "live", timestamp: new Date().toISOString() };
+  });
+
+  // Readiness Probe
+  app.get("/health/ready", async (request, reply) => {
+    const isDbConnected = mongoose.connection.readyState === 1;
+    if (!isDbConnected) {
+      return reply.status(503).send({
+        status: "unready",
+        database: "disconnected",
+        timestamp: new Date().toISOString(),
+      });
+    }
+    return {
+      status: "ready",
+      database: "connected",
+      timestamp: new Date().toISOString(),
+    };
+  });
+
+  // Overall Health Check
   app.get("/health", async () => {
-    return { status: "ok", timestamp: new Date().toISOString() };
+    const isDbConnected = mongoose.connection.readyState === 1;
+    return {
+      status: isDbConnected ? "ok" : "degraded",
+      database: isDbConnected ? "connected" : "disconnected",
+      uptime: process.uptime(),
+      version: "2.0.0",
+      timestamp: new Date().toISOString(),
+    };
   });
 
   // Initialize DB Connection

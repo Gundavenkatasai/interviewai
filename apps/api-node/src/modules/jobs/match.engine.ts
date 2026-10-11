@@ -78,8 +78,14 @@ export class MatchEngine {
     else if (finalScore >= 65) status = "GOOD";
     else if (finalScore >= 50) status = "PARTIAL";
 
+    const explanation = skillResult.matchedSkills.length > 0
+      ? `You share key skills: ${skillResult.matchedSkills.join(", ")}.`
+      : "Job criteria analyzed.";
+
     return {
       matchScore: finalScore,
+      score: finalScore,
+      explanation,
       status,
       breakdown: {
         role: roleResult,

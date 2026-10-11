@@ -330,6 +330,8 @@ export function Sidebar() {
                   </button>
                   <button
                     onClick={handleLogout}
+                    data-testid="logout-btn"
+                    aria-label="Sign Out"
                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                     title="Sign Out"
                   >

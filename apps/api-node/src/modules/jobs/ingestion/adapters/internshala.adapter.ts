@@ -44,7 +44,7 @@ export class InternshalaAdapter implements JobSourceAdapter {
     let stoppedReason: StoppedReason | undefined;
     
     try {
-      const query = request.query ? request.query.replace(/\s+/g, "-").toLowerCase() : "software-engineer";
+      const query = request.query ? encodeURIComponent(request.query.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-")) : "software-engineer";
       const targetUrl = `${INTERNSHALA_BASE}/${query}-jobs/`;
       
       const response = await axios.get(`${JINA_API_URL}${targetUrl}`, {

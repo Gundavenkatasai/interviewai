@@ -105,10 +105,14 @@ export class ApiClient {
 
 
   // ================= Auth =================
-  static async register(data: { email: string; password: string; full_name?: string; fullName?: string }) {
+  static async register(data: { email: string; password: string; full_name?: string; fullName?: string; termsAccepted?: boolean; termsVersion?: string }) {
     const res = await this.request<any>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        termsAccepted: data.termsAccepted ?? true,
+        termsVersion: data.termsVersion || "v2.0"
+      }),
     });
     const token = res?.token || res?.access_token;
     if (token) {

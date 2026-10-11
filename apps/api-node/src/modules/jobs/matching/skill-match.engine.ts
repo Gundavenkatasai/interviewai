@@ -32,16 +32,21 @@ export class SkillMatchEngine {
 
     const matched: string[] = [];
     const missing: string[] = [];
+    let matchedCount = 0;
 
     for (const req of jobSkills) {
       if (candidateSkills.includes(req.toLowerCase())) {
         matched.push(req);
+        if (req.toLowerCase() !== req) {
+          matched.push(req.toLowerCase());
+        }
+        matchedCount++;
       } else {
         missing.push(req);
       }
     }
 
-    const score = jobSkills.length > 0 ? (matched.length / jobSkills.length) * 100 : 100;
+    const score = jobSkills.length > 0 ? (matchedCount / jobSkills.length) * 100 : 100;
 
     return {
       score: Math.round(score),

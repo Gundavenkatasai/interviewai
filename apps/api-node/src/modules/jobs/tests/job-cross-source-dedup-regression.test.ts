@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { JobDeduplicator } from '../ingestion/job.deduplicator';
+import { Job } from '../jobs.model';
 
 describe('Job Deduplication & Provenance', () => {
   it('should append new source to sourceReferences when deduplicating', async () => {
@@ -38,11 +39,10 @@ describe('Job Deduplication & Provenance', () => {
     };
 
     // Override Job.findOne for the test
-    const { Job } = require('../jobs.model');
     const originalFindOne = Job.findOne;
     
     try {
-      Job.findOne = async (query: any) => {
+      (Job as any).findOne = async (query: any) => {
         if (query.source === 'Foundit') return null; // exact source match fails
         if (query.contentHash === hash) return existingJob; // content match succeeds
         return null;

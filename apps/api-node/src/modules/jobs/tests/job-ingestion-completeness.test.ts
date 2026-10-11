@@ -9,9 +9,13 @@ import { env } from '../../../config/env';
 describe('Job Ingestion Pipeline Completeness', () => {
   beforeAll(async () => {
     await mongoose.connect(env.MONGODB_URI, { dbName: env.MONGODB_DB_NAME });
+    const { Job } = await import('../jobs.model.js');
+    await Job.deleteMany({ source: 'MockSource' });
   });
 
   afterAll(async () => {
+    const { Job } = await import('../jobs.model.js');
+    await Job.deleteMany({ source: 'MockSource' });
     await mongoose.disconnect();
     await BrowserService.close();
   });
