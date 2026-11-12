@@ -1,8 +1,9 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Sparkles, ArrowRight, Lock, Mail, User, AlertCircle, LogIn, CheckSquare, Square } from "lucide-react";
+import { ArrowRight, Lock, Mail, User, AlertCircle, LogIn, Compass } from "lucide-react";
 import { ApiClient } from "../lib/api";
 import { useAuth } from "../contexts/AuthProvider";
+import { MechanicalButton } from "../components/ui/MechanicalButton";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -44,27 +45,31 @@ export default function RegisterPage() {
   const isAlreadyRegistered = error?.toLowerCase().includes("already registered");
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md p-8 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-6 shadow-2xl">
+    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 bg-[#F5F3EE]">
+      <div className="w-full max-w-md p-8 rounded-lg bg-white border border-[#E5E0D4] shadow-sm space-y-6">
+        {/* Editorial Top Instrument Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-2">
-            <Sparkles className="w-6 h-6" />
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#EBF3EE] border border-[#D0E3D6] text-[#2E6347] font-mono text-[11px] font-semibold">
+            <Compass className="w-3.5 h-3.5" />
+            <span>OPERATOR ENROLLMENT — DOSSIER v2.0</span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Create Account</h1>
-          <p className="text-xs text-slate-400">Start practicing realistic mock technical interviews today.</p>
+          <h1 className="text-2xl font-serif font-bold text-[#181614] tracking-tight">Create Workspace Account</h1>
+          <p className="text-xs text-[#181614]/70">
+            Provision candidate telemetry, drafting tools, and mock broadcast sessions.
+          </p>
         </div>
 
         {error && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs space-y-2">
+          <div className="p-3.5 rounded bg-[#FCEEEE] border border-[#9E2A2B]/20 text-[#9E2A2B] text-xs space-y-2">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
             {isAlreadyRegistered && (
-              <div className="pt-2 border-t border-rose-500/20">
+              <div className="pt-2 border-t border-[#9E2A2B]/20">
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-300 hover:text-white underline"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#9E2A2B] hover:underline"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>Click here to sign in with {email || "this email"}</span>
@@ -76,41 +81,47 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Full Name</label>
+            <label className="block text-xs font-mono font-medium text-[#181614] uppercase tracking-wider mb-1.5">
+              Full Legal Name
+            </label>
             <div className="relative">
-              <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <User className="w-4 h-4 text-[#181614]/40 absolute left-3.5 top-3" />
               <input
                 type="text"
                 name="fullName"
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Alex Developer"
-                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none transition-colors"
+                placeholder="Alex Mercer"
+                className="w-full pl-10 pr-3.5 py-2.5 rounded border border-[#E5E0D4] bg-[#F5F3EE]/40 text-[#181614] text-xs font-mono focus:border-[#C84B26] focus:bg-white focus:outline-none transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
+            <label className="block text-xs font-mono font-medium text-[#181614] uppercase tracking-wider mb-1.5">
+              Email Dispatch Address
+            </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Mail className="w-4 h-4 text-[#181614]/40 absolute left-3.5 top-3" />
               <input
                 type="email"
                 name="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none transition-colors"
+                placeholder="alex.mercer@engineering.com"
+                className="w-full pl-10 pr-3.5 py-2.5 rounded border border-[#E5E0D4] bg-[#F5F3EE]/40 text-[#181614] text-xs font-mono focus:border-[#C84B26] focus:bg-white focus:outline-none transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Password (Min 6 characters)</label>
+            <label className="block text-xs font-mono font-medium text-[#181614] uppercase tracking-wider mb-1.5">
+              Secret Passkey (Min 6 characters)
+            </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Lock className="w-4 h-4 text-[#181614]/40 absolute left-3.5 top-3" />
               <input
                 type="password"
                 name="password"
@@ -119,28 +130,28 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full pl-10 pr-3.5 py-2.5 rounded border border-[#E5E0D4] bg-[#F5F3EE]/40 text-[#181614] text-xs font-mono focus:border-[#C84B26] focus:bg-white focus:outline-none transition-colors"
               />
             </div>
           </div>
 
           {/* Terms & Privacy acceptance */}
           <div className="pt-1">
-            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-400 select-none">
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-[#181614]/80 select-none">
               <input
                 type="checkbox"
                 name="termsAccepted"
                 checked={termsAccepted}
                 onChange={(e) => setTermsAccepted(e.target.checked)}
-                className="mt-0.5 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900"
+                className="mt-0.5 rounded border-[#E5E0D4] text-[#C84B26] focus:ring-[#C84B26]"
               />
               <span className="leading-relaxed">
-                I acknowledge and accept the{" "}
-                <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline font-medium">
+                I accept and acknowledge the{" "}
+                <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-[#C84B26] hover:underline font-medium">
                   Terms of Service
                 </Link>{" "}
                 and{" "}
-                <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline font-medium">
+                <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#C84B26] hover:underline font-medium">
                   Privacy Policy
                 </Link>
                 .
@@ -148,20 +159,23 @@ export default function RegisterPage() {
             </label>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-3 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 transition-all mt-2"
-          >
-            <span>{isLoading ? "Creating Account..." : "Create Account"}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="pt-2">
+            <MechanicalButton
+              variant="vermilion"
+              size="lg"
+              className="w-full"
+              disabled={isLoading}
+              icon={<ArrowRight className="w-4 h-4" />}
+            >
+              {isLoading ? "Provisioning Dossier..." : "Enroll Account"}
+            </MechanicalButton>
+          </div>
         </form>
 
-        <div className="pt-4 border-t border-slate-800/60 text-center text-xs text-slate-400">
-          Already have an account?{" "}
-          <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-semibold">
-            Sign In
+        <div className="pt-4 border-t border-[#E5E0D4] text-center text-xs text-[#181614]/70">
+          Already registered in the directory?{" "}
+          <Link to="/login" className="text-[#C84B26] hover:underline font-medium">
+            Sign In to Terminal
           </Link>
         </div>
       </div>

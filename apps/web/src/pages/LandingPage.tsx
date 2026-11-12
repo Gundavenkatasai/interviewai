@@ -1,106 +1,161 @@
 import { Link } from "react-router-dom";
-import { Sparkles, Mic, BarChart2, Briefcase, ArrowRight, CheckCircle, Star, Zap } from "lucide-react";
-import { Footer } from "../components/common/Footer";
+import {
+  Compass, Briefcase, FileText, ScanLine, PlayCircle, Kanban,
+  Sparkles, BarChart2, ArrowRight, ShieldCheck, CheckCircle2,
+  Terminal, Award, Layers
+} from "lucide-react";
+import { MechanicalButton } from "../components/ui/MechanicalButton";
+import { InkBleedButton } from "../components/ui/InkBleedButton";
 
-const features = [
-  { icon: Briefcase, title: "AI Job Discovery", desc: "Search 8 Tier-1 job boards aggregated in real-time. Filter by role, skills, location, salary.", color: "text-indigo-400" },
-  { icon: BarChart2, title: "Resume Matching", desc: "AI scores your match to each job, identifies skill gaps, and recommends preparation paths.", color: "text-emerald-400" },
-  { icon: Mic, title: "AI Mock Interviews", desc: "Practice with a live AI interviewer tailored to the exact job and company.", color: "text-purple-400" },
-  { icon: Zap, title: "Performance Analytics", desc: "Deep analytics on strengths, weaknesses, topic breakdown, and improvement over time.", color: "text-amber-400" },
+const instruments = [
+  {
+    code: "01. RADAR",
+    title: "Flight Board & Ticket Feed",
+    desc: "Perforated index slips aggregated across engineering pipelines with real-time analog match gauges.",
+    href: "/jobs",
+    badge: "BOARDING PASSES"
+  },
+  {
+    code: "02. BLUEPRINT",
+    title: "Architect's Drafting Desk",
+    desc: "Metric A4 canvas with drafting ruler margins and pull-out yellow sticky annotation upgrades.",
+    href: "/resume/studio",
+    badge: "ZERO HALLUCINATION"
+  },
+  {
+    code: "03. BENCH",
+    title: "Optical ATS Scanning Bench",
+    desc: "Side-by-side illuminated light-table with laser scan bar and raw OCR parse redline corrections.",
+    href: "/resume/ats-checker",
+    badge: "OCR COMPLIANCE"
+  },
+  {
+    code: "04. ON-AIR",
+    title: "Broadcast Mock Interview Studio",
+    desc: "Analog LED audio-meter, candidate broadcast camera bezel, and teleprompter countdown ring.",
+    href: "/interview/session/demo",
+    badge: "60FPS BROADCAST"
+  },
+  {
+    code: "05. RACK",
+    title: "Application Card Catalog Rack",
+    desc: "Tactile manila folder tabbed Kanban lanes with corner readiness notches and velocity tracking.",
+    href: "/pipeline",
+    badge: "MANILA INDEX"
+  },
+  {
+    code: "06. ROLODEX",
+    title: "Journalist's STAR Story Bank",
+    desc: "4-column interconnected sequence cards (S-T-A-R) with 1-click precision metric injection.",
+    href: "/stories",
+    badge: "COMPETENCY MATRIX"
+  },
 ];
 
 export default function LandingPage() {
   return (
-    <div className="relative">
-      {/* Hero */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold mb-8">
-          <Star className="w-3.5 h-3.5 text-yellow-400" />
-          AI-Powered Career Platform — Job Discovery + Mock Interviews
+    <div className="bg-[#F5F3EE] text-[#181614] font-sans min-h-screen flex flex-col">
+      {/* Top Heritage Notice */}
+      <div className="bg-white border-b border-[#E5E0D4] px-4 py-2 text-center text-xs font-mono text-[#5C564E] flex items-center justify-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-[#C84B26]" />
+        <span>WARM INDUSTRIAL EDITORIAL WORKSPACE • PRECISION CAREER INSTRUMENTATION</span>
+      </div>
+
+      {/* Hero Section */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center space-y-6">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-md bg-[#FAF8F5] border border-[#DCD5C6] text-xs font-mono text-[#181614]">
+          <span className="font-bold text-[#C84B26]">[SYSTEM.EDITION.v2.4]</span>
+          <span>AUTONOMOUS ENGINEERING CAREER SUITE</span>
         </div>
 
-        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-white tracking-tight mb-6 leading-tight">
-          Land Your Dream Job<br />
-          <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
-            With AI at Every Step
-          </span>
+        <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-[#181614] leading-[1.08] max-w-4xl mx-auto">
+          The Tactile, Engineered Workspace for Technical Careers.
         </h1>
 
-        <p className="max-w-2xl mx-auto text-lg text-slate-400 mb-10">
-          Discover jobs matched to your resume, identify skill gaps, and practice with an AI interviewer that knows the exact role and company. From discovery to offer.
+        <p className="max-w-2xl mx-auto text-base sm:text-lg text-[#5C564E] font-serif leading-relaxed">
+          Reject generic AI glows and cold grey dashboards. Interview AI provides precision physical instruments—from architectural drafting desks to optical ATS scanning benches.
         </p>
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link to="/register"
-            className="px-8 py-4 rounded-2xl text-base font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-2xl shadow-indigo-500/25 flex items-center gap-2 transition-all hover:scale-[1.02]">
-            Get Started Free <ArrowRight className="w-5 h-5" />
+        {/* Tactile Action Triggers */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-4">
+          <Link to="/jobs">
+            <MechanicalButton variant="vermilion" size="lg" icon={<Briefcase className="w-4 h-4" />}>
+              Open Flight Board
+            </MechanicalButton>
           </Link>
-          <Link to="/jobs"
-            className="px-8 py-4 rounded-2xl text-base font-semibold text-slate-300 bg-slate-900/60 border border-slate-800 hover:bg-slate-900 hover:text-white flex items-center gap-2 transition-all">
-            <Briefcase className="w-5 h-5" /> Browse Jobs
+          <Link to="/resume/studio">
+            <MechanicalButton variant="navy" size="lg" icon={<FileText className="w-4 h-4" />}>
+              Architect Drafting Desk
+            </MechanicalButton>
+          </Link>
+          <Link to="/interview/session/demo">
+            <InkBleedButton className="px-5 py-2.5 text-base">
+              Try Broadcast Studio
+            </InkBleedButton>
           </Link>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feat) => {
-            const Icon = feat.icon;
-            return (
-              <div key={feat.title} className="p-6 rounded-3xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-md hover:border-slate-700 transition-all group">
-                <div className={`w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <Icon className={`w-6 h-6 ${feat.color}`} />
-                </div>
-                <h3 className="text-sm font-bold text-white mb-2">{feat.title}</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">{feat.desc}</p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <h2 className="text-3xl font-bold text-white mb-12">How It Works</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-          {[
-            { step: "01", title: "Discover Jobs", desc: "Browse AI-curated jobs from 8 Tier-1 sources. Match score shows you which ones fit best.", icon: Briefcase },
-            { step: "02", title: "Analyze Your Fit", desc: "Upload your resume. Our AI identifies skill gaps and tells you exactly what to prepare.", icon: BarChart2 },
-            { step: "03", title: "Mock Interview", desc: "Practice a tailored mock interview for the exact role. Get scored and improve.", icon: Mic },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.step} className="flex flex-col items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center">
-                  <Icon className="w-8 h-8 text-indigo-400" />
-                </div>
-                <span className="text-xs font-bold text-indigo-400/60 uppercase tracking-widest">Step {item.step}</span>
-                <h3 className="text-base font-bold text-white">{item.title}</h3>
-                <p className="text-xs text-slate-400">{item.desc}</p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <div className="p-10 rounded-3xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-emerald-500/10 border border-indigo-500/20">
-          <h2 className="text-3xl font-bold text-white mb-4">Ready to Land Your Next Role?</h2>
-          <p className="text-slate-400 mb-8">Join thousands of candidates using AI to supercharge their job search and interview preparation.</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/register" className="px-8 py-3.5 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all">
-              <Sparkles className="w-4 h-4" /> Create Free Account
-            </Link>
-            <Link to="/setup" className="px-8 py-3.5 rounded-xl text-sm font-semibold text-slate-300 bg-slate-900 border border-slate-800 hover:bg-slate-800 flex items-center gap-2 transition-all">
-              Try Demo Interview
-            </Link>
+      {/* The 6 Physical Instruments Grid */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 w-full flex-1">
+        <div className="border-b border-[#E5E0D4] pb-3 mb-8 flex items-baseline justify-between">
+          <div>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[#8C8479]">
+              WORKSPACE APPARATUS
+            </span>
+            <h2 className="font-serif text-2xl font-bold text-[#181614] tracking-tight">
+              Physical & Editorial Instrument Catalog
+            </h2>
           </div>
+          <span className="text-xs font-mono text-[#8C8479]">6 APPARATUS DEPLOYED</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {instruments.map(inst => (
+            <Link
+              key={inst.code}
+              to={inst.href}
+              className="bg-white border border-[#E5E0D4] rounded-lg p-6 shadow-[0_1px_3px_rgba(24,22,20,0.04)] hover:shadow-md hover:border-[#D5CEBF] transition-all duration-200 flex flex-col justify-between group"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-mono font-bold text-[#172535] bg-[#EFECE6] px-2 py-0.5 rounded border border-[#DCD5C6]">
+                    {inst.code}
+                  </span>
+                  <span className="text-[9px] font-mono text-[#2E6347] bg-[#EBF3EE] px-1.5 py-0.5 rounded border border-[#D0E3D6]">
+                    {inst.badge}
+                  </span>
+                </div>
+
+                <h3 className="font-serif font-bold text-lg text-[#181614] tracking-tight group-hover:text-[#C84B26] transition-colors mt-2">
+                  {inst.title}
+                </h3>
+
+                <p className="text-xs text-[#5C564E] leading-relaxed mt-2">
+                  {inst.desc}
+                </p>
+              </div>
+
+              <div className="mt-6 pt-3 border-t border-[#E5E0D4] flex items-center justify-between text-xs font-mono text-[#C84B26]">
+                <span className="font-semibold group-hover:underline">Operate Instrument</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
 
-      <Footer />
+      {/* Editorial Footer */}
+      <footer className="border-t border-[#E5E0D4] bg-white py-8 px-6 text-center text-xs font-mono text-[#8C8479]">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded bg-[#C84B26]" />
+            <span className="font-serif font-bold text-sm text-[#181614]">INTERVIEW AI</span>
+            <span>• WARM INDUSTRIAL EDITORIAL SPECIFICATION</span>
+          </div>
+          <div>ESTABLISHED 2026 • DETERMINISTIC CAREER INSTRUMENTATION</div>
+        </div>
+      </footer>
     </div>
   );
 }

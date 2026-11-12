@@ -1,23 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiClient } from "../lib/api";
-import { ArrowLeft, Sparkles, AlertTriangle, CheckCircle, ChevronRight, Check, X, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Sparkles, AlertTriangle, CheckCircle, ChevronRight, Check, X, ShieldAlert, RefreshCw } from "lucide-react";
 
 export default function TailorResumePage() {
   const { id: jobId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const hasTriggeredRef = useRef(false);
 
-  // We assume the user has a default canonical resume version for simplicity.
-  // In a real flow, they'd pick one, but let's query their resumes and pick the active one.
-  const { data: resumes } = useQuery({
+  // We query resumes and pick the active one
+  const { data: resumes, isLoading: isResumesLoading } = useQuery({
     queryKey: ["resumes"],
     queryFn: () => ApiClient.getResumes()
   });
 
-  const activeResume = resumes?.find((r: any) => r.status === "active") || resumes?.[0];
-  const resumeVersionId = activeResume?.version; // Real implementation might use a dedicated version ID endpoint
+  const activeResume = Array.isArray(resumes)
+    ? resumes.find((r: any) => r.status === "active") || resumes[0]
+    : null;
 
   // State to track tailoring run
   const [runId, setRunId] = useState<string | null>(null);
@@ -50,15 +51,49 @@ export default function TailorResumePage() {
     }
   });
 
-  // Automatically start plan generation once we have a resume
+  // Automatically start plan generation once we have a resume without looping
   useEffect(() => {
-    if (activeResume && jobId && !runId && !planMutation.isPending && !planMutation.isSuccess) {
-      // Just a stub for version ID - in reality, would be a real ObjectID
-      planMutation.mutate({ resumeVersionId: activeResume._id, jobId });
+    if (
+      !hasTriggeredRef.current &&
+      activeResume &&
+      jobId &&
+      !runId &&
+      !planMutation.isPending &&
+      !planMutation.isSuccess &&
+      !planMutation.isError
+    ) {
+      hasTriggeredRef.current = true;
+      const targetVersionId = activeResume.activeVersionId || activeResume.versionId || activeResume._id;
+      planMutation.mutate({ resumeVersionId: targetVersionId, jobId });
     }
-  }, [activeResume, jobId, runId, planMutation]);
+  }, [activeResume, jobId, runId, planMutation.isPending, planMutation.isSuccess, planMutation.isError]);
 
-  if (!activeResume) return <div className="p-10 text-white">Loading resume context...</div>;
+  if (isResumesLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-slate-400">
+        <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mr-3" />
+        Loading resume context...
+      </div>
+    );
+  }
+
+  if (!activeResume) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-4">
+        <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto" />
+        <h2 className="text-xl font-bold text-white">No Resume Found</h2>
+        <p className="text-sm text-slate-400">Please upload or create a resume in the Resume Studio before tailoring for a job.</p>
+        <div className="flex justify-center gap-3 pt-4">
+          <button onClick={() => navigate("/resume")} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition-colors">
+            Go to Resume Studio
+          </button>
+          <button onClick={() => navigate(`/jobs/${jobId}`)} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition-colors">
+            Back to Job
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6 text-slate-300">
@@ -75,6 +110,33 @@ export default function TailorResumePage() {
           <p className="text-sm text-slate-400">Deterministic, zero-hallucination tailoring for ATS alignment.</p>
         </div>
       </div>
+
+      {planMutation.isError && !run && (
+        <div className="p-8 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-center space-y-4">
+          <AlertTriangle className="w-10 h-10 text-rose-400 mx-auto" />
+          <h2 className="text-lg font-bold text-white">Tailoring Plan Generation Failed</h2>
+          <p className="text-sm text-rose-300/80">
+            {(planMutation.error as any)?.message || "Unable to generate tailoring plan. Please ensure the job details and your resume are accessible."}
+          </p>
+          <div className="flex justify-center gap-3 pt-2">
+            <button
+              onClick={() => {
+                hasTriggeredRef.current = false;
+                planMutation.reset();
+              }}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-sm font-bold flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Try Again
+            </button>
+            <button
+              onClick={() => navigate(`/jobs/${jobId}`)}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-semibold"
+            >
+              Back to Job
+            </button>
+          </div>
+        </div>
+      )}
 
       {!run && planMutation.isPending && (
         <div className="p-10 rounded-2xl border border-slate-800 bg-slate-900/50 flex flex-col items-center justify-center text-center">
@@ -93,13 +155,13 @@ export default function TailorResumePage() {
                 <AlertTriangle className="w-4 h-4 text-amber-400" /> Evidence Gaps (Will not be added)
               </h2>
               <div className="space-y-2">
-                {Object.entries(run.plan.evidenceMap).filter(([_, v]: any) => v.status === "MISSING").map(([skill, data]: any) => (
+                {run.plan?.evidenceMap && Object.entries(run.plan.evidenceMap).filter(([_, v]: any) => v.status === "MISSING").map(([skill, data]: any) => (
                   <div key={skill} className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-sm flex justify-between">
                     <span className="font-semibold text-slate-300">{skill}</span>
                     <span className="text-xs text-slate-500">{data.reason}</span>
                   </div>
                 ))}
-                {Object.entries(run.plan.evidenceMap).filter(([_, v]: any) => v.status === "MISSING").length === 0 && (
+                {(!run.plan?.evidenceMap || Object.entries(run.plan.evidenceMap).filter(([_, v]: any) => v.status === "MISSING").length === 0) && (
                   <div className="text-sm text-slate-400">No missing requirements!</div>
                 )}
               </div>
@@ -111,7 +173,7 @@ export default function TailorResumePage() {
                 <CheckCircle className="w-4 h-4 text-emerald-400" /> Verified Match (Will be highlighted)
               </h2>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(run.plan.evidenceMap).filter(([_, v]: any) => v.status === "VERIFIED").map(([skill]: any) => (
+                {run.plan?.evidenceMap && Object.entries(run.plan.evidenceMap).filter(([_, v]: any) => v.status === "VERIFIED").map(([skill]: any) => (
                   <span key={skill} className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
                     {skill}
                   </span>
@@ -162,7 +224,6 @@ export default function TailorResumePage() {
             <p className="mt-3 text-xs text-indigo-400">Reasoning: {run.aiProposal?.summary?.reason}</p>
           </div>
 
-          {/* Just showing the raw output for simplicity in this artifact, would be a rich diff viewer */}
           <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/50">
             <h3 className="text-sm font-bold text-white mb-4">Proposed Experience Adjustments</h3>
             <div className="space-y-4">

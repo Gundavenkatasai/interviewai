@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
@@ -11,12 +11,14 @@ export default function InterviewIntelligencePage() {
   const { id: jobId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const intervalRef = useRef<any>(null);
 
   // Load Job
-  const { data: job } = useQuery({
+  const { data: job, isLoading: isJobLoading, isError: isJobError } = useQuery({
     queryKey: ["job", jobId],
     queryFn: () => ApiClient.getJob(jobId!),
     enabled: !!jobId,
+    retry: 1,
   });
 
   // Load Resumes to pick default version
@@ -44,14 +46,26 @@ export default function InterviewIntelligencePage() {
     retry: false
   });
 
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
   const generateMutation = useMutation({
     mutationFn: (data: { jobId: string, resumeVersionId: string }) => ApiClient.generateIntelligence(data),
     onSuccess: () => {
-      // Start polling
-      const interval = setInterval(async () => {
+      // Start polling safely
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(async () => {
         const { data } = await refetch();
         if (data && (data.status === "COMPLETED" || data.status === "FAILED")) {
-          clearInterval(interval);
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
         }
       }, 3000);
     }
@@ -74,10 +88,30 @@ export default function InterviewIntelligencePage() {
     }
   };
 
-  if (!job) {
+  if (isJobLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Activity className="w-8 h-8 text-indigo-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (isJobError || !job) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-4">
+        <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto" />
+        <h2 className="text-xl font-bold text-white">Job Opening Not Found</h2>
+        <p className="text-sm text-slate-400">
+          The requested job posting could not be loaded or may have been removed.
+        </p>
+        <div className="pt-2">
+          <button
+            onClick={() => navigate("/jobs")}
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition-colors"
+          >
+            Back to Job Discovery
+          </button>
+        </div>
       </div>
     );
   }

@@ -9,6 +9,15 @@ import { ShineAdapter } from "./adapters/shine.adapter";
 import { TimesJobsAdapter } from "./adapters/timesjobs.adapter";
 import { LinkedInAdapter } from "./adapters/linkedin.adapter";
 import { NaukriAdapter } from "./adapters/naukri.adapter";
+import { UnstopAdapter } from "./adapters/unstop.adapter";
+import { AicteAdapter } from "./adapters/aicte.adapter";
+import { FreshersworldAdapter } from "./adapters/freshersworld.adapter";
+import { LetsInternAdapter } from "./adapters/letsintern.adapter";
+import { Youth4workAdapter } from "./adapters/youth4work.adapter";
+import { FounditZunoAdapter } from "./adapters/founditzuno.adapter";
+import { NaukriCampusAdapter } from "./adapters/naukricampus.adapter";
+import { GlassdoorAdapter } from "./adapters/glassdoor.adapter";
+import { IndeedAdapter } from "./adapters/indeed.adapter";
 
 export interface SourceInfo {
   key: string;
@@ -30,29 +39,31 @@ export class JobSourceRegistry {
   private static instances: Map<string, JobSourceAdapter> = new Map();
 
   static {
-    // JobSpy Sources (for platforms without native adapters)
-    this.register(new JobSpyAdapter("Indeed"));
-    this.register(new JobSpyAdapter("Glassdoor"));
-    this.register(new JobSpyAdapter("GoogleJobs"));
-    this.register(new JobSpyAdapter("ZipRecruiter"));
-    this.register(new JobSpyAdapter("Bayt"));
-    this.register(new JobSpyAdapter("BDJobs"));
-    this.register(new JobSpyAdapter("LinkedIn")); // Switch LinkedIn to JobSpy
-
     // Specialized Native Sources
-    // this.register(new LinkedInAdapter());
+    this.register(new LinkedInAdapter());
     this.register(new NaukriAdapter());
-    this.register(new InternshalaAdapter());
+    this.register(new NaukriCampusAdapter());
+    this.register(new IndeedAdapter());
+    this.register(new GlassdoorAdapter());
     this.register(new FounditAdapter());
+    this.register(new TimesJobsAdapter());
+    this.register(new InternshalaAdapter());
+    this.register(new UnstopAdapter());
+    this.register(new AicteAdapter());
+    this.register(new FreshersworldAdapter());
+    this.register(new LetsInternAdapter());
+    this.register(new Youth4workAdapter());
+    this.register(new FounditZunoAdapter());
     this.register(new WellfoundAdapter());
     this.register(new CutshortAdapter());
     this.register(new HiristAdapter());
     this.register(new ShineAdapter());
-    this.register(new TimesJobsAdapter());
-    // ATS Integrations (Using a curated company list in the future)
-    // this.register(new GreenhouseAdapter());
-    // this.register(new LeverAdapter());
-    // this.register(new AshbyAdapter());
+
+    // Fallback/Secondary Sources
+    this.register(new JobSpyAdapter("GoogleJobs"));
+    this.register(new JobSpyAdapter("ZipRecruiter"));
+    this.register(new JobSpyAdapter("Bayt"));
+    this.register(new JobSpyAdapter("BDJobs"));
   }
 
   static register(adapter: JobSourceAdapter) {

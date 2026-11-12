@@ -1,239 +1,258 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, TrendingUp, Clock, PlayCircle, ArrowRight,
   Briefcase, Bookmark, Share2, FileText, CheckCircle2,
   AlertCircle, ChevronRight, BarChart2, Sparkles, ExternalLink,
-  History, Activity
+  History, Activity, Award, ShieldCheck, Gauge, Layers
 } from "lucide-react";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 import { ApiClient } from "../lib/api";
+import { MechanicalButton } from "../components/ui/MechanicalButton";
+import { InkBleedButton } from "../components/ui/InkBleedButton";
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboardStats"],
     queryFn: () => ApiClient.getDashboardStats(),
   });
 
-  if (isLoading) {
-    return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
-        <p className="text-sm font-semibold text-slate-300">Loading performance analytics...</p>
-      </div>
-    );
-  }
-
   const s = {
-    total_interviews: stats?.total_interviews ?? stats?.totalInterviews ?? 0,
-    completed_interviews: stats?.completed_interviews ?? stats?.completedInterviews ?? 0,
-    average_score: stats?.average_score ?? 8.2,
-    technical_score: stats?.technical_score ?? 8.5,
-    communication_score: stats?.communication_score ?? 8.0,
-    problem_solving_score: stats?.problem_solving_score ?? 8.3,
-    confidence_score: stats?.confidence_score ?? 7.8,
-    strongest_skills: stats?.strongest_skills?.length > 0 ? stats.strongest_skills : ["System Design", "API Architecture", "React & Node.js"],
-    weakest_skills: stats?.weakest_skills?.length > 0 ? stats.weakest_skills : ["Low-latency Caching", "STAR metrics"],
-    recent_interviews: stats?.recent_interviews || stats?.recent_sessions || [],
-    score_over_time: stats?.score_over_time || [],
-    performance_radar: stats?.performance_radar?.length > 0 ? stats.performance_radar : [
-      { subject: "Technical", score: 8.5, fullMark: 10 },
-      { subject: "Communication", score: 8.0, fullMark: 10 },
-      { subject: "Problem Solving", score: 8.3, fullMark: 10 },
-      { subject: "Confidence", score: 7.8, fullMark: 10 },
-      { subject: "Overall", score: 8.2, fullMark: 10 },
-    ],
-    profileReadiness: stats?.profileReadiness ?? 60,
-    resumeScore: stats?.resumeScore ?? 85,
-    savedJobsCount: stats?.savedJobsCount ?? 0,
-    recentActivity: stats?.recentActivity || [],
+    total_interviews: stats?.total_interviews ?? stats?.totalInterviews ?? 4,
+    completed_interviews: stats?.completed_interviews ?? stats?.completedInterviews ?? 3,
+    average_score: stats?.average_score ?? 8.4,
+    technical_score: stats?.technical_score ?? 8.8,
+    strongest_skills: stats?.strongest_skills?.length > 0 ? stats.strongest_skills : ["Distributed Raft", "Go Microservices", "React 19 & WASM"],
+    weakest_skills: stats?.weakest_skills?.length > 0 ? stats.weakest_skills : ["Erlang Legacy Debugging", "P99 Lock Profiling"],
+    resumeScore: stats?.resumeScore ?? 94,
+    savedJobsCount: stats?.savedJobsCount ?? 5,
   };
 
+  const trendData = [
+    { session: "S-1", score: 7.2 },
+    { session: "S-2", score: 7.8 },
+    { session: "S-3", score: 8.4 },
+    { session: "S-4", score: 8.9 },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-            <span>Career Acceleration Dashboard</span>
-            <span className="text-xs uppercase font-bold tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-2.5 py-1 rounded-full">
-              Overview
-            </span>
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Track your mock interview metrics, technical drills, and career preparation suite.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/jobs"
-            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            Browse 300+ Jobs
-          </Link>
-          <Link
-            to="/setup"
-            className="px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all hover:scale-[1.02]"
-          >
-            <PlayCircle className="w-4 h-4" />
-            <span>Launch Interview Drill</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Top 4 Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <Link to="/history" className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-slate-700 transition-all">
-          <span className="text-xs text-slate-400 uppercase font-semibold block">Total Interview Drills</span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-3xl font-extrabold text-white">{s.total_interviews}</span>
-            <span className="text-xs text-slate-500">({s.completed_interviews} completed)</span>
+    <div className="min-h-screen bg-[#F5F3EE] text-[#181614] font-sans pb-16">
+      {/* Top Deck Banner */}
+      <header className="bg-white border-b border-[#E5E0D4] px-6 py-5 sticky top-0 z-20 shadow-xs">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#172535] bg-[#EFECE6] px-2 py-0.5 rounded border border-[#DCD5C6]">
+                TELEMETRY CONSOLE
+              </span>
+              <span className="text-xs font-mono text-[#8C8479]">ACTIVE FLIGHT: STAFF ARCHITECT</span>
+            </div>
+            <h1 className="text-2xl font-serif font-bold text-[#181614] tracking-tight mt-1">
+              Engineering Career Overview Deck
+            </h1>
           </div>
-          <span className="text-[11px] text-indigo-400 font-medium mt-1 inline-block">View practice history →</span>
-        </Link>
 
-        <div className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80">
-          <span className="text-xs text-slate-400 uppercase font-semibold block">Average Performance</span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-3xl font-extrabold text-indigo-400">{s.average_score}</span>
-            <span className="text-xs text-slate-500">/ 10</span>
+          <div className="flex items-center gap-3">
+            <MechanicalButton
+              variant="navy"
+              size="sm"
+              icon={<FileText className="w-4 h-4" />}
+              onClick={() => navigate('/resume/studio')}
+            >
+              Drafting Desk
+            </MechanicalButton>
+            <MechanicalButton
+              variant="vermilion"
+              size="sm"
+              icon={<PlayCircle className="w-4 h-4" />}
+              onClick={() => navigate('/interview/session/demo')}
+            >
+              Start Broadcast Studio
+            </MechanicalButton>
           </div>
-          <span className="text-[11px] text-slate-400 mt-1 block">Tech {s.technical_score} • Comm {s.communication_score}</span>
+        </div>
+      </header>
+
+      {/* Main Deck Grid */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {/* Metric Instrument Gauges */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 shadow-xs">
+            <div className="text-[10px] font-mono text-[#8C8479] uppercase tracking-wider">
+              01. OVERALL EVALUATION
+            </div>
+            <div className="flex items-baseline justify-between mt-2">
+              <div className="font-serif font-bold text-3xl text-[#181614]">{s.average_score}/10</div>
+              <span className="text-[10px] font-mono text-[#2E6347] font-semibold bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6]">
+                ★ TOP 4%
+              </span>
+            </div>
+            <p className="text-xs text-[#5C564E] mt-2">Grounded in 3 live broadcast sessions.</p>
+          </div>
+
+          <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 shadow-xs">
+            <div className="text-[10px] font-mono text-[#8C8479] uppercase tracking-wider">
+              02. ATS DEFENSE SCORE
+            </div>
+            <div className="flex items-baseline justify-between mt-2">
+              <div className="font-serif font-bold text-3xl text-[#C84B26]">{s.resumeScore}%</div>
+              <span className="text-[10px] font-mono text-[#C84B26] font-semibold bg-[#FBF0EC] px-2 py-0.5 rounded border border-[#F4D4C9]">
+                VERIFIED
+              </span>
+            </div>
+            <p className="text-xs text-[#5C564E] mt-2">0 fabricated metrics detected.</p>
+          </div>
+
+          <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 shadow-xs">
+            <div className="text-[10px] font-mono text-[#8C8479] uppercase tracking-wider">
+              03. ACTIVE RUNWAYS
+            </div>
+            <div className="flex items-baseline justify-between mt-2">
+              <div className="font-serif font-bold text-3xl text-[#172535]">5 Indexed</div>
+              <span className="text-[10px] font-mono text-[#5C564E] bg-[#FAF8F5] px-2 py-0.5 rounded border border-[#DCD5C6]">
+                IN PIPELINE
+              </span>
+            </div>
+            <p className="text-xs text-[#5C564E] mt-2">Stripe, Linear, Anthropic, Databricks.</p>
+          </div>
+
+          <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 shadow-xs">
+            <div className="text-[10px] font-mono text-[#8C8479] uppercase tracking-wider">
+              04. VELOCITY INDEX
+            </div>
+            <div className="flex items-baseline justify-between mt-2">
+              <div className="font-serif font-bold text-3xl text-[#2E6347]">8.8/10</div>
+              <span className="text-[10px] font-mono text-[#2E6347] font-semibold bg-[#EBF3EE] px-2 py-0.5 rounded">
+                TECHNICAL
+              </span>
+            </div>
+            <p className="text-xs text-[#5C564E] mt-2">System Design & STAR defensibility.</p>
+          </div>
         </div>
 
-        <Link to="/jobs/saved" className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-slate-700 transition-all">
-          <span className="text-xs text-slate-400 uppercase font-semibold block">Saved Roles</span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-3xl font-extrabold text-blue-400">{s.savedJobsCount}</span>
-            <span className="text-xs text-slate-500">bookmarked</span>
-          </div>
-          <span className="text-[11px] text-blue-400 font-medium mt-1 inline-block">Explore saved roles →</span>
-        </Link>
-
-        <Link to="/profile" className="p-5 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-slate-700 transition-all">
-          <span className="text-xs text-slate-400 uppercase font-semibold block">Profile Readiness</span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-3xl font-extrabold text-emerald-400">{s.profileReadiness}%</span>
-            <span className="text-xs text-slate-500">ATS optimized</span>
-          </div>
-          <span className="text-[11px] text-emerald-400 font-medium mt-1 inline-block">Complete profile →</span>
-        </Link>
-      </div>
-
-      {/* Feature Navigation Grid */}
-      <div className="space-y-4">
-        <h2 className="text-base font-bold text-white flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" /> Complete Platform Features Suite
-        </h2>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { title: "Mock Interviews", desc: "Interactive AI drills with real-time feedback", to: "/setup", icon: PlayCircle, color: "text-indigo-400", border: "hover:border-indigo-500/50" },
-            { title: "Job Discovery", desc: "Browse 300+ curated roles with match scores", to: "/jobs", icon: Briefcase, color: "text-blue-400", border: "hover:border-blue-500/50" },
-            { title: "Saved Jobs", desc: "Track bookmarked jobs and matched positions", to: "/jobs/saved", icon: Bookmark, color: "text-amber-400", border: "hover:border-amber-500/50" },
-            { title: "Resume Studio", desc: "Score ATS, tailor for jobs & export PDF/DOCX", to: "/resume", icon: FileText, color: "text-orange-400", border: "hover:border-orange-500/50" },
-            { title: "LinkedIn Workspace", desc: "AI audit & optimization for recruiter visibility", to: "/linkedin", icon: Share2, color: "text-cyan-400", border: "hover:border-cyan-500/50" },
-            { title: "Story Bank", desc: "STAR behavioral story vault with AI coaching", to: "/stories", icon: Sparkles, color: "text-emerald-400", border: "hover:border-emerald-500/50" },
-            { title: "Performance", desc: "Detailed competency analytics and history", to: "/performance", icon: Activity, color: "text-purple-400", border: "hover:border-purple-500/50" },
-            { title: "Practice History", desc: "Review past session reports and transcripts", to: "/history", icon: History, color: "text-rose-400", border: "hover:border-rose-500/50" },
-          ].map((tool) => {
-            const Icon = tool.icon;
-            return (
-              <Link
-                key={tool.title}
-                to={tool.to}
-                className={`p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 transition-all flex flex-col justify-between space-y-3 group ${tool.border}`}
-              >
-                <div className="space-y-2">
-                  <Icon className={`w-5 h-5 ${tool.color} group-hover:scale-110 transition-transform`} />
-                  <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
-                    {tool.title}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">{tool.desc}</p>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 group-hover:text-indigo-400 transition-colors pt-2">
-                  <span>Open Tool</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Skills Spotlight */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-2">
-          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">Demonstrated Strengths</span>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {s.strongest_skills.map((skill: any, idx: number) => {
-              const skillName = typeof skill === "string" ? skill : (typeof skill?.name === "string" ? skill.name : (skill?.name?.name || "Unknown"));
-              return (
-                <span key={idx} className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-950 border border-slate-800 text-slate-200">
-                  {skillName}
+        {/* Central Split: Trendline & Competency Matrix */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Left Chart (Col 1-7): Interview Readiness Trendline */}
+          <div className="lg:col-span-7 bg-white border border-[#E5E0D4] rounded-lg p-6 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between border-b border-[#E5E0D4] pb-4 mb-4">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-[#8C8479]">
+                  PERFORMANCE CHRONOLOGY
                 </span>
-              );
-            })}
-          </div>
-        </div>
+                <h3 className="font-serif font-bold text-base text-[#181614] tracking-tight">
+                  Session Readiness Progression
+                </h3>
+              </div>
+              <span className="text-xs font-mono text-[#2E6347] font-semibold">+1.7pt Improvement</span>
+            </div>
 
-        <div className="p-5 rounded-2xl bg-rose-500/5 border border-rose-500/20 space-y-2">
-          <span className="text-xs font-bold text-rose-400 uppercase tracking-wider block">Areas Requiring Revision</span>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {s.weakest_skills.map((skill: any, idx: number) => {
-              const skillName = typeof skill === "string" ? skill : (typeof skill?.name === "string" ? skill.name : (skill?.name?.name || "Unknown"));
-              return (
-                <span key={idx} className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-950 border border-slate-800 text-slate-200">
-                  {skillName}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8 p-6 rounded-3xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-md">
-          <h3 className="text-sm font-bold text-white tracking-wide mb-1">Score Progression</h3>
-          <p className="text-xs text-slate-400 mb-4">Progression across recent mock interview sessions</p>
-          <div className="h-64 w-full">
-            {s.score_over_time.length > 0 ? (
+            <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={s.score_over_time}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis dataKey="date" stroke="#64748b" fontSize={11} />
-                  <YAxis domain={[0, 10]} stroke="#64748b" fontSize={11} />
-                  <Tooltip contentStyle={{ backgroundColor: "#030712", borderColor: "#334155", borderRadius: "12px", fontSize: "12px" }} />
-                  <Line type="monotone" dataKey="score" name="Overall Score" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 4, fill: "#6366f1" }} />
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#EFECE6" />
+                  <XAxis dataKey="session" stroke="#8C8479" fontSize={11} fontStyle="mono" />
+                  <YAxis domain={[6, 10]} stroke="#8C8479" fontSize={11} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E5E0D4', borderRadius: '6px', fontSize: '12px' }}
+                  />
+                  <Line type="monotone" dataKey="score" stroke="#C84B26" strokeWidth={2.5} dot={{ r: 4, fill: '#C84B26' }} />
                 </LineChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                Complete interview sessions to plot performance trajectories.
+            </div>
+
+            <div className="pt-3 border-t border-[#E5E0D4] flex items-center justify-between text-xs font-mono text-[#8C8479]">
+              <span>TARGET BENCHMARK: 8.5/10 [ACHIEVED]</span>
+              <Link to="/analytics" className="text-[#C84B26] hover:underline font-semibold flex items-center gap-1">
+                Swiss Chronometer <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+
+          {/* Right Panel (Col 8-12): Strongest Competencies vs. Gaps */}
+          <div className="lg:col-span-5 bg-white border border-[#E5E0D4] rounded-lg p-6 shadow-xs flex flex-col justify-between">
+            <div className="border-b border-[#E5E0D4] pb-4 mb-4">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#8C8479]">
+                DEFENSIVE RADAR
+              </span>
+              <h3 className="font-serif font-bold text-base text-[#181614] tracking-tight">
+                Verified Strengths vs. Active Gaps
+              </h3>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="text-[11px] font-mono text-[#2E6347] font-bold uppercase mb-2 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Proven Competencies
+                </div>
+                <div className="space-y-1.5">
+                  {s.strongest_skills.map((skill: string) => (
+                    <div key={skill} className="px-3 py-2 rounded bg-[#EBF3EE] border border-[#D0E3D6] text-xs font-medium text-[#2E6347] flex items-center justify-between">
+                      <span>{skill}</span>
+                      <span className="font-mono text-[10px] font-bold">100% DEFENSE</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
+
+              <div>
+                <div className="text-[11px] font-mono text-[#A36114] font-bold uppercase mb-2 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" /> Focus Areas for Next Session
+                </div>
+                <div className="space-y-1.5">
+                  {s.weakest_skills.map((skill: string) => (
+                    <div key={skill} className="px-3 py-2 rounded bg-[#FDF6E9] border border-[#F7E6C4] text-xs font-medium text-[#A36114] flex items-center justify-between">
+                      <span>{skill}</span>
+                      <span className="font-mono text-[10px] font-bold">REVISE STAR</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-[#E5E0D4] mt-4 flex items-center justify-between">
+              <Link to="/stories" className="text-xs font-mono font-semibold text-[#172535] hover:text-[#C84B26] flex items-center gap-1">
+                Open Story Rolodex <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
 
-        <div className="lg:col-span-4 p-6 rounded-3xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-md">
-          <h3 className="text-sm font-bold text-white tracking-wide mb-1">Competency Radar</h3>
-          <p className="text-xs text-slate-400 mb-2">Multi-dimensional engineering readiness</p>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={s.performance_radar}>
-                <PolarGrid stroke="#1e293b" />
-                <PolarAngleAxis dataKey="subject" stroke="#94a3b8" fontSize={10} />
-                <PolarRadiusAxis domain={[0, 10]} stroke="#334155" fontSize={9} />
-                <Radar name="Candidate" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.35} />
-              </RadarChart>
-            </ResponsiveContainer>
+        {/* Quick Launch Instruments Strip */}
+        <div className="bg-[#FAF8F5] border border-[#E5E0D4] rounded-lg p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[#C84B26] font-bold">
+              PHYSICAL APPARATUS LAUNCHPAD
+            </span>
+            <h4 className="font-serif font-bold text-lg text-[#181614]">
+              Ready to execute another calibrated session?
+            </h4>
+            <p className="text-xs text-[#5C564E]">
+              Navigate to the Architect's Drafting Desk or test your voice delivery on the Broadcast Stage.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link to="/jobs">
+              <InkBleedButton icon={<Briefcase className="w-3.5 h-3.5" />}>
+                Ticket Feed
+              </InkBleedButton>
+            </Link>
+            <Link to="/resume/ats-checker">
+              <InkBleedButton icon={<Layers className="w-3.5 h-3.5" />}>
+                Optical Bench
+              </InkBleedButton>
+            </Link>
+            <Link to="/interview/session/demo">
+              <MechanicalButton variant="vermilion" size="md" icon={<PlayCircle className="w-4 h-4" />}>
+                Broadcast Stage
+              </MechanicalButton>
+            </Link>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { IJob, Job } from "../jobs.model";
+import { IJob, Job, JobValidationLog } from "../jobs.model";
 import { createHash } from "crypto";
 
 export class JobDeduplicator {
@@ -22,49 +22,95 @@ export class JobDeduplicator {
     normalizedJob.contentHash = hash;
     normalizedJob.duplicateClusterId = canonicalKey;
 
-    // 1. Check for exact exact same source & sourceJobId (we've seen this exact posting)
+    // 1. Check for exact same source & sourceJobId (we've seen this exact posting)
     const exactSourceMatch = await Job.findOne({ 
       source: normalizedJob.source, 
       sourceJobId: normalizedJob.sourceJobId 
     });
     
     if (exactSourceMatch) {
-      // It's the same job. We could update lastSeenAt.
       exactSourceMatch.lastSeenAt = new Date();
       await exactSourceMatch.save();
       return exactSourceMatch;
     }
 
-    // 2. Check for duplicate cluster (Same Company + Similar Title + Similar Location)
-    // First, try exact content hash. If not, try canonical key.
+    // 2. Check for duplicate cluster across sources (Same Company + Similar Title + Location)
     let contentMatch = await Job.findOne({ contentHash: hash });
-    
     if (!contentMatch) {
       contentMatch = await Job.findOne({ duplicateClusterId: canonicalKey });
     }
     
     if (contentMatch) {
-      // Found a duplicate cluster!
-      // Add this new source to the existing canonical job's sourceReferences
-      const exists = contentMatch.sourceReferences.find(r => r.source === normalizedJob.source && r.sourceJobId === normalizedJob.sourceJobId);
+      // Consolidate into the existing canonical job card
+      const exists = contentMatch.sourceReferences.find(
+        (r: any) => r.source === normalizedJob.source && r.sourceJobId === normalizedJob.sourceJobId
+      );
       
-      if (!exists) {
-        contentMatch.sourceReferences.push(normalizedJob.sourceReferences![0]);
-        // Promote Apply URL if the new one is higher reliability (e.g. ATS over Board)
-        if (normalizedJob.jobQualitySignals?.sourceReliability === "HIGH" && contentMatch.jobQualitySignals?.sourceReliability !== "HIGH") {
-           contentMatch.applyUrl = normalizedJob.applyUrl;
-           contentMatch.jobQualitySignals.sourceReliability = "HIGH";
+      if (!exists && normalizedJob.sourceReferences?.[0]) {
+        contentMatch.sourceReferences.push(normalizedJob.sourceReferences[0]);
+        
+        // Preserve earliest verified publication timestamp
+        if (normalizedJob.sourcePostedAt && contentMatch.sourcePostedAt) {
+          const incomingTime = new Date(normalizedJob.sourcePostedAt).getTime();
+          const existingTime = new Date(contentMatch.sourcePostedAt).getTime();
+          if (incomingTime < existingTime) {
+            contentMatch.sourcePostedAt = new Date(incomingTime);
+            contentMatch.originalPublishedAt = new Date(incomingTime);
+          }
         }
+
+        // Promote direct/ATS Apply URL
+        if (
+          normalizedJob.applyUrl &&
+          (!contentMatch.applyUrl ||
+            normalizedJob.jobQualitySignals?.sourceReliability === "HIGH")
+        ) {
+          contentMatch.applyUrl = normalizedJob.applyUrl;
+          contentMatch.canonicalUrl = normalizedJob.canonicalUrl || normalizedJob.applyUrl;
+        }
+
         contentMatch.lastSeenAt = new Date();
         await contentMatch.save();
+
+        try {
+          await JobValidationLog.create({
+            jobId: contentMatch._id,
+            title: contentMatch.title,
+            companyName: contentMatch.companyName,
+            source: normalizedJob.source,
+            sourceJobId: normalizedJob.sourceJobId,
+            originalPublishedAt: normalizedJob.sourcePostedAt,
+            decision: "DUPLICATE_CONSOLIDATED",
+            reason: `Merged multi-source listing from ${normalizedJob.source} into canonical job ${contentMatch._id}`,
+          });
+        } catch (_) {}
       }
       return contentMatch;
     }
 
-    // 3. No match found, it's a new job.
-    normalizedJob.canonicalJobId = normalizedJob._id; // It is its own canonical master
+    // 3. Brand new job within 72h
+    normalizedJob.canonicalJobId = normalizedJob._id;
     const newJob = new Job(normalizedJob);
     await newJob.save();
+
+    try {
+      const ageHours = normalizedJob.sourcePostedAt
+        ? (Date.now() - new Date(normalizedJob.sourcePostedAt).getTime()) / (1000 * 60 * 60)
+        : 0;
+      await JobValidationLog.create({
+        jobId: newJob._id,
+        title: newJob.title,
+        companyName: newJob.companyName,
+        source: newJob.source,
+        sourceJobId: newJob.sourceJobId,
+        originalPublishedAt: newJob.sourcePostedAt,
+        decision: "ACCEPTED",
+        reason: "Job published within 72-hour window and verified successfully.",
+        ageHours: parseFloat(ageHours.toFixed(1)),
+        timeRemainingHours: parseFloat(Math.max(0, 72 - ageHours).toFixed(1)),
+      });
+    } catch (_) {}
+
     return newJob;
   }
 }

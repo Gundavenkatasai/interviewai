@@ -59,3 +59,6 @@ debug*
 
 # logs
 *.log
+
+# test screenshots
+scripts/*.png

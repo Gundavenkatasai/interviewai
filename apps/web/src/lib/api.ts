@@ -33,8 +33,11 @@ export class ApiClient {
       } catch {}
 
       if (
+        endpoint !== "/api/auth/me" &&
         !window.location.pathname.startsWith("/login") &&
-        !window.location.pathname.startsWith("/register")
+        !window.location.pathname.startsWith("/register") &&
+        !window.location.pathname.startsWith("/jobs") &&
+        window.location.pathname !== "/"
       ) {
         localStorage.removeItem("interviewai_token");
         window.location.href = "/login";
@@ -702,7 +705,7 @@ export class ApiClient {
     try {
       return await this.request<any>("/health");
     } catch {
-      return { status: "healthy", timestamp: new Date().toISOString() };
+      return { status: "degraded", database: "disconnected", timestamp: new Date().toISOString() };
     }
   }
 
@@ -889,7 +892,43 @@ export class ApiClient {
   }
 
   static async getJobStats() {
-    return this.request<any>("/api/jobs/stats/summary");
+    return this.request<any>("/api/jobs/stats");
+  }
+
+  static async getJobCategories() {
+    return this.request<any>("/api/jobs/categories");
+  }
+
+  static async getAdminSources() {
+    return this.request<any>("/api/admin/sources");
+  }
+
+  static async getAdminSyncLogs() {
+    return this.request<any>("/api/admin/sync-logs");
+  }
+
+  static async triggerAdminSync(source?: string) {
+    const url = source ? `/api/admin/sync/${encodeURIComponent(source)}` : "/api/admin/sync";
+    return this.request<any>(url, { method: "POST" });
+  }
+
+  static async getAdminValidationLogs() {
+    return this.request<any>("/api/admin/validation-logs");
+  }
+
+  static async getUserSavedJobs() {
+    return this.request<any>("/api/user/saved-jobs");
+  }
+
+  static async getUserApplications() {
+    return this.request<any>("/api/user/applications");
+  }
+
+  static async trackUserApplication(data: { jobId: string; status: string; notes?: string }) {
+    return this.request<any>("/api/user/applications", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   // ================= Resume Studio =================

@@ -16,6 +16,9 @@ import { authRoutes } from "./modules/auth/auth.routes";
 import { profileRoutes } from "./modules/profile/profile.routes";
 import { resumeRoutes } from "./modules/resume/resume.routes";
 import { tailoringRoutes } from "./modules/resume/tailoring/tailoring.routes";
+import { usersRoutes } from "./modules/users/users.routes";
+import { adminRoutes } from "./modules/jobs/admin.routes";
+import { userApplicationsRoutes } from "./modules/jobs/user-applications.routes";
 import { interviewRoutes } from "./modules/interview/interview.routes";
 import { jobsRoutes } from "./modules/jobs/jobs.routes";
 import { linkedinRoutes } from "./modules/linkedin/linkedin.routes";
@@ -251,6 +254,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(intelligenceRoutes, { prefix: "/api/interview-intelligence" });
   app.register(storyRoutes, { prefix: "/api/interview-stories" });
   app.register(debriefRoutes, { prefix: "/api/interview-debriefs" });
+  app.register(tailoringRoutes, { prefix: "/api/resume/tailor" });
+  app.register(usersRoutes, { prefix: "/api/users" });
+  app.register(adminRoutes, { prefix: "/api/admin" });
+  app.register(userApplicationsRoutes, { prefix: "/api/user" });
   app.register(importedDocxRoutes, { prefix: "/api/resume/imported-docx" });
   app.register(websocketRoutes);
 

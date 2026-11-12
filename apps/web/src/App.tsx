@@ -13,21 +13,28 @@ const TermsPage = lazy(() => import('./pages/TermsPage'));
 const PublicResumePage = lazy(() => import('./pages/PublicResumePage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
-// Protected practice & intelligence pages
+// Warm Industrial Editorial Archetype Pages
+const JobsPage = lazy(() => import('./pages/JobsPage'));
+const JobsFlightBoardPage = lazy(() => import('./pages/JobsFlightBoardPage'));
+const ResumeDraftingDeskPage = lazy(() => import('./pages/ResumeDraftingDeskPage'));
+const ATSScanningBenchPage = lazy(() => import('./pages/ATSScanningBenchPage'));
+const InterviewBroadcastStudioPage = lazy(() => import('./pages/InterviewBroadcastStudioPage'));
+const ApplicationCardCatalogPage = lazy(() => import('./pages/ApplicationCardCatalogPage'));
+const StoryBankRolodexPage = lazy(() => import('./pages/StoryBankRolodexPage'));
+const CareerSwissChronometerPage = lazy(() => import('./pages/CareerSwissChronometerPage'));
+
+// Core Practice & Management Pages
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const SetupPage = lazy(() => import('./pages/SetupPage'));
 const InterviewRoomPage = lazy(() => import('./pages/InterviewRoomPage'));
 const ReportPage = lazy(() => import('./pages/ReportPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
-const PerformancePage = lazy(() => import('./pages/PerformancePage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const InterviewIntelligencePage = lazy(() => import('./pages/InterviewIntelligencePage'));
-const StoryBankPage = lazy(() => import('./pages/StoryBankPage'));
 const InterviewDebriefPage = lazy(() => import('./pages/InterviewDebriefPage'));
 
-// Job discovery & resume pages
-const JobsPage = lazy(() => import('./pages/JobsPage'));
+// Job Discovery & Resume Pages
 const JobDetailPage = lazy(() => import('./pages/JobDetailPage'));
 const TailorResumePage = lazy(() => import('./pages/TailorResumePage'));
 const SavedJobsPage = lazy(() => import('./pages/SavedJobsPage'));
@@ -38,9 +45,9 @@ const ImportedDocxEditorPage = lazy(() => import('./pages/ImportedDocxEditorPage
 
 function RouteLoadingFallback() {
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
-      <div className="w-10 h-10 rounded-full border-3 border-indigo-500/20 border-t-indigo-500 animate-spin" />
-      <span className="text-xs font-medium text-slate-400">Loading view...</span>
+    <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3 bg-[#F5F3EE]">
+      <div className="w-8 h-8 rounded-md bg-[#C84B26] shadow-[0_2px_0_0_#983416] animate-pulse" />
+      <span className="text-xs font-mono text-[#8C8479] tracking-wider uppercase">Calibrating Instrument...</span>
     </div>
   );
 }
@@ -48,23 +55,18 @@ function RouteLoadingFallback() {
 export default function App() {
   const location = useLocation();
   const isBuilderRoute =
-    location.pathname.includes('/resume') ||
-    location.pathname.includes('/ats') ||
-    location.pathname.includes('/studio');
+    location.pathname.includes('/resume/imported') ||
+    location.pathname.includes('/studio/legacy');
 
   return (
-    <div className="relative min-h-screen flex flex-col md:flex-row bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500/30 selection:text-indigo-200">
-      {/* Ambient lighting */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-indigo-500/10 via-purple-500/5 to-transparent blur-3xl opacity-70" />
-        <div className="absolute top-1/3 -left-40 w-[500px] h-[500px] bg-emerald-500/5 blur-3xl rounded-full" />
-        <div className="absolute bottom-10 -right-40 w-[600px] h-[600px] bg-indigo-500/5 blur-3xl rounded-full" />
-      </div>
+    <div className="relative min-h-screen flex flex-col md:flex-row bg-[#F5F3EE] text-[#181614] antialiased selection:bg-[#F4D4C9] selection:text-[#983416]">
+      {/* Background Architectural Canvas Layer */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[#F5F3EE]" />
 
-      {/* Responsive Sidebar */}
+      {/* Responsive Architectural Drawer */}
       {!isBuilderRoute && <Sidebar />}
 
-      {/* Main Content Area */}
+      {/* Main Content Instrument Viewport */}
       <div
         className={`flex-1 flex flex-col min-w-0 overflow-x-hidden ${
           isBuilderRoute ? 'w-screen h-screen' : ''
@@ -80,23 +82,86 @@ export default function App() {
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/resume/public/:slug" element={<PublicResumePage />} />
-              <Route path="/ats" element={<ResumeStudioPage />} />
-              <Route path="/resume-checker" element={<ResumeStudioPage />} />
 
-              {/* Core Practice routes */}
+              {/* 1. Job Discovery (Live Requisition Feed) */}
+              <Route path="/jobs" element={<JobsPage />} />
+              <Route path="/jobs/flight-board" element={<JobsFlightBoardPage />} />
               <Route
-                path="/dashboard"
+                path="/jobs/saved"
                 element={
                   <ProtectedRoute>
-                    <DashboardPage />
+                    <SavedJobsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/jobs/:id" element={<JobDetailPage />} />
+              <Route
+                path="/jobs/:id/tailor"
+                element={
+                  <ProtectedRoute>
+                    <TailorResumePage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 2. Resume Studio (Architect's Drafting Desk) */}
+              <Route
+                path="/resume"
+                element={
+                  <ProtectedRoute>
+                    <ResumeDraftingDeskPage />
                   </ProtectedRoute>
                 }
               />
               <Route
-                path="/setup"
+                path="/resume/studio"
                 element={
                   <ProtectedRoute>
-                    <SetupPage />
+                    <ResumeDraftingDeskPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/resume/imported/:id"
+                element={
+                  <ProtectedRoute>
+                    <ImportedDocxEditorPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 3. ATS Resume Checker (Optical Scanning Bench) */}
+              <Route
+                path="/resume/ats-checker"
+                element={
+                  <ProtectedRoute>
+                    <ATSScanningBenchPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/ats"
+                element={
+                  <ProtectedRoute>
+                    <ATSScanningBenchPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/resume-checker"
+                element={
+                  <ProtectedRoute>
+                    <ATSScanningBenchPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 4. AI Mock Interview Stage (Broadcast Studio) */}
+              <Route
+                path="/interview/session/:id"
+                element={
+                  <ProtectedRoute>
+                    <InterviewBroadcastStudioPage />
                   </ProtectedRoute>
                 }
               />
@@ -104,15 +169,63 @@ export default function App() {
                 path="/interview/:id"
                 element={
                   <ProtectedRoute>
-                    <InterviewRoomPage />
+                    <InterviewBroadcastStudioPage />
                   </ProtectedRoute>
                 }
               />
               <Route
-                path="/report/:id"
+                path="/setup"
                 element={
                   <ProtectedRoute>
-                    <ReportPage />
+                    <InterviewBroadcastStudioPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 5. Application Management (Card Catalog Rack) */}
+              <Route
+                path="/pipeline"
+                element={
+                  <ProtectedRoute>
+                    <ApplicationCardCatalogPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 6. STAR Story Bank (Journalist's Story Rolodex) */}
+              <Route
+                path="/stories"
+                element={
+                  <ProtectedRoute>
+                    <StoryBankRolodexPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 7. AI Career Analytics (Swiss Chronometer Deck) */}
+              <Route
+                path="/analytics"
+                element={
+                  <ProtectedRoute>
+                    <CareerSwissChronometerPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/performance"
+                element={
+                  <ProtectedRoute>
+                    <CareerSwissChronometerPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Other core routes */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
                   </ProtectedRoute>
                 }
               />
@@ -125,15 +238,15 @@ export default function App() {
                 }
               />
               <Route
-                path="/performance"
+                path="/report/:id"
                 element={
                   <ProtectedRoute>
-                    <PerformancePage />
+                    <ReportPage />
                   </ProtectedRoute>
                 }
               />
               <Route
-                path="/settings"
+                path="/profile"
                 element={
                   <ProtectedRoute>
                     <ProfilePage />
@@ -141,7 +254,7 @@ export default function App() {
                 }
               />
               <Route
-                path="/profile"
+                path="/settings"
                 element={
                   <ProtectedRoute>
                     <ProfilePage />
@@ -156,77 +269,11 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-
-              {/* Job Discovery & Career Copilot routes */}
-              <Route
-                path="/jobs"
-                element={
-                  <ProtectedRoute>
-                    <JobsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/jobs/saved"
-                element={
-                  <ProtectedRoute>
-                    <SavedJobsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/jobs/:id"
-                element={
-                  <ProtectedRoute>
-                    <JobDetailPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/jobs/:id/tailor"
-                element={
-                  <ProtectedRoute>
-                    <TailorResumePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/resume"
-                element={
-                  <ProtectedRoute>
-                    <ResumeStudioPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/resume/studio"
-                element={
-                  <ProtectedRoute>
-                    <ResumeStudioPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/resume/imported/:id"
-                element={
-                  <ProtectedRoute>
-                    <ImportedDocxEditorPage />
-                  </ProtectedRoute>
-                }
-              />
               <Route
                 path="/linkedin"
                 element={
                   <ProtectedRoute>
                     <LinkedInPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/studio"
-                element={
-                  <ProtectedRoute>
-                    <ResumeStudioPage />
                   </ProtectedRoute>
                 }
               />
@@ -239,14 +286,6 @@ export default function App() {
                 }
               />
               <Route
-                path="/stories"
-                element={
-                  <ProtectedRoute>
-                    <StoryBankPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
                 path="/debrief/:id"
                 element={
                   <ProtectedRoute>
@@ -255,7 +294,7 @@ export default function App() {
                 }
               />
               <Route
-                path="/admin/sources"
+                path="/source-health"
                 element={
                   <ProtectedRoute>
                     <SourceHealthPage />
@@ -263,7 +302,7 @@ export default function App() {
                 }
               />
 
-              {/* 404 fallback */}
+              {/* 404 Fallback */}
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>

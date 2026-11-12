@@ -49,6 +49,7 @@ export interface RawJob {
   workMode?: string;
   experienceText?: string;
   employmentType?: string;
+  roleCategory?: string;
   skills?: string[];
   isInternship?: boolean;
   isIndiaJob?: boolean;

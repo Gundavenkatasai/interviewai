@@ -73,15 +73,15 @@ describe("Cross-User Authorization & Anti-IDOR Security Suite", () => {
     });
     const sessionBody = JSON.parse(sessionRes.payload);
     sessionAId = sessionBody.session?.id || sessionBody.session?._id;
-  });
+  }, 30000);
 
   afterAll(async () => {
     if (userAId) await User.deleteOne({ _id: userAId });
     if (userBId) await User.deleteOne({ _id: userBId });
     if (resumeAId) await Resume.deleteOne({ _id: resumeAId });
     if (sessionAId) await InterviewSession.deleteOne({ _id: sessionAId });
-    await app.close();
-    await mongoose.disconnect();
+    if (app) await app.close();
+    if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
   });
 
   describe("Resume Isolation", () => {

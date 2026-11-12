@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   * {
@@ -12,54 +12,104 @@
   }
 
   html {
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-      'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-color: #F5F3EE;
+    color: #181614;
   }
 
   body {
-    @apply bg-slate-950 text-slate-100;
+    background-color: #F5F3EE;
+    color: #181614;
+    overflow-x: hidden;
   }
 
   ::selection {
-    @apply bg-indigo-500/30 text-indigo-200;
+    background-color: #F4D4C9;
+    color: #983416;
   }
 
-  /* Scrollbar */
+  /* Warm Industrial Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-slate-900;
+    background: #EFECE6;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-700 rounded-full;
+    background: #D5CEBF;
+    border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-500;
+    background: #B5AEA3;
   }
 }
 
-@layer utilities {
-  .animate-pulse_slow {
-    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+@layer components {
+  /* Mechanical Keycap Primary Button */
+  .btn-mechanical-primary {
+    @apply relative inline-flex items-center justify-center font-medium rounded-md px-4 py-2 text-sm text-white bg-[#C84B26] shadow-[0_2px_0_0_#983416] transition-all duration-150 select-none;
+  }
+  .btn-mechanical-primary:hover {
+    @apply -translate-y-[1px] bg-[#B53E1B] shadow-[0_3px_0_0_#983416];
+  }
+  .btn-mechanical-primary:active {
+    @apply translate-y-[2px] shadow-none scale-[0.98];
   }
 
-  .glass {
-    @apply bg-slate-900/60 border border-slate-800/80 backdrop-blur-md;
+  /* Mechanical Keycap Navy Button */
+  .btn-mechanical-navy {
+    @apply relative inline-flex items-center justify-center font-medium rounded-md px-4 py-2 text-sm text-white bg-[#172535] shadow-[0_2px_0_0_#0E1721] transition-all duration-150 select-none;
+  }
+  .btn-mechanical-navy:hover {
+    @apply -translate-y-[1px] bg-[#23384E] shadow-[0_3px_0_0_#0E1721];
+  }
+  .btn-mechanical-navy:active {
+    @apply translate-y-[2px] shadow-none scale-[0.98];
   }
 
-  .card {
-    @apply rounded-2xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-md;
+  /* Liquid Ink-Bleed Ghost Button */
+  .btn-ink-ghost {
+    @apply relative overflow-hidden inline-flex items-center justify-center font-medium rounded-md px-4 py-2 text-sm text-[#181614] border border-[#DCD5C6] bg-transparent transition-all duration-200 select-none;
+  }
+  .btn-ink-ghost:hover {
+    @apply border-[#181614] bg-[#EFECE6];
+  }
+  .btn-ink-ghost:active {
+    @apply translate-y-[1px] scale-[0.99];
   }
 
-  .btn-primary {
-    @apply px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] active:scale-[0.98];
+  /* Tactile Physical Paper Card */
+  .editorial-card {
+    @apply bg-white border border-[#E5E0D4] rounded-lg shadow-[0_1px_3px_rgba(24,22,20,0.04),0_1px_2px_rgba(24,22,20,0.02)] transition-shadow duration-200;
+  }
+  .editorial-card-interactive {
+    @apply bg-white border border-[#E5E0D4] rounded-lg shadow-[0_1px_3px_rgba(24,22,20,0.04)] hover:shadow-[0_4px_12px_rgba(24,22,20,0.06)] hover:border-[#D5CEBF] transition-all duration-200;
   }
 
-  .btn-secondary {
-    @apply px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-900 border border-slate-800 transition-colors;
+  /* Perforated Divider for Tickets & Boarding Passes */
+  .perforated-h {
+    background-image: radial-gradient(circle, #DCD5C6 1.5px, transparent 1.5px);
+    background-size: 8px 3px;
+    background-repeat: repeat-x;
+    height: 3px;
+  }
+
+  .perforated-v {
+    background-image: radial-gradient(circle, #DCD5C6 1.5px, transparent 1.5px);
+    background-size: 3px 8px;
+    background-repeat: repeat-y;
+    width: 3px;
+  }
+
+  /* Architect Drafting Ruler Markings */
+  .ruler-top {
+    background-image: linear-gradient(to right, #C9C2B3 1px, transparent 1px),
+                      linear-gradient(to right, #E5E0D4 1px, transparent 1px);
+    background-size: 50px 12px, 10px 6px;
+    background-repeat: repeat-x;
+    background-position: bottom left;
   }
 }

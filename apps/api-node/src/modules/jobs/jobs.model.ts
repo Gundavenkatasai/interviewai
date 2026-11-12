@@ -53,6 +53,8 @@ export interface IJob {
   canonicalUrl?: string;
   applicationUrl?: string;
   rawSourceData?: string;
+  originalPublishedAt?: Date;
+  deadline?: Date;
   sourcePostedAt?: Date;
   postingDateConfidence: string;
   firstSeenAt?: Date;
@@ -120,6 +122,8 @@ const jobSchema = new Schema<IJob>(
     canonicalUrl: { type: String },
     applicationUrl: { type: String },
     rawSourceData: { type: String },
+    originalPublishedAt: { type: Date, index: true },
+    deadline: { type: Date, index: true },
     sourcePostedAt: { type: Date, index: true },
     postingDateConfidence: { type: String, default: "unknown" },
     firstSeenAt: { type: Date },
@@ -259,3 +263,85 @@ export const jobMatchScoreSchema = new Schema(
 jobMatchScoreSchema.index({ candidateId: 1, jobId: 1 }, { unique: true });
 
 export const JobMatchScore = mongoose.model("JobMatchScore", jobMatchScoreSchema);
+
+// ─── 72-Hour Job Validation Audit Log ──────────────────────────────────────────
+export const jobValidationLogSchema = new Schema(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    jobId: { type: String, index: true },
+    title: { type: String },
+    companyName: { type: String },
+    source: { type: String, index: true },
+    sourceJobId: { type: String },
+    originalPublishedAt: { type: Date },
+    decision: { type: String, enum: ["ACCEPTED", "REJECTED", "DUPLICATE_CONSOLIDATED"], required: true, index: true },
+    reason: { type: String, required: true },
+    ageHours: { type: Number },
+    timeRemainingHours: { type: Number },
+    metadata: { type: Object, default: {} },
+  },
+  { timestamps: true }
+);
+
+jobValidationLogSchema.index({ decision: 1, createdAt: -1 });
+jobValidationLogSchema.index({ source: 1, decision: 1 });
+export const JobValidationLog = mongoose.model("JobValidationLog", jobValidationLogSchema);
+
+// ─── User Job Application Tracking ────────────────────────────────────────────
+export const jobApplicationSchema = new Schema(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    userId: { type: String, required: true, index: true },
+    jobId: { type: String, ref: "Job", required: true, index: true },
+    status: {
+      type: String,
+      enum: ["Interested", "Applied", "Interview", "Rejected", "Offer"],
+      default: "Applied",
+      index: true
+    },
+    notes: { type: String },
+    appliedAt: { type: Date, default: Date.now },
+    interviewDate: { type: Date },
+    offerDetails: { type: Object },
+  },
+  { timestamps: true }
+);
+
+jobApplicationSchema.index({ userId: 1, jobId: 1 }, { unique: true });
+export const JobApplication = mongoose.model("JobApplication", jobApplicationSchema);
+
+// ─── User Job Alerts ───────────────────────────────────────────────────────────
+export const jobAlertSchema = new Schema(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    userId: { type: String, required: true, index: true },
+    name: { type: String, required: true },
+    category: { type: String },
+    keywords: { type: [String], default: [] },
+    location: { type: String },
+    workMode: { type: String },
+    frequency: { type: String, enum: ["instant", "daily", "weekly"], default: "daily" },
+    isActive: { type: Boolean, default: true },
+    lastNotifiedAt: { type: Date },
+  },
+  { timestamps: true }
+);
+
+export const JobAlert = mongoose.model("JobAlert", jobAlertSchema);
+
+// ─── User Job Preferences ─────────────────────────────────────────────────────
+export const userJobPreferencesSchema = new Schema(
+  {
+    _id: { type: String, default: () => randomUUID() },
+    userId: { type: String, required: true, unique: true, index: true },
+    preferredCategories: { type: [String], default: [] },
+    preferredLocations: { type: [String], default: [] },
+    preferredWorkModes: { type: [String], default: [] },
+    minSalary: { type: Number },
+    skills: { type: [String], default: [] },
+    experienceLevel: { type: String },
+  },
+  { timestamps: true }
+);
+
+export const UserJobPreferences = mongoose.model("UserJobPreferences", userJobPreferencesSchema);

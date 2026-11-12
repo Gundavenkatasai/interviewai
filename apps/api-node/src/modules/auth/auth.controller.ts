@@ -26,11 +26,14 @@ export class AuthController {
     return {
       success: true,
       user: {
+        _id: user._id,
         id: user._id,
         email: user.email,
         fullName: user.fullName,
         full_name: user.fullName,
         role: user.role,
+        isAdmin: Boolean(user.isAdmin),
+        is_admin: Boolean(user.isAdmin),
       },
       token,
     };
@@ -56,18 +59,21 @@ export class AuthController {
     return {
       success: true,
       user: {
+        _id: user._id,
         id: user._id,
         email: user.email,
         fullName: user.fullName,
         full_name: user.fullName,
         role: user.role,
+        isAdmin: Boolean(user.isAdmin),
+        is_admin: Boolean(user.isAdmin),
       },
       token,
     };
   }
 
   static async demo(request: FastifyRequest, reply: FastifyReply) {
-    let user = await User.findOne({ email: "venkatasaigunda82@gmail.com" });
+    let user = await User.findOne({ email: "demo@interviewai.dev" });
     if (!user) {
       user = await User.findOne();
     }
@@ -97,18 +103,21 @@ export class AuthController {
     return {
       success: true,
       user: {
+        _id: user._id,
         id: user._id,
         email: user.email,
         fullName: user.fullName,
         full_name: user.fullName,
         role: user.role,
+        isAdmin: Boolean(user.isAdmin),
+        is_admin: Boolean(user.isAdmin),
       },
       token,
     };
   }
 
   static async resetPassword(request: FastifyRequest, reply: FastifyReply) {
-    const { email, password } = (request.body as any) || {};
+    const { email, password, resetToken } = (request.body as any) || {};
     if (!email || !password) {
       return reply.status(400).send({
         success: false,
@@ -127,6 +136,33 @@ export class AuthController {
       return reply.status(404).send({
         success: false,
         error: { message: "No account found with this email" },
+      });
+    }
+
+    // Verify Authorization: Check JWT token or resetToken or demo account
+    let isAuthorized = false;
+    try {
+      await request.jwtVerify();
+      const authUser = (request as any).user;
+      if (authUser?.sub === user._id || authUser?.email === user.email) {
+        isAuthorized = true;
+      }
+    } catch {
+      // Unauthenticated
+    }
+
+    if (user.email === "demo@interviewai.dev") {
+      isAuthorized = true;
+    }
+
+    if (resetToken && (user as any).resetPasswordToken === resetToken) {
+      isAuthorized = true;
+    }
+
+    if (!isAuthorized) {
+      return reply.status(403).send({
+        success: false,
+        error: { message: "Password reset requires an authenticated session or valid reset token." },
       });
     }
 
@@ -161,13 +197,15 @@ export class AuthController {
     return {
       success: true,
       user: {
+        _id: user._id,
         id: user._id,
         email: user.email,
         fullName: user.fullName,
         full_name: user.fullName,
         role: user.role,
         isActive: user.isActive,
-        isAdmin: user.isAdmin,
+        isAdmin: Boolean(user.isAdmin),
+        is_admin: Boolean(user.isAdmin),
       },
     };
   }

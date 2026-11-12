@@ -5,7 +5,10 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
+      'react': path.resolve(__dirname, '../../node_modules/react'),
+      'react-dom': path.resolve(__dirname, '../../node_modules/react-dom'),
       '@': path.resolve(__dirname, './src'),
       '@interview-ai/ui': path.resolve(__dirname, '../../packages/ui/src/index.tsx'),
       '@interview-ai/contracts': path.resolve(__dirname, '../../packages/contracts/src/index.ts'),

@@ -1,9 +1,30 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { Job, SavedJob, ApplicationClick, ViewedJob } from "./jobs.model";
 import { z } from "zod";
+import { JobEligibilityEngine } from "./eligibility.engine";
+import { JOB_CATEGORIES, JobCategoryClassifier } from "./categories.service";
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").slice(0, 100);
+}
+
+function formatIST(date?: Date | string | null): string {
+  if (!date) return "";
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }) + " IST";
+  } catch {
+    return "";
+  }
 }
 
 function isValidApplyUrl(url?: string): boolean {
@@ -44,6 +65,8 @@ const FilterSchema = z.object({
   salary_min: z.coerce.number().optional(),
   salary_max: z.coerce.number().optional(),
   posted_days: z.coerce.number().optional(),
+  posted_hours: z.coerce.number().optional(),
+  category: z.string().optional(),
   match_score: z.string().optional(),
   trust_score: z.string().optional(),
   sort: z.string().default("newest"),
@@ -53,14 +76,24 @@ const CANONICAL_SOURCES: Record<string, string> = {
   linkedin: "LinkedIn",
   indeed: "Indeed",
   naukri: "Naukri",
+  naukricampus: "Naukri Campus",
+  "naukri campus": "Naukri Campus",
   internshala: "Internshala",
+  unstop: "Unstop",
+  aicte: "AICTE Internship",
+  "aicte internship": "AICTE Internship",
+  freshersworld: "Freshersworld",
+  letsintern: "LetsIntern",
+  youth4work: "Youth4work",
   foundit: "Foundit",
+  founditzuno: "Foundit Zuno",
+  "foundit zuno": "Foundit Zuno",
+  glassdoor: "Glassdoor",
+  timesjobs: "TimesJobs",
   wellfound: "Wellfound",
   cutshort: "Cutshort",
   hirist: "Hirist",
   shine: "Shine",
-  timesjobs: "TimesJobs",
-  glassdoor: "Glassdoor",
   googlejobs: "GoogleJobs",
   ziprecruiter: "ZipRecruiter",
   bayt: "Bayt",
@@ -75,6 +108,26 @@ const CANONICAL_SOURCES: Record<string, string> = {
 
 /** Transform a Mongoose Job doc to the snake_case shape the frontend expects */
 function toJobDto(job: any) {
+  if (!job) {
+    return {
+      id: "",
+      title: "Unavailable Job Opening",
+      company_name: "Unknown Company",
+      company_logo: undefined,
+      description: "",
+      location: "India",
+      location_normalized: "India",
+      country: "India",
+      is_india_job: true,
+      status: "EXPIRED",
+      is_active: false,
+      is_expired: true,
+      salary_currency: "INR",
+      salary_period: "year",
+      skills: [],
+      tags: [],
+    };
+  }
   const raw = job.toObject ? job.toObject() : job;
   // Extract company name: try companyName field first, fallback to description parsing
   const companyName = raw.companyName ||
@@ -85,6 +138,21 @@ function toJobDto(job: any) {
   const validApply = isValidApplyUrl(raw.applyUrl) ? raw.applyUrl
     : (isValidApplyUrl(raw.applicationUrl) ? raw.applicationUrl
     : (isValidApplyUrl(raw.sourceUrl) ? raw.sourceUrl : null));
+
+  // Compute 72-hour window and IST timestamp
+  const rawPublishedAt = raw.originalPublishedAt || raw.sourcePostedAt;
+  const publishedDate = rawPublishedAt ? new Date(rawPublishedAt) : null;
+  const now = Date.now();
+  const ageHours = publishedDate && !isNaN(publishedDate.getTime())
+    ? Math.max(0, (now - publishedDate.getTime()) / (1000 * 60 * 60))
+    : 999;
+  const timeRemainingHours = Math.max(0, parseFloat((72 - ageHours).toFixed(1)));
+  const publishedAtIst = formatIST(publishedDate);
+
+  // Category determination
+  const categoryLabel = raw.industry || (raw.roleCategory
+    ? raw.roleCategory.charAt(0).toUpperCase() + raw.roleCategory.slice(1).replace(/-/g, " ")
+    : "Software Development");
 
   return {
     id: String(raw._id),
@@ -112,6 +180,7 @@ function toJobDto(job: any) {
     seniority: raw.seniority,
     min_experience: raw.minExperience,
     max_experience: raw.maxExperience,
+    category: categoryLabel,
     role_category: raw.roleCategory,
     role_family: raw.roleFamily,
     industry: raw.industry,
@@ -125,13 +194,18 @@ function toJobDto(job: any) {
     apply_url: validApply,
     canonical_url: isValidApplyUrl(raw.canonicalUrl) ? raw.canonicalUrl : null,
     application_url: validApply,
+    original_published_at: publishedDate ? publishedDate.toISOString() : null,
     source_posted_at: raw.sourcePostedAt,
     posted_at: raw.sourcePostedAt || raw.postedAt || raw.createdAt,
+    published_at_ist: publishedAtIst,
+    time_remaining_hours: timeRemainingHours,
+    time_remaining_label: timeRemainingHours > 0 ? `${timeRemainingHours}h remaining` : "Expired",
+    is_within_72h: ageHours <= 72,
     posting_date_confidence: raw.postingDateConfidence || "medium",
     first_seen_at: raw.firstSeenAt,
     last_seen_at: raw.lastSeenAt,
     is_saved: false,
-    is_new: raw.freshness === "FRESH" || (raw.createdAt && (Date.now() - new Date(raw.createdAt).getTime()) < 48 * 60 * 60 * 1000),
+    is_new: ageHours <= 24,
     freshness: raw.freshness || "UNKNOWN",
     match_score: raw.matchScore,
     match_details: raw.matchDetails,
@@ -185,33 +259,44 @@ export class JobsController {
             { title: { $regex: safeSearch, $options: "i" } },
             { description: { $regex: safeSearch, $options: "i" } },
             { companyName: { $regex: safeSearch, $options: "i" } },
+            { skills: { $regex: safeSearch, $options: "i" } },
+            { city: { $regex: safeSearch, $options: "i" } },
+            { location: { $regex: safeSearch, $options: "i" } },
           ]
         });
       }
     }
 
-    // ── role_category: maps to title keyword
+    // ── role_category: maps to roleCategory field or specific title keywords
     if (filters.role_category) {
       const cats = filters.role_category.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
       if (cats.length) {
-        const categoryKeywords: Record<string, string[]> = {
-          fullstack: ["full stack", "fullstack", "full-stack"],
-          frontend: ["frontend", "front end", "front-end", "react", "angular", "vue"],
-          backend: ["backend", "back end", "back-end", "node", "java", "python", "golang", "ruby", "php"],
-          mobile: ["mobile", "android", "ios", "flutter", "react native", "swift", "kotlin"],
-          devops: ["devops", "cloud", "sre", "infrastructure", "platform", "kubernetes", "docker", "aws", "gcp", "azure"],
-          ai: ["machine learning", "ai ", "ml ", "deep learning", "llm", "nlp", "data science", "mlops"],
-          data: ["data engineer", "data analyst", "analytics", "bi ", "etl", "spark", "hadoop"],
-          security: ["security", "cyber", "pentest", "soc ", "devsecops"],
-          qa: ["qa ", "quality", "testing", "sdet", "automation engineer"],
-          product: ["product manager", "product designer", "ux", "ui designer"],
+        const titleKeywords: Record<string, string[]> = {
+          fullstack: ["full stack", "fullstack", "full-stack", "mern", "mean stack"],
+          frontend: ["frontend", "front end", "front-end", "ui developer", "web developer", "wordpress"],
+          backend: ["backend", "back end", "back-end", "java", "python developer", "node developer", "php", "laravel", "golang"],
+          mobile: ["mobile", "android", "ios", "flutter", "react native"],
+          devops: ["devops", "cloud", "sre", "infrastructure", "network engineer", "sysadmin"],
+          ai: ["machine learning", "artificial intelligence", "\\bai\\b", "\\bml\\b", "deep learning", "computer vision", "llm"],
+          data: ["data engineer", "data analyst", "analytics", "bi engineer", "etl"],
+          security: ["security", "cyber", "pentest", "\\bsoc\\b", "devsecops"],
+          qa: ["\\bqa\\b", "quality assurance", "tester", "testing", "sdet", "automation engineer"],
+          product: ["product manager", "product designer", "ui/ux", "ux designer", "ui designer"],
         };
-        const keywords = cats.flatMap((c: string) => categoryKeywords[c] || [c]);
-        if (keywords.length) {
-          andConditions.push({
-            $or: keywords.map((kw: string) => ({ title: { $regex: escapeRegex(kw), $options: "i" } }))
-          });
+        const titleConditions: any[] = [];
+        for (const cat of cats) {
+          const kws = titleKeywords[cat] || [cat];
+          for (const kw of kws) {
+            const pattern = kw.startsWith("\\b") ? kw : escapeRegex(kw);
+            titleConditions.push({ title: { $regex: pattern, $options: "i" } });
+          }
         }
+        andConditions.push({
+          $or: [
+            { roleCategory: { $in: cats } },
+            ...titleConditions
+          ]
+        });
       }
     }
 
@@ -281,26 +366,74 @@ export class JobsController {
 
     // ── experience_range: numeric range against minExperience
     if (filters.experience_range) {
-      const range = filters.experience_range.trim();
-      if (range === "0-1") andConditions.push({ minExperience: { $lte: 1 } });
-      else if (range === "1-3") andConditions.push({ minExperience: { $gte: 1, $lte: 3 } });
-      else if (range === "3-5") andConditions.push({ minExperience: { $gte: 3, $lte: 5 } });
-      else if (range === "5-8") andConditions.push({ minExperience: { $gte: 5, $lte: 8 } });
-      else if (range === "8+") andConditions.push({ minExperience: { $gte: 8 } });
-    }
-
-    // ── location: case-insensitive match on location or city
-    if (filters.location && filters.location !== "All India") {
-      const safeLoc = escapeRegex(filters.location.trim());
-      if (safeLoc) {
+      const range = filters.experience_range.trim().toLowerCase();
+      if (range === "fresher" || range === "0-1" || range === "0") {
         andConditions.push({
           $or: [
-            { location: { $regex: safeLoc, $options: "i" } },
-            { city: { $regex: safeLoc, $options: "i" } },
-            { locationNormalized: { $regex: safeLoc, $options: "i" } }
+            { minExperience: { $lte: 1 } },
+            { minExperience: null },
+            { minExperience: { $exists: false } },
+            { experienceLevel: { $regex: "fresher|entry|junior|0", $options: "i" } },
+            { seniority: { $regex: "fresher|entry|junior", $options: "i" } },
+          ]
+        });
+      } else if (range === "1-3") {
+        andConditions.push({
+          $or: [
+            { minExperience: { $gte: 1, $lte: 3 } },
+            { experienceLevel: { $regex: "1-3|mid", $options: "i" } }
+          ]
+        });
+      } else if (range === "3-5") {
+        andConditions.push({
+          $or: [
+            { minExperience: { $gte: 3, $lte: 5 } },
+            { experienceLevel: { $regex: "3-5|senior", $options: "i" } }
+          ]
+        });
+      } else if (range === "5-8") {
+        andConditions.push({
+          $or: [
+            { minExperience: { $gte: 5, $lte: 8 } },
+            { experienceLevel: { $regex: "5-8|lead", $options: "i" } }
+          ]
+        });
+      } else if (range === "8+") {
+        andConditions.push({
+          $or: [
+            { minExperience: { $gte: 8 } },
+            { experienceLevel: { $regex: "8\\+|principal|director|head", $options: "i" } }
           ]
         });
       }
+    }
+
+    // ── location: case-insensitive match on location or city with alias expansion
+    if (filters.location && filters.location !== "All India" && filters.location !== "all") {
+      const loc = filters.location.trim();
+      const cityAliases: Record<string, string[]> = {
+        bengaluru: ["bengaluru", "bangalore"],
+        bangalore: ["bengaluru", "bangalore"],
+        delhi: ["delhi", "new delhi", "ncr", "delhi ncr", "gurugram", "gurgaon", "noida"],
+        "delhi ncr": ["delhi", "new delhi", "ncr", "delhi ncr", "gurugram", "gurgaon", "noida"],
+        mumbai: ["mumbai", "bombay", "navi mumbai", "thane"],
+        hyderabad: ["hyderabad", "secunderabad"],
+        chennai: ["chennai", "madras"],
+        pune: ["pune"],
+        kolkata: ["kolkata", "calcutta"],
+        coimbatore: ["coimbatore"],
+        bhopal: ["bhopal"],
+        remote: ["remote", "work from home", "anywhere"],
+      };
+      const lowerLoc = loc.toLowerCase();
+      const matchWords = cityAliases[lowerLoc] || [loc];
+      const locOr = matchWords.flatMap((w: string) => [
+        { location: { $regex: escapeRegex(w), $options: "i" } },
+        { city: { $regex: escapeRegex(w), $options: "i" } },
+        { locationNormalized: { $regex: escapeRegex(w), $options: "i" } },
+        { description: { $regex: escapeRegex(w), $options: "i" } },
+      ]);
+      andConditions.push({ $or: locOr });
     }
 
     if (filters.salary_min) andConditions.push({ salaryMin: { $gte: filters.salary_min } });
@@ -355,17 +488,39 @@ export class JobsController {
       }
     }
 
-    // ── posted_days
-    const days = filters.posted_days !== undefined ? filters.posted_days : 0;
-    if (days > 0) {
-      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    // ── category: match by category slug or canonical title/keywords
+    if (filters.category) {
+      const catVal = escapeRegex(filters.category.trim());
       andConditions.push({
         $or: [
-          { sourcePostedAt: { $gte: cutoff } },
-          { createdAt: { $gte: cutoff } }
+          { roleCategory: { $regex: catVal, $options: "i" } },
+          { industry: { $regex: catVal, $options: "i" } },
+          { title: { $regex: catVal, $options: "i" } },
         ]
       });
     }
+
+    // ── STRICT 72-HOUR REJECTION & ELIGIBILITY ENFORCEMENT ─────────────────
+    // Mandatory Rule:
+    // A job posted 73 hours ago: NEVER SHOW.
+    // A job with an unknown or unverifiable publication date: NEVER SHOW.
+    // Cutoff = current UTC timestamp - 72 hours (or shorter if requested: 1h, 6h, 12h, 24h, 48h, 72h).
+    let requestedHours = 72;
+    if (filters.posted_hours !== undefined && filters.posted_hours > 0) {
+      requestedHours = filters.posted_hours;
+    } else if (filters.posted_days !== undefined && filters.posted_days > 0) {
+      requestedHours = filters.posted_days * 24;
+    }
+    // Hard ceiling at 72 hours — NO filter may override the 72h requirement!
+    const effectiveHours = Math.min(Math.max(requestedHours, 1), 72);
+    const cutoffDate = JobEligibilityEngine.getCutoffDate(effectiveHours);
+    const now = new Date();
+
+    andConditions.push({
+      sourcePostedAt: { $gte: cutoffDate, $lte: now },
+      postingDateConfidence: { $nin: ["UNKNOWN", "unknown", "UNVERIFIED", "unverified"] },
+      isExpired: { $ne: true },
+    });
 
     const query: any = andConditions.length > 1 ? { $and: andConditions } : andConditions[0] || {};
 
@@ -478,6 +633,16 @@ export class JobsController {
     const job = await Job.findOne({ _id: id });
     if (!job) return reply.status(404).send({ success: false, message: "Job not found" });
 
+    // Strict 72-hour requirement for viewing job details
+    const evalResult = JobEligibilityEngine.evaluateJob(job);
+    if (!evalResult.eligible) {
+      return reply.status(410).send({
+        success: false,
+        message: "Job is no longer available (published more than 72 hours ago or unverifiable).",
+        reason: evalResult.reason,
+      });
+    }
+
     const jobObj = job.toObject();
 
     // Trust Score
@@ -530,6 +695,16 @@ export class JobsController {
     const job = await Job.findOne({ _id: id });
     if (!job) return reply.status(404).send({ success: false, message: "Job not found" });
 
+    // Strict 72-hour requirement for viewing job details
+    const evalResult = JobEligibilityEngine.evaluateJob(job);
+    if (!evalResult.eligible) {
+      return reply.status(410).send({
+        success: false,
+        message: "Job is no longer available (published more than 72 hours ago or unverifiable).",
+        reason: evalResult.reason,
+      });
+    }
+
     await ApplicationClick.create({
       jobId: id,
       userId,
@@ -545,9 +720,10 @@ export class JobsController {
   static async getSavedJobs(request: FastifyRequest, reply: FastifyReply) {
     const userId = (request as any).user.sub;
     const savedJobs = await SavedJob.find({ userId }).populate("jobId");
+    const validSavedJobs = savedJobs.filter((s: any) => s.jobId != null);
     return { 
       success: true, 
-      data: savedJobs.map((s: any) => ({
+      data: validSavedJobs.map((s: any) => ({
         ...toJobDto(s.jobId),
         is_saved: true,
         saved_at: s.savedAt,
@@ -805,9 +981,101 @@ export class JobsController {
   }
 
   static async getStats(request: FastifyRequest, reply: FastifyReply) {
-    const total = await Job.countDocuments({});
-    const active = await Job.countDocuments({ isActive: true });
-    return { success: true, total, active };
+    const cutoff72h = JobEligibilityEngine.getCutoffDate(72);
+    const cutoff24h = JobEligibilityEngine.getCutoffDate(24);
+    const now = new Date();
+
+    const base72hFilter = {
+      isActive: true,
+      isExpired: { $ne: true },
+      isIndiaJob: true,
+      sourcePostedAt: { $gte: cutoff72h, $lte: now },
+      postingDateConfidence: { $nin: ["UNKNOWN", "unknown", "UNVERIFIED", "unverified"] },
+    };
+
+    const [
+      totalEligible,
+      newLast24h,
+      internshipsCount,
+      fullTimeCount,
+      remoteCount,
+      activeSources,
+      lastSyncRun
+    ] = await Promise.all([
+      Job.countDocuments(base72hFilter),
+      Job.countDocuments({ ...base72hFilter, sourcePostedAt: { $gte: cutoff24h, $lte: now } }),
+      Job.countDocuments({
+        ...base72hFilter,
+        $or: [
+          { employmentType: { $regex: "intern", $options: "i" } },
+          { jobType: { $regex: "intern", $options: "i" } },
+        ]
+      }),
+      Job.countDocuments({
+        ...base72hFilter,
+        $or: [
+          { employmentType: { $regex: "full", $options: "i" } },
+          { jobType: { $regex: "full", $options: "i" } },
+        ]
+      }),
+      Job.countDocuments({
+        ...base72hFilter,
+        $or: [
+          { workMode: { $regex: "remote", $options: "i" } },
+          { location: { $regex: "remote", $options: "i" } },
+        ]
+      }),
+      Job.distinct("source", base72hFilter),
+      JobIngestionRun.findOne().sort({ completedAt: -1, startedAt: -1 }),
+    ]);
+
+    return reply.send({
+      success: true,
+      total: totalEligible,
+      total_eligible_jobs: totalEligible,
+      new_last_24h: newLast24h,
+      internships_count: internshipsCount,
+      full_time_count: fullTimeCount,
+      remote_count: remoteCount,
+      active_sources_count: activeSources.length,
+      active_sources: activeSources,
+      last_sync_time: lastSyncRun?.completedAt || lastSyncRun?.startedAt || new Date(),
+      last_sync_time_ist: formatIST(lastSyncRun?.completedAt || lastSyncRun?.startedAt || new Date()),
+    });
+  }
+
+  static async searchJobs(request: FastifyRequest, reply: FastifyReply) {
+    return JobsController.getJobs(request, reply);
+  }
+
+  static async getCategories(request: FastifyRequest, reply: FastifyReply) {
+    const cutoff72h = JobEligibilityEngine.getCutoffDate(72);
+    const now = new Date();
+
+    const baseFilter = {
+      isActive: true,
+      isExpired: { $ne: true },
+      isIndiaJob: true,
+      sourcePostedAt: { $gte: cutoff72h, $lte: now },
+      postingDateConfidence: { $nin: ["UNKNOWN", "unknown"] }
+    };
+
+    const counts = await Job.aggregate([
+      { $match: baseFilter },
+      { $group: { _id: "$roleCategory", count: { $sum: 1 } } }
+    ]);
+    const countMap = new Map(counts.map(c => [c._id, c.count]));
+
+    const categoriesWithCounts = JOB_CATEGORIES.map(cat => ({
+      id: cat.id,
+      label: cat.label,
+      slug: cat.slug,
+      description: cat.description,
+      skills: cat.skills,
+      activeJobsCount: countMap.get(cat.slug) || 0,
+    }));
+
+    return reply.send({ success: true, categories: categoriesWithCounts });
   }
 
   static async getRecentJobs(request: FastifyRequest, reply: FastifyReply) {

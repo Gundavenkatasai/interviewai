@@ -1,8 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Sparkles, ArrowRight, Lock, Mail, AlertCircle, Zap, KeyRound, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Lock, Mail, AlertCircle, Zap, KeyRound, CheckCircle2 } from "lucide-react";
 import { ApiClient } from "../lib/api";
 import { useAuth } from "../contexts/AuthProvider";
+import { MechanicalButton } from "../components/ui/MechanicalButton";
+import { InkBleedButton } from "../components/ui/InkBleedButton";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -75,80 +77,87 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md p-8 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-6 shadow-2xl">
-        <div className="text-center space-y-2">
-          <div className="inline-flex p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-2">
-            <Sparkles className="w-6 h-6" />
+    <div className="min-h-screen bg-[#F5F3EE] flex items-center justify-center px-4 py-12 font-sans text-[#181614]">
+      <div className="w-full max-w-md p-8 sm:p-10 rounded-lg bg-white border border-[#E5E0D4] shadow-[0_4px_20px_rgba(24,22,20,0.06)] space-y-6">
+        <div className="text-center space-y-1.5">
+          <div className="w-9 h-9 rounded-md bg-[#C84B26] text-white flex items-center justify-center font-serif font-bold text-base shadow-[0_2px_0_0_#983416] mx-auto mb-3">
+            IA
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Welcome Back</h1>
-          <p className="text-xs text-slate-400">Sign in to access Interview AI career & mock interview tools.</p>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-[#8C8479]">
+            AUTHENTICATION CONSOLE
+          </span>
+          <h1 className="text-2xl font-serif font-bold text-[#181614] tracking-tight">
+            Authenticate Session
+          </h1>
+          <p className="text-xs text-[#5C564E]">
+            Sign in to access your calibrated career apparatus.
+          </p>
         </div>
 
         {error && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-md bg-[#FCEEEE] border border-[#F7D0D0] text-[#9E2A2B] text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {successMsg && (
-          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-md bg-[#EBF3EE] border border-[#D0E3D6] text-[#2E6347] text-xs flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{successMsg}</span>
           </div>
         )}
 
-        {/* Quick Demo Login Option */}
+        {/* 1-Click Demo Login */}
         <button
           type="button"
           onClick={handleDemoLogin}
           disabled={isDemoLoading || isLoading}
-          className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/30 hover:border-emerald-500/50 flex items-center justify-center gap-2 transition-all shadow-sm"
+          className="w-full py-2.5 px-4 rounded-md text-xs font-semibold text-[#2E6347] bg-[#EBF3EE] hover:bg-[#E2EFE7] border border-[#D0E3D6] flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
         >
-          <Zap className="w-4 h-4 text-emerald-400" />
-          <span>{isDemoLoading ? "Signing in..." : "⚡ Quick 1-Click Sign In (sai account)"}</span>
+          <Zap className="w-4 h-4 text-[#2E6347]" />
+          <span>{isDemoLoading ? "Authenticating..." : "⚡ Quick 1-Click Sign In (Demo Candidate)"}</span>
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-slate-800" />
-          <span className="text-[10px] uppercase text-slate-500 font-semibold tracking-wider">or sign in with email</span>
-          <div className="flex-1 h-px bg-slate-800" />
+          <div className="flex-1 h-px bg-[#E5E0D4]" />
+          <span className="text-[10px] uppercase font-mono text-[#8C8479] font-medium tracking-wider">or sign in with credentials</span>
+          <div className="flex-1 h-px bg-[#E5E0D4]" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
+            <label className="block text-xs font-semibold text-[#181614] mb-1.5">Email Address</label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Mail className="w-4 h-4 text-[#8C8479] absolute left-3.5 top-3" />
               <input
                 type="email"
                 name="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none transition-colors"
+                placeholder="candidate@interviewai.dev"
+                className="w-full pl-10 pr-3.5 py-2 rounded-md bg-[#FAF8F5] border border-[#E5E0D4] text-[#181614] text-xs focus:border-[#C84B26] focus:outline-none transition-colors"
               />
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-slate-300">Password</label>
+              <label className="block text-xs font-semibold text-[#181614]">Password</label>
               <button
                 type="button"
                 onClick={() => {
                   setShowReset(!showReset);
                   setResetEmail(email);
                 }}
-                className="text-[11px] text-indigo-400 hover:text-indigo-300"
+                className="text-[11px] text-[#C84B26] hover:underline cursor-pointer"
               >
                 {showReset ? "Hide Reset" : "Forgot Password?"}
               </button>
             </div>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Lock className="w-4 h-4 text-[#8C8479] absolute left-3.5 top-3" />
               <input
                 type="password"
                 name="password"
@@ -156,76 +165,56 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full pl-10 pr-3.5 py-2 rounded-md bg-[#FAF8F5] border border-[#E5E0D4] text-[#181614] text-xs focus:border-[#C84B26] focus:outline-none transition-colors"
               />
             </div>
           </div>
 
-          <button
+          <MechanicalButton
             type="submit"
-            disabled={isLoading || isDemoLoading}
-            className="w-full py-3 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 transition-all mt-2"
+            variant="vermilion"
+            size="md"
+            className="w-full"
+            disabled={isLoading}
           >
-            <span>{isLoading ? "Signing In..." : "Sign In"}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+            {isLoading ? "Validating Signature..." : "Sign In to Instrument"}
+          </MechanicalButton>
         </form>
 
-        {/* Inline Password Reset Box */}
         {showReset && (
-          <div className="p-4 rounded-2xl bg-slate-950 border border-indigo-500/30 space-y-3">
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold">
-              <KeyRound className="w-4 h-4" />
-              <span>Set New Password</span>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Enter your email and a new password to immediately update your account credentials.
-            </p>
-            <form onSubmit={handleResetPassword} className="space-y-2.5">
-              <input
-                type="email"
-                required
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                placeholder="Account email"
-                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none"
-              />
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="New password (min 6 chars)"
-                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-xs focus:border-indigo-500 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={isResetting}
-                className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
-              >
-                {isResetting ? "Updating..." : "Confirm New Password"}
-              </button>
-            </form>
-          </div>
+          <form onSubmit={handleResetPassword} className="p-4 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md space-y-3 text-xs">
+            <span className="font-mono text-[10px] uppercase font-bold text-[#172535]">RESET CREDENTIALS</span>
+            <input
+              type="email"
+              required
+              value={resetEmail}
+              onChange={(e) => setResetEmail(e.target.value)}
+              placeholder="Your email address"
+              className="w-full px-3 py-1.5 rounded bg-white border border-[#E5E0D4] text-xs text-[#181614] focus:outline-none"
+            />
+            <input
+              type="password"
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="New password (min 6 chars)"
+              className="w-full px-3 py-1.5 rounded bg-white border border-[#E5E0D4] text-xs text-[#181614] focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={isResetting}
+              className="w-full py-1.5 bg-[#172535] text-white rounded text-xs font-semibold hover:bg-[#23384E]"
+            >
+              {isResetting ? "Updating..." : "Confirm Password Update"}
+            </button>
+          </form>
         )}
 
-        <div className="pt-4 border-t border-slate-800/60 text-center text-xs text-slate-400 space-y-2">
-          <div>
-            Don't have an account?{" "}
-            <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-semibold">
-              Create Account
-            </Link>
-          </div>
-          <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500">
-            <Link to="/privacy" className="hover:text-slate-400 transition-colors">
-              Privacy Policy
-            </Link>
-            <span>•</span>
-            <Link to="/terms" className="hover:text-slate-400 transition-colors">
-              Terms of Service
-            </Link>
-          </div>
+        <div className="text-center pt-2 border-t border-[#E5E0D4] text-xs text-[#5C564E]">
+          Don't have an engineering profile?{" "}
+          <Link to="/register" className="font-semibold text-[#C84B26] hover:underline">
+            Register new dossier
+          </Link>
         </div>
       </div>
     </div>

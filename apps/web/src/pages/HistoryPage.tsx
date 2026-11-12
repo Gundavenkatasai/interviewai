@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  History as HistoryIcon, Trash2, ExternalLink, Calendar
+  History as HistoryIcon, Trash2, ExternalLink, Calendar, Compass, Plus
 } from "lucide-react";
 import { ApiClient } from "../lib/api";
+import { MechanicalButton } from "../components/ui/MechanicalButton";
 
 interface InterviewSession {
   id: string;
@@ -31,7 +32,7 @@ export default function HistoryPage() {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
-    if (!confirm("Delete this interview record permanently?")) return;
+    if (!confirm("Delete this session record permanently from archive?")) return;
     setDeletingId(id);
     try {
       await ApiClient.deleteInterview(id);
@@ -45,93 +46,150 @@ export default function HistoryPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
-        <p className="text-sm font-semibold text-slate-300">Loading interview archives...</p>
+      <div className="min-h-[80vh] flex flex-col items-center justify-center bg-[#F5F3EE] space-y-3">
+        <div className="w-8 h-8 rounded-full border-2 border-[#C84B26]/20 border-t-[#C84B26] animate-spin" />
+        <span className="font-mono text-xs uppercase tracking-widest text-[#181614]/60">
+          Retrieving Archival Flight Vault...
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex items-center gap-2.5">
-            <span>Interview Practice Archives</span>
-            <span className="text-xs uppercase font-semibold tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-2.5 py-1 rounded-full">
-              History
-            </span>
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">Review past mock interview transcripts, feedback scores, and diagnostic reports.</p>
+    <div className="min-h-screen bg-[#F5F3EE] py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#E5E0D4] pb-6">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-[#EBF3EE] border border-[#D0E3D6] text-[#2E6347] font-mono text-[11px] font-semibold">
+              <Compass className="w-3.5 h-3.5" />
+              <span>FLIGHT SESSION LOGBOOK — ARCHIVE v2.0</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#181614] tracking-tight">
+              Archival Interview Log
+            </h1>
+            <p className="text-xs text-[#181614]/70 max-w-xl">
+              Chronological debrief records, diagnostic scoring transcripts, and rehearsal session telemetry.
+            </p>
+          </div>
+          <Link to="/setup">
+            <MechanicalButton
+              variant="vermilion"
+              icon={<Plus className="w-4 h-4" />}
+            >
+              Start New Session
+            </MechanicalButton>
+          </Link>
         </div>
-        <Link to="/setup" className="px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/20 transition-colors">
-          Start New Practice
-        </Link>
-      </div>
 
-      {interviews.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {interviews.map((sess) => {
-            const isCompleted = sess.status === "completed";
-            const linkHref = isCompleted ? `/report/${sess.id}` : `/interview/${sess.id}`;
-            return (
-              <div key={sess.id} className="group relative p-6 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-slate-700 backdrop-blur-md transition-all flex flex-col justify-between space-y-4">
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div>
-                      <h3 className="text-base font-bold text-white group-hover:text-indigo-400 transition-colors">{sess.role}</h3>
-                      {sess.company && <p className="text-xs text-slate-400 mt-0.5 font-medium">@ {sess.company}</p>}
+        {interviews.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {interviews.map((sess) => {
+              const isCompleted = sess.status === "completed";
+              const linkHref = isCompleted ? `/report/${sess.id}` : `/interview/${sess.id}`;
+              return (
+                <div
+                  key={sess.id}
+                  className="p-6 rounded-lg bg-white border border-[#E5E0D4] shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div>
+                        <h3 className="font-serif font-bold text-base text-[#181614] hover:text-[#C84B26] transition-colors">
+                          {sess.role}
+                        </h3>
+                        {sess.company && (
+                          <p className="font-mono text-xs text-[#181614]/70 mt-0.5">
+                            @ {sess.company}
+                          </p>
+                        )}
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded border uppercase tracking-wider ${
+                          isCompleted
+                            ? "bg-[#EBF3EE] text-[#2E6347] border-[#D0E3D6]"
+                            : "bg-[#FDF6E9] text-[#A36114] border-[#A36114]/20"
+                        }`}
+                      >
+                        {sess.status}
+                      </span>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${isCompleted ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" : "bg-amber-500/10 text-amber-400 border border-amber-500/30"}`}>
-                      {sess.status}
-                    </span>
-                  </div>
 
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800/60">
-                    <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-500" />{new Date(sess.created_at).toLocaleDateString()}</span>
-                    <span>•</span><span>{sess.interview_type}</span><span>•</span><span>{sess.difficulty}</span>
-                  </div>
-
-                  {sess.technologies && sess.technologies.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {sess.technologies.slice(0, 4).map((tech) => (
-                        <span key={tech} className="px-2 py-0.5 rounded text-[11px] bg-slate-950 border border-slate-800 text-slate-300">{tech}</span>
-                      ))}
+                    <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11px] text-[#181614]/60 mt-3 pt-3 border-t border-dashed border-[#E5E0D4]">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-[#181614]/40" />
+                        {new Date(sess.created_at).toLocaleDateString()}
+                      </span>
+                      <span>•</span>
+                      <span>{sess.interview_type}</span>
+                      <span>•</span>
+                      <span>{sess.difficulty}</span>
                     </div>
-                  )}
-                </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
-                  <div className="text-xs">
-                    {sess.score ? (
-                      <span className="font-bold text-white">Score: <strong className="text-indigo-400">{sess.score.overall_score}</strong> / 10</span>
-                    ) : (
-                      <span className="text-slate-500">Incomplete</span>
+                    {sess.technologies && sess.technologies.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {sess.technologies.slice(0, 4).map((tech) => (
+                          <span
+                            key={tech}
+                            className="px-2 py-0.5 rounded text-[11px] bg-[#F5F3EE] border border-[#E5E0D4] text-[#181614] font-mono"
+                          >
+                            {tech}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={(e) => handleDelete(sess.id, e)} disabled={deletingId === sess.id}
-                      className="p-2 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-colors" title="Delete">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <Link to={linkHref} className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 flex items-center gap-1.5 transition-colors">
-                      <span>{isCompleted ? "View Report" : "Resume"}</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </Link>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-[#E5E0D4]">
+                    <div className="text-xs font-mono">
+                      {sess.score ? (
+                        <span className="text-[#181614] font-medium">
+                          SCORE: <strong className="font-serif text-sm font-bold text-[#C84B26]">{sess.score.overall_score}</strong> / 10
+                        </span>
+                      ) : (
+                        <span className="text-[#181614]/50 italic">Incomplete Session</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => handleDelete(sess.id, e)}
+                        disabled={deletingId === sess.id}
+                        className="p-1.5 rounded text-[#181614]/40 hover:text-[#9E2A2B] hover:bg-[#FCEEEE] transition-colors"
+                        title="Purge session record"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <Link
+                        to={linkHref}
+                        className="px-3 py-1.5 rounded text-xs font-mono font-medium text-white bg-[#172535] hover:bg-[#181614] flex items-center gap-1.5 transition-colors"
+                      >
+                        <span>{isCompleted ? "Inspect Debrief" : "Resume Stage"}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="p-12 rounded-3xl bg-slate-900/40 border border-slate-800 text-center space-y-4">
-          <HistoryIcon className="w-12 h-12 text-slate-600 mx-auto" />
-          <h3 className="text-base font-bold text-white">No Mock Interviews Recorded</h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">Ready to test your technical depth? Launch a session to start tracking your interview mastery.</p>
-          <Link to="/setup" className="inline-block px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Start Your First Practice</Link>
-        </div>
-      )}
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-12 rounded-lg bg-white border border-[#E5E0D4] text-center space-y-4 shadow-sm">
+            <HistoryIcon className="w-10 h-10 text-[#181614]/30 mx-auto" />
+            <h3 className="font-serif font-bold text-base text-[#181614]">
+              No Archival Flight Records
+            </h3>
+            <p className="text-xs text-[#181614]/70 max-w-sm mx-auto">
+              Ready to test your technical depth? Launch a broadcast rehearsal stage to begin building your telemetry log.
+            </p>
+            <Link to="/setup" className="inline-block pt-2">
+              <MechanicalButton variant="vermilion">
+                Launch Initial Flight Rehearsal
+              </MechanicalButton>
+            </Link>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

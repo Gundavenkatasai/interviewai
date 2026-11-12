@@ -23,8 +23,15 @@ export async function jobsRoutes(app: FastifyInstance) {
   // Phase 4: Job Sources dynamically from registry
   app.get("/sources", { preValidation: [optionalAuthenticate] }, JobsController.getSources);
   
-  // Stats
+  // Stats (supports both /stats and /stats/summary)
+  app.get("/stats", { preValidation: [optionalAuthenticate] }, JobsController.getStats);
   app.get("/stats/summary", { preValidation: [optionalAuthenticate] }, JobsController.getStats);
+
+  // 20 Canonical Job Categories with live counts
+  app.get("/categories", { preValidation: [optionalAuthenticate] }, JobsController.getCategories);
+
+  // Dedicated Search endpoint with strict 72h rule
+  app.get("/search", { preValidation: [optionalAuthenticate] }, JobsController.searchJobs);
 
   // Recommended Jobs (Batch matching)
   app.get("/recommended", { preValidation: [authenticate] }, JobsController.getRecommendedJobs);
