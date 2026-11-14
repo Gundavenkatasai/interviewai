@@ -244,6 +244,8 @@ export class ResumeMatcher {
       proposed: string;
       rationale: string;
     }[];
+    matchedSkills?: string[];
+    missingSkills?: string[];
     suggestedSkillsToAdd: string[];
   }> {
     const matchResult = this.match(profileData, jobDescription, jobTitle);
@@ -319,6 +321,8 @@ Respond in JSON format:
       currentScore,
       potentialScore,
       diff,
+      matchedSkills: matchResult.matchedSkills,
+      missingSkills: matchResult.missingSkills,
       suggestedSkillsToAdd: matchResult.missingSkills.slice(0, 5)
     };
   }

@@ -23,7 +23,9 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
   APIFY_TOKEN: z.string().optional(),
-  REDIS_URL: z.string().optional()
+  REDIS_URL: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional()
 });
 
 const _env = envSchema.safeParse(process.env);

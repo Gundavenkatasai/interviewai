@@ -12,6 +12,12 @@ export async function userApplicationsRoutes(app: FastifyInstance) {
   // GET /api/user/applications
   app.get("/applications", { preValidation: [optionalAuthenticate] }, UserApplicationsController.getApplications);
 
+  // PUT /api/user/applications/:id
+  app.put("/applications/:id", { preValidation: [optionalAuthenticate] }, UserApplicationsController.updateApplication as any);
+
+  // DELETE /api/user/applications/:id
+  app.delete("/applications/:id", { preValidation: [optionalAuthenticate] }, UserApplicationsController.deleteApplication as any);
+
   // User preferences
   app.get("/preferences", { preValidation: [optionalAuthenticate] }, UserApplicationsController.getPreferences);
   app.post("/preferences", { preValidation: [optionalAuthenticate] }, UserApplicationsController.savePreferences);

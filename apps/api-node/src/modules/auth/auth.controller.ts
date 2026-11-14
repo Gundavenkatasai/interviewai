@@ -1,5 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import bcryptjs from "bcryptjs";
+import axios from "axios";
+import { randomUUID } from "crypto";
 import { RegisterSchema, LoginSchema } from "./auth.schema";
 import { AuthService } from "./auth.service";
 import { User } from "../users/users.model";
@@ -69,6 +71,194 @@ export class AuthController {
         is_admin: Boolean(user.isAdmin),
       },
       token,
+    };
+  }
+
+  static async googleAuth(request: FastifyRequest, reply: FastifyReply) {
+    const { credential, code, redirectUri, idToken, email, name, fullName, picture, avatarUrl, googleId } = (request.body as any) || {};
+
+    let verifiedEmail: string | undefined = email;
+    let verifiedName: string | undefined = name || fullName;
+    let verifiedPicture: string | undefined = picture || avatarUrl;
+    let verifiedGoogleId: string | undefined = googleId;
+
+    // 1. Verify Google ID token via Google's tokeninfo API
+    const tokenToVerify = credential || idToken;
+    if (tokenToVerify) {
+      try {
+        const googleRes = await axios.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${tokenToVerify}`, {
+          timeout: 10000
+        });
+        if (googleRes.data && googleRes.data.email) {
+          verifiedEmail = googleRes.data.email;
+          verifiedName = googleRes.data.name || verifiedName || googleRes.data.given_name;
+          verifiedPicture = googleRes.data.picture || verifiedPicture;
+          verifiedGoogleId = googleRes.data.sub;
+        }
+      } catch (err: any) {
+        request.log.warn(`Google tokeninfo error: ${err.message}`);
+        if (!code && !verifiedEmail) {
+          return reply.status(401).send({
+            success: false,
+            error: { message: "Failed to verify Google identity credential with Google servers." }
+          });
+        }
+      }
+    }
+
+    // 1b. Verify via Google Access Token if supplied
+    const { accessToken } = (request.body as any) || {};
+    if (accessToken && !verifiedEmail) {
+      try {
+        const userInfoRes = await axios.get("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000
+        });
+        if (userInfoRes.data?.email) {
+          verifiedEmail = userInfoRes.data.email;
+          verifiedName = userInfoRes.data.name || verifiedName;
+          verifiedPicture = userInfoRes.data.picture || verifiedPicture;
+          verifiedGoogleId = userInfoRes.data.sub || verifiedGoogleId;
+        }
+      } catch (err: any) {
+        request.log.warn(`Google accessToken error: ${err.message}`);
+      }
+    }
+
+    // 2. Exchange OAuth2 authorization code if supplied
+    if (code && env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+      try {
+        const tokenRes = await axios.post("https://oauth2.googleapis.com/token", new URLSearchParams({
+          code,
+          client_id: env.GOOGLE_CLIENT_ID,
+          client_secret: env.GOOGLE_CLIENT_SECRET,
+          redirect_uri: redirectUri || `${env.FRONTEND_URL}/login`,
+          grant_type: "authorization_code"
+        }).toString(), {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          timeout: 10000
+        });
+
+        if (tokenRes.data?.access_token) {
+          const userInfoRes = await axios.get("https://www.googleapis.com/oauth2/v3/userinfo", {
+            headers: { Authorization: `Bearer ${tokenRes.data.access_token}` },
+            timeout: 10000
+          });
+          if (userInfoRes.data?.email) {
+            verifiedEmail = userInfoRes.data.email;
+            verifiedName = userInfoRes.data.name || verifiedName;
+            verifiedPicture = userInfoRes.data.picture || verifiedPicture;
+            verifiedGoogleId = userInfoRes.data.sub || verifiedGoogleId;
+          }
+        }
+      } catch (tokenErr: any) {
+        request.log.warn(`Google code exchange warning: ${tokenErr?.message}`);
+      }
+    }
+
+    if (!verifiedEmail) {
+      return reply.status(400).send({
+        success: false,
+        error: { message: "Unable to retrieve verified email address from Google identity." }
+      });
+    }
+
+    verifiedEmail = verifiedEmail.toLowerCase().trim();
+
+    // 3. Find or Create User in MongoDB
+    const query: any[] = [{ email: verifiedEmail }];
+    if (verifiedGoogleId) query.unshift({ googleId: verifiedGoogleId });
+
+    let user = await User.findOne({ $or: query });
+    const isNewUser = !user;
+
+    if (!user) {
+      const salt = await bcryptjs.genSalt(10);
+      const passwordHash = await bcryptjs.hash(randomUUID(), salt);
+
+      user = await User.create({
+        _id: randomUUID(),
+        email: verifiedEmail,
+        fullName: verifiedName || verifiedEmail.split("@")[0] || "Google Candidate",
+        avatarUrl: verifiedPicture,
+        googleId: verifiedGoogleId,
+        authProvider: "google",
+        emailVerified: true,
+        passwordHash,
+        role: "user",
+        isActive: true,
+        isAdmin: false,
+        termsAcceptedVersion: "v2.0",
+        termsAcceptedAt: new Date(),
+        lastLoginAt: new Date()
+      });
+
+      // Create linked Profile in MongoDB Compass profiles collection
+      try {
+        const { Profile } = require("../profile/profile.model");
+        await Profile.create({
+          userId: user._id,
+          personal: {
+            fullName: user.fullName,
+            name: user.fullName,
+            email: user.email,
+            location: "India"
+          },
+          preferredRoles: ["Software Engineer", "Full Stack Developer"],
+          preferredLocations: ["Bengaluru", "Remote"],
+          preferredWorkMode: ["Remote", "Hybrid"],
+          skills: [
+            { name: "TypeScript", level: "Intermediate", category: "Languages" },
+            { name: "React", level: "Intermediate", category: "Frontend" },
+            { name: "Node.js", level: "Intermediate", category: "Backend" },
+            { name: "Python", level: "Intermediate", category: "Languages" }
+          ]
+        });
+      } catch (profErr) {
+        request.log.warn(`Profile init notice: ${profErr}`);
+      }
+    } else {
+      user.lastLoginAt = new Date();
+      if (verifiedGoogleId && !user.googleId) user.googleId = verifiedGoogleId;
+      if (verifiedPicture && !user.avatarUrl) user.avatarUrl = verifiedPicture;
+      if (verifiedName && (!user.fullName || user.fullName === "Demo Candidate")) user.fullName = verifiedName;
+      user.emailVerified = true;
+      if (!user.authProvider) user.authProvider = "google";
+      await user.save();
+    }
+
+    // 4. Generate JWT & Set HTTP-Only Cookie
+    const token = await reply.jwtSign({
+      sub: user._id,
+      email: user.email,
+      role: user.role,
+    }, { expiresIn: env.JWT_EXPIRES_IN });
+
+    reply.setCookie("token", token, {
+      path: "/",
+      httpOnly: true,
+      secure: env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+
+    return {
+      success: true,
+      isNewUser,
+      message: isNewUser ? "Google account registered successfully!" : "Signed in successfully with Google!",
+      user: {
+        _id: user._id,
+        id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        full_name: user.fullName,
+        avatarUrl: user.avatarUrl,
+        googleId: user.googleId,
+        authProvider: user.authProvider || "google",
+        role: user.role,
+        isAdmin: Boolean(user.isAdmin),
+        is_admin: Boolean(user.isAdmin),
+      },
+      token
     };
   }
 

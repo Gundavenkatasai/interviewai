@@ -107,6 +107,18 @@ export interface IProfile {
     provenance: any;
   }>;
   achievements: any[];
+  headline?: string;
+  monitoredPortals?: string[];
+  freshnessWindow?: string;
+  targetTechTracks?: string[];
+  targetExperienceLevel?: string;
+  targetSalaryMin?: number;
+  targetSalaryMax?: number;
+  atsTargetScore?: number;
+  targetInterviewTracks?: string[];
+  targetCompanies?: string[];
+  readinessLevel?: string;
+  pacingGoalWpm?: number;
   preferredRoles: string[];
   preferredLocations: string[];
   preferredSalary: Record<string, any>;
@@ -195,6 +207,21 @@ const profileSchema = new Schema<IProfile>(
       provenance: { type: provenanceSchema, default: () => ({ sourceType: "USER_ENTERED", status: "VERIFIED" }) }
     }],
     achievements: { type: [Object], default: [] },
+    headline: { type: String, default: "" },
+    monitoredPortals: { 
+      type: [String], 
+      default: ["LinkedIn", "Naukri", "Indeed", "Internshala", "Unstop", "Foundit", "Glassdoor"] 
+    },
+    freshnessWindow: { type: String, default: "72h" },
+    targetTechTracks: { type: [String], default: ["Frontend", "Full Stack"] },
+    targetExperienceLevel: { type: String, default: "Fresher / 0-1 yr" },
+    targetSalaryMin: { type: Number, default: 6 },
+    targetSalaryMax: { type: Number, default: 24 },
+    atsTargetScore: { type: Number, default: 85 },
+    targetInterviewTracks: { type: [String], default: ["System Design", "Behavioral / Leadership"] },
+    targetCompanies: { type: [String], default: ["Google", "Microsoft", "Amazon", "Startups"] },
+    readinessLevel: { type: String, default: "Actively Interviewing" },
+    pacingGoalWpm: { type: Number, default: 135 },
     preferredRoles: { type: [String], default: [] },
     preferredLocations: { type: [String], default: [] },
     preferredSalary: { type: Schema.Types.Mixed, default: {} },

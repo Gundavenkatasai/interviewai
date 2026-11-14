@@ -167,14 +167,17 @@ export default function JobDetailPage() {
                       Target Competencies & Toolchain
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {job.skills.map((skill: string) => (
-                        <span
-                          key={skill}
-                          className="px-2.5 py-1 rounded bg-[#F5F3EE] border border-[#E5E0D4] text-[#181614] font-mono text-xs"
-                        >
-                          {skill}
-                        </span>
-                      ))}
+                      {job.skills.map((skill: any, idx: number) => {
+                        const skillName = typeof skill === "string" ? skill : skill?.name || `Skill-${idx}`;
+                        return (
+                          <span
+                            key={skillName + idx}
+                            className="px-2.5 py-1 rounded bg-[#F5F3EE] border border-[#E5E0D4] text-[#181614] font-mono text-xs"
+                          >
+                            {skillName}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -296,11 +299,14 @@ export default function JobDetailPage() {
                       ✓ Profile Intersections ({matchDoc.matchedSkills.length})
                     </p>
                     <div className="flex flex-wrap gap-1">
-                      {matchDoc.matchedSkills.slice(0, 6).map((s: string) => (
-                        <span key={s} className="px-2 py-0.5 rounded text-[11px] bg-[#EBF3EE] text-[#2E6347] border border-[#D0E3D6] font-mono">
-                          {s}
-                        </span>
-                      ))}
+                      {matchDoc.matchedSkills.slice(0, 6).map((s: any, idx: number) => {
+                        const skillName = typeof s === "string" ? s : s?.name || `Skill-${idx}`;
+                        return (
+                          <span key={skillName + idx} className="px-2 py-0.5 rounded text-[11px] bg-[#EBF3EE] text-[#2E6347] border border-[#D0E3D6] font-mono">
+                            {skillName}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -311,11 +317,14 @@ export default function JobDetailPage() {
                       ⚠ Identified Gaps ({matchDoc.missingSkills.length})
                     </p>
                     <div className="flex flex-wrap gap-1">
-                      {matchDoc.missingSkills.slice(0, 6).map((s: string) => (
-                        <span key={s} className="px-2 py-0.5 rounded text-[11px] bg-[#FDF6E9] text-[#A36114] border border-[#A36114]/20 font-mono">
-                          {s}
-                        </span>
-                      ))}
+                      {matchDoc.missingSkills.slice(0, 6).map((s: any, idx: number) => {
+                        const skillName = typeof s === "string" ? s : s?.name || `Skill-${idx}`;
+                        return (
+                          <span key={skillName + idx} className="px-2 py-0.5 rounded text-[11px] bg-[#FDF6E9] text-[#A36114] border border-[#A36114]/20 font-mono">
+                            {skillName}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

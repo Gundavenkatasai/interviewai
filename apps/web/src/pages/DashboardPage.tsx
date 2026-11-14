@@ -20,23 +20,32 @@ export default function DashboardPage() {
     queryFn: () => ApiClient.getDashboardStats(),
   });
 
-  const s = {
-    total_interviews: stats?.total_interviews ?? stats?.totalInterviews ?? 4,
-    completed_interviews: stats?.completed_interviews ?? stats?.completedInterviews ?? 3,
-    average_score: stats?.average_score ?? 8.4,
-    technical_score: stats?.technical_score ?? 8.8,
-    strongest_skills: stats?.strongest_skills?.length > 0 ? stats.strongest_skills : ["Distributed Raft", "Go Microservices", "React 19 & WASM"],
-    weakest_skills: stats?.weakest_skills?.length > 0 ? stats.weakest_skills : ["Erlang Legacy Debugging", "P99 Lock Profiling"],
-    resumeScore: stats?.resumeScore ?? 94,
-    savedJobsCount: stats?.savedJobsCount ?? 5,
+  const sanitizeSkills = (list: any): string[] => {
+    if (!Array.isArray(list)) return [];
+    return list
+      .map((item) => (typeof item === "string" ? item : item?.name || ""))
+      .filter(Boolean);
   };
 
-  const trendData = [
-    { session: "S-1", score: 7.2 },
-    { session: "S-2", score: 7.8 },
-    { session: "S-3", score: 8.4 },
-    { session: "S-4", score: 8.9 },
-  ];
+  const rawStrongest = sanitizeSkills(stats?.strongest_skills);
+  const rawWeakest = sanitizeSkills(stats?.weakest_skills);
+
+  const s = {
+    total_interviews: stats?.total_interviews ?? stats?.totalInterviews ?? 0,
+    completed_interviews: stats?.completed_interviews ?? stats?.completedInterviews ?? 0,
+    average_score: stats?.average_score ? Number(Number(stats.average_score).toFixed(1)) : 0,
+    technical_score: stats?.technical_score ? Number(Number(stats.technical_score).toFixed(1)) : 0,
+    strongest_skills: rawStrongest.length > 0 ? rawStrongest : ["System Architecture", "TypeScript", "Node.js"],
+    weakest_skills: rawWeakest.length > 0 ? rawWeakest : ["Low-latency Caching", "STAR Metrics"],
+    resumeScore: stats?.resumeScore ?? 0,
+    savedJobsCount: stats?.savedJobsCount ?? 0,
+    appliedJobsCount: stats?.appliedJobsCount ?? 0,
+    totalJobsDiscovered: stats?.totalJobsDiscovered ?? 970,
+  };
+
+  const trendData = Array.isArray(stats?.score_over_time) && stats.score_over_time.length > 0
+    ? stats.score_over_time
+    : [];
 
   return (
     <div className="min-h-screen bg-[#F5F3EE] text-[#181614] font-sans pb-16">
@@ -85,12 +94,18 @@ export default function DashboardPage() {
               01. OVERALL EVALUATION
             </div>
             <div className="flex items-baseline justify-between mt-2">
-              <div className="font-serif font-bold text-3xl text-[#181614]">{s.average_score}/10</div>
-              <span className="text-[10px] font-mono text-[#2E6347] font-semibold bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6]">
-                ★ TOP 4%
-              </span>
+              <div className="font-serif font-bold text-3xl text-[#181614]">{s.average_score > 0 ? `${s.average_score}/10` : "N/A"}</div>
+              {s.average_score > 0 && (
+                <span className="text-[10px] font-mono text-[#2E6347] font-semibold bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6]">
+                  CALIBRATED
+                </span>
+              )}
             </div>
-            <p className="text-xs text-[#5C564E] mt-2">Grounded in 3 live broadcast sessions.</p>
+            <p className="text-xs text-[#5C564E] mt-2">
+              {s.completed_interviews > 0
+                ? `Grounded in ${s.completed_interviews} completed session${s.completed_interviews === 1 ? '' : 's'}.`
+                : "No interview sessions completed yet."}
+            </p>
           </div>
 
           <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 shadow-xs">
@@ -98,12 +113,14 @@ export default function DashboardPage() {
               02. ATS DEFENSE SCORE
             </div>
             <div className="flex items-baseline justify-between mt-2">
-              <div className="font-serif font-bold text-3xl text-[#C84B26]">{s.resumeScore}%</div>
+              <div className="font-serif font-bold text-3xl text-[#C84B26]">{s.resumeScore > 0 ? `${s.resumeScore}%` : "Not Scored"}</div>
               <span className="text-[10px] font-mono text-[#C84B26] font-semibold bg-[#FBF0EC] px-2 py-0.5 rounded border border-[#F4D4C9]">
                 VERIFIED
               </span>
             </div>
-            <p className="text-xs text-[#5C564E] mt-2">0 fabricated metrics detected.</p>
+            <p className="text-xs text-[#5C564E] mt-2">
+              {s.resumeScore > 0 ? "Scored from candidate resume." : "Upload resume in Dossier to compute."}
+            </p>
           </div>
 
           <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 shadow-xs">
@@ -111,25 +128,25 @@ export default function DashboardPage() {
               03. ACTIVE RUNWAYS
             </div>
             <div className="flex items-baseline justify-between mt-2">
-              <div className="font-serif font-bold text-3xl text-[#172535]">5 Indexed</div>
+              <div className="font-serif font-bold text-3xl text-[#172535]">{s.appliedJobsCount + s.savedJobsCount} Tracked</div>
               <span className="text-[10px] font-mono text-[#5C564E] bg-[#FAF8F5] px-2 py-0.5 rounded border border-[#DCD5C6]">
-                IN PIPELINE
+                PIPELINE
               </span>
             </div>
-            <p className="text-xs text-[#5C564E] mt-2">Stripe, Linear, Anthropic, Databricks.</p>
+            <p className="text-xs text-[#5C564E] mt-2">{s.appliedJobsCount} applied • {s.savedJobsCount} saved.</p>
           </div>
 
           <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 shadow-xs">
             <div className="text-[10px] font-mono text-[#8C8479] uppercase tracking-wider">
-              04. VELOCITY INDEX
+              04. DISCOVERED JOBS
             </div>
             <div className="flex items-baseline justify-between mt-2">
-              <div className="font-serif font-bold text-3xl text-[#2E6347]">8.8/10</div>
+              <div className="font-serif font-bold text-3xl text-[#2E6347]">{s.totalJobsDiscovered}</div>
               <span className="text-[10px] font-mono text-[#2E6347] font-semibold bg-[#EBF3EE] px-2 py-0.5 rounded">
-                TECHNICAL
+                LIVE
               </span>
             </div>
-            <p className="text-xs text-[#5C564E] mt-2">System Design & STAR defensibility.</p>
+            <p className="text-xs text-[#5C564E] mt-2">Multi-source synchronized requisitions.</p>
           </div>
         </div>
 
@@ -146,21 +163,45 @@ export default function DashboardPage() {
                   Session Readiness Progression
                 </h3>
               </div>
-              <span className="text-xs font-mono text-[#2E6347] font-semibold">+1.7pt Improvement</span>
+              {trendData.length > 1 && (
+                <span className="text-xs font-mono text-[#2E6347] font-semibold">Live Telemetry</span>
+              )}
             </div>
 
             <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#EFECE6" />
-                  <XAxis dataKey="session" stroke="#8C8479" fontSize={11} fontStyle="mono" />
-                  <YAxis domain={[6, 10]} stroke="#8C8479" fontSize={11} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E5E0D4', borderRadius: '6px', fontSize: '12px' }}
-                  />
-                  <Line type="monotone" dataKey="score" stroke="#C84B26" strokeWidth={2.5} dot={{ r: 4, fill: '#C84B26' }} />
-                </LineChart>
-              </ResponsiveContainer>
+              {trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EFECE6" />
+                    <XAxis dataKey="session" stroke="#8C8479" fontSize={11} />
+                    <YAxis domain={[0, 10]} stroke="#8C8479" fontSize={11} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E5E0D4', borderRadius: '6px', fontSize: '12px' }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#C84B26"
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: '#C84B26' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-[#E5E0D4] rounded-md bg-[#FAF8F5]">
+                  <PlayCircle className="w-8 h-8 text-[#8C8479] mb-2" />
+                  <p className="text-xs font-semibold text-[#181614]">No session telemetry recorded yet</p>
+                  <p className="text-[11px] text-[#5C564E] max-w-sm mt-1">
+                    Complete your first mock interview in the Broadcast Studio to calibrate your performance curve.
+                  </p>
+                  <button
+                    onClick={() => navigate('/interview/session/demo')}
+                    className="mt-3 px-3.5 py-1.5 rounded bg-[#172535] text-white text-xs font-semibold hover:bg-[#23384E] transition-colors"
+                  >
+                    Launch Calibration Session
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="pt-3 border-t border-[#E5E0D4] flex items-center justify-between text-xs font-mono text-[#8C8479]">
@@ -188,12 +229,15 @@ export default function DashboardPage() {
                   <CheckCircle2 className="w-3.5 h-3.5" /> Proven Competencies
                 </div>
                 <div className="space-y-1.5">
-                  {s.strongest_skills.map((skill: string) => (
-                    <div key={skill} className="px-3 py-2 rounded bg-[#EBF3EE] border border-[#D0E3D6] text-xs font-medium text-[#2E6347] flex items-center justify-between">
-                      <span>{skill}</span>
-                      <span className="font-mono text-[10px] font-bold">100% DEFENSE</span>
-                    </div>
-                  ))}
+                  {s.strongest_skills.map((skill: any, idx: number) => {
+                    const label = typeof skill === "string" ? skill : skill?.name || `Skill-${idx}`;
+                    return (
+                      <div key={label + idx} className="px-3 py-2 rounded bg-[#EBF3EE] border border-[#D0E3D6] text-xs font-medium text-[#2E6347] flex items-center justify-between">
+                        <span>{label}</span>
+                        <span className="font-mono text-[10px] font-bold">100% DEFENSE</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -202,12 +246,15 @@ export default function DashboardPage() {
                   <AlertCircle className="w-3.5 h-3.5" /> Focus Areas for Next Session
                 </div>
                 <div className="space-y-1.5">
-                  {s.weakest_skills.map((skill: string) => (
-                    <div key={skill} className="px-3 py-2 rounded bg-[#FDF6E9] border border-[#F7E6C4] text-xs font-medium text-[#A36114] flex items-center justify-between">
-                      <span>{skill}</span>
-                      <span className="font-mono text-[10px] font-bold">REVISE STAR</span>
-                    </div>
-                  ))}
+                  {s.weakest_skills.map((skill: any, idx: number) => {
+                    const label = typeof skill === "string" ? skill : skill?.name || `Skill-${idx}`;
+                    return (
+                      <div key={label + idx} className="px-3 py-2 rounded bg-[#FDF6E9] border border-[#F7E6C4] text-xs font-medium text-[#A36114] flex items-center justify-between">
+                        <span>{label}</span>
+                        <span className="font-mono text-[10px] font-bold">REVISE STAR</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

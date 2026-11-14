@@ -4,9 +4,12 @@ import { randomUUID } from "crypto";
 export interface IUser {
   _id: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
   fullName: string;
   avatarUrl?: string;
+  googleId?: string;
+  authProvider?: "local" | "google";
+  emailVerified?: boolean;
   role: string;
   isActive: boolean;
   isAdmin: boolean;
@@ -21,9 +24,12 @@ const userSchema = new Schema<IUser>(
   {
     _id: { type: String, default: () => randomUUID() },
     email: { type: String, required: true, unique: true, index: true },
-    passwordHash: { type: String, required: true },
+    passwordHash: { type: String, required: false },
     fullName: { type: String, required: true },
     avatarUrl: { type: String },
+    googleId: { type: String, index: true, sparse: true },
+    authProvider: { type: String, enum: ["local", "google"], default: "local" },
+    emailVerified: { type: Boolean, default: false },
     role: { type: String, default: "user" },
     isActive: { type: Boolean, default: true },
     isAdmin: { type: Boolean, default: false },

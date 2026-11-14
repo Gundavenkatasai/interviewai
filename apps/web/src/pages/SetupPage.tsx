@@ -401,7 +401,14 @@ export default function SetupPage() {
                         <div>
                           <div className="text-xs text-white/40 mb-2">Detected Skills</div>
                           <div className="flex flex-wrap gap-1.5">
-                            {resumeSummary.skills.slice(0, 12).map((s: string) => <span key={s} className="px-2 py-0.5 bg-emerald-500/15 text-emerald-300 rounded-md text-xs border border-emerald-500/20">{s}</span>)}
+                            {resumeSummary.skills.slice(0, 12).map((s: any, idx: number) => {
+                              const skillName = typeof s === "string" ? s : s?.name || `Skill-${idx}`;
+                              return (
+                                <span key={skillName + idx} className="px-2 py-0.5 bg-emerald-500/15 text-emerald-300 rounded-md text-xs border border-emerald-500/20">
+                                  {skillName}
+                                </span>
+                              );
+                            })}
                             {resumeSummary.skills.length > 12 && <span className="px-2 py-0.5 text-white/30 text-xs">+{resumeSummary.skills.length - 12} more</span>}
                           </div>
                         </div>

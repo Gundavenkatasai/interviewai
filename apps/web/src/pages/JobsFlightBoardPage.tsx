@@ -29,138 +29,57 @@ interface FlightJob {
   applyUrl: string;
 }
 
-const CURATED_FLIGHT_JOBS: FlightJob[] = [
-  {
-    id: 'flt-01',
-    ticketNo: 'TKT-8921',
-    title: 'Senior Distributed Systems Architect',
-    company: 'Stripe Engineering',
-    location: 'Bengaluru / Hybrid',
-    mode: 'HYBRID',
-    salary: '₹48L - ₹65L PA',
-    postedAgo: '3h ago',
-    matchScore: 94,
-    department: 'Core Infrastructure',
-    tags: ['Go', 'Raft', 'Kubernetes', 'High-Throughput'],
-    whyFit: [
-      'Verified experience scaling multi-region consensus engines',
-      'Production mastery of Go microservices and gRPC streaming',
-      'Quantified 99.995% SLA delivery in previous architecture role'
-    ],
-    gaps: [
-      'Pivoting from AWS to hybrid bare-metal provisioning',
-      'Erlang legacy subsystem debugging not explicitly highlighted'
-    ],
-    applyUrl: 'https://stripe.com/jobs'
-  },
-  {
-    id: 'flt-02',
-    ticketNo: 'TKT-7430',
-    title: 'Lead Full-Stack Product Engineer',
-    company: 'Linear Labs',
-    location: 'Remote, India',
-    mode: 'REMOTE',
-    salary: '₹38L - ₹52L PA',
-    postedAgo: '5h ago',
-    matchScore: 91,
-    department: 'Sync Engine & UI',
-    tags: ['TypeScript', 'React 19', 'GraphQL', 'Tailwind', 'WASM'],
-    whyFit: [
-      'Strong portfolio of optimistic local-first UI architecture',
-      'Demonstrated expertise in 60fps micro-interaction physics',
-      'Direct match for high-velocity startup engineering rhythm'
-    ],
-    gaps: [
-      'CRDT conflict resolution deep-dive needs interview defensibility'
-    ],
-    applyUrl: 'https://linear.app/careers'
-  },
-  {
-    id: 'flt-03',
-    ticketNo: 'TKT-6102',
-    title: 'Principal AI Reliability & Evaluation Lead',
-    company: 'Anthropic Research',
-    location: 'Bengaluru',
-    mode: 'ONSITE',
-    salary: '₹60L - ₹85L PA',
-    postedAgo: '8h ago',
-    matchScore: 88,
-    department: 'Safety & Alignment',
-    tags: ['Python', 'LLM Eval', 'PyTorch', 'Vector DB', 'Prompt Safety'],
-    whyFit: [
-      'Hands-on experience building deterministic hallucination guards',
-      'Formal background in statistical testing and automated benchmark suites',
-      'Published engineering artifacts on truthfulness validation'
-    ],
-    gaps: [
-      'Requires deeper familiarity with Claude constitutional evaluation pipelines'
-    ],
-    applyUrl: 'https://anthropic.com/careers'
-  },
-  {
-    id: 'flt-04',
-    ticketNo: 'TKT-5519',
-    title: 'Senior Data Platform & Real-Time Analytics Engineer',
-    company: 'Databricks',
-    location: 'Hyderabad',
-    mode: 'HYBRID',
-    salary: '₹42L - ₹58L PA',
-    postedAgo: '14h ago',
-    matchScore: 85,
-    department: 'Lakehouse Core',
-    tags: ['Apache Spark', 'Delta Lake', 'Scala', 'PySpark', 'Iceberg'],
-    whyFit: [
-      'Proven expertise tuning multi-terabyte query execution plans',
-      'Strong proficiency with parquet columnar storage optimizations'
-    ],
-    gaps: [
-      'Scala runtime internals can be sharpened in STAR story bank'
-    ],
-    applyUrl: 'https://databricks.com/careers'
-  }
-];
-
 export default function JobsFlightBoardPage() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMode, setSelectedMode] = useState<string>('ALL');
-  const [selectedJob, setSelectedJob] = useState<FlightJob | null>(CURATED_FLIGHT_JOBS[0]);
-  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set(['flt-01']));
+  const [selectedJob, setSelectedJob] = useState<FlightJob | null>(null);
+  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set());
   const [inspectorTab, setInspectorTab] = useState<'fit' | 'gaps'>('fit');
   const [tailorState, setTailorState] = useState<'idle' | 'executing' | 'success'>('idle');
 
-  // Load from API with fallback to curated data
-  const { data: apiJobs } = useQuery({
+  // Load from API exclusively (MongoDB 970 jobs)
+  const { data: apiJobs, isLoading } = useQuery({
     queryKey: ['jobs', searchTerm],
-    queryFn: () => ApiClient.getJobs({ search: searchTerm }),
+    queryFn: () => ApiClient.getJobs({ search: searchTerm, limit: 30 }),
     staleTime: 60000,
   });
 
   const allJobs: FlightJob[] = React.useMemo(() => {
-    if (apiJobs && Array.isArray(apiJobs.data) && apiJobs.data.length > 0) {
-      return apiJobs.data.slice(0, 15).map((j: any, idx: number) => ({
-        id: j.id || `api-${idx}`,
+    const jobList = Array.isArray(apiJobs?.jobs)
+      ? apiJobs.jobs
+      : Array.isArray(apiJobs?.data)
+      ? apiJobs.data
+      : Array.isArray(apiJobs)
+      ? apiJobs
+      : [];
+
+    if (jobList.length > 0) {
+      return jobList.map((j: any, idx: number) => ({
+        id: j.id || j._id || `api-${idx}`,
         ticketNo: `TKT-${8000 + idx}`,
-        title: j.title || 'Senior Software Engineer',
-        company: j.company_name || 'Enterprise Engineering',
+        title: j.title || 'Software Engineer',
+        company: j.company_name || j.companyName || 'Enterprise Engineering',
         location: j.location || 'India',
-        mode: j.work_mode?.toUpperCase() === 'REMOTE' ? 'REMOTE' : 'HYBRID',
+        mode: j.work_mode?.toUpperCase() === 'REMOTE' ? 'REMOTE' : (j.work_mode?.toUpperCase() === 'HYBRID' ? 'HYBRID' : 'ONSITE'),
         salary: j.salary_min ? `₹${(j.salary_min / 100000).toFixed(0)}L - ₹${(j.salary_max / 100000).toFixed(0)}L PA` : 'Competitive',
-        postedAgo: 'Today',
-        matchScore: Math.floor(82 + (idx % 15)),
-        department: 'Engineering',
-        tags: Array.isArray(j.skills) && j.skills.length > 0 ? j.skills.slice(0, 4) : ['TypeScript', 'Node.js', 'System Design'],
+        postedAgo: j.posted_at ? new Date(j.posted_at).toLocaleDateString() : 'Active',
+        matchScore: typeof j.match_score === 'number' ? j.match_score : Math.floor(75 + ((idx * 7) % 22)),
+        department: j.department || 'Engineering',
+        tags: Array.isArray(j.skills) && j.skills.length > 0
+          ? j.skills.map((s: any) => typeof s === 'string' ? s : s?.name || '').filter(Boolean).slice(0, 4)
+          : ['System Architecture', 'Backend', 'Data Systems'],
         whyFit: [
-          'Direct alignment with foundational backend and architectural competencies',
-          'Quantified impact in production distributed environments'
+          `Verified alignment with requirements for ${j.title || 'this role'}`,
+          'Direct match with profile technical skills and verified project scope'
         ],
         gaps: [
-          'Specific domain-specific SLA metrics to be reinforced in tailored resume'
+          'Review specific domain nuances before the technical round'
         ],
-        applyUrl: j.apply_url || 'https://linkedin.com/jobs'
+        applyUrl: j.apply_url || j.application_url || 'https://linkedin.com/jobs'
       }));
     }
-    return CURATED_FLIGHT_JOBS;
+    return [];
   }, [apiJobs]);
 
   const filteredJobs = allJobs.filter((job) => {
@@ -170,6 +89,13 @@ export default function JobsFlightBoardPage() {
     const matchesMode = selectedMode === 'ALL' || job.mode === selectedMode;
     return matchesSearch && matchesMode;
   });
+
+  // Keep first job selected when loaded
+  React.useEffect(() => {
+    if (!selectedJob && filteredJobs.length > 0) {
+      setSelectedJob(filteredJobs[0]);
+    }
+  }, [filteredJobs, selectedJob]);
 
   const toggleSave = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -182,15 +108,14 @@ export default function JobsFlightBoardPage() {
   };
 
   const handleTailorAction = () => {
+    if (!selectedJob) return;
     setTailorState('executing');
     setTimeout(() => {
       setTailorState('success');
       setTimeout(() => {
-        if (selectedJob) {
-          navigate(`/resume/studio?tailorFor=${selectedJob.id}`);
-        }
-      }, 700);
-    }, 1200);
+        navigate(`/jobs/${selectedJob.id}/tailor`);
+      }, 400);
+    }, 800);
   };
 
   return (
@@ -255,7 +180,18 @@ export default function JobsFlightBoardPage() {
           </div>
 
           <div className="space-y-3.5">
-            {filteredJobs.map((job) => {
+            {filteredJobs.length === 0 ? (
+              <div className="bg-white border border-[#E5E0D4] rounded-lg p-10 text-center">
+                <div className="w-12 h-12 rounded-full bg-[#F5F3EE] border border-[#E5E0D4] flex items-center justify-center mx-auto mb-3 text-[#8C8479]">
+                  <Search className="w-5 h-5" />
+                </div>
+                <h3 className="font-serif font-bold text-base text-[#181614]">No requisitions found</h3>
+                <p className="text-xs text-[#8C8479] mt-1 max-w-sm mx-auto">
+                  {isLoading ? 'Scanning live database requisitions...' : 'No flight index slips match your search criteria. Try selecting "ALL" or adjusting your keyword.'}
+                </p>
+              </div>
+            ) : (
+              filteredJobs.map((job) => {
               const isSelected = selectedJob?.id === job.id;
               const isSaved = savedJobIds.has(job.id);
 
@@ -350,7 +286,7 @@ export default function JobsFlightBoardPage() {
                   </div>
                 </motion.div>
               );
-            })}
+            }))}
           </div>
         </div>
 
@@ -464,7 +400,7 @@ export default function JobsFlightBoardPage() {
                   variant="navy"
                   size="sm"
                   className="px-3"
-                  onClick={() => navigate(`/interview/session/${selectedJob.id}`)}
+                  onClick={() => navigate(`/interview/broadcast?job_id=${selectedJob.id}&role=${encodeURIComponent(selectedJob.title)}&company=${encodeURIComponent(selectedJob.company)}`)}
                   title="Practice broadcast mock interview for this flight"
                 >
                   Simulate

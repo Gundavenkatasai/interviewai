@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Kanban, Plus, MoreHorizontal, Building2, MapPin, DollarSign,
   Calendar, CheckCircle2, ChevronRight, ArrowRight, ShieldCheck,
-  Clock, ExternalLink, SlidersHorizontal
+  Clock, ExternalLink, SlidersHorizontal, RefreshCw
 } from 'lucide-react';
+import { ApiClient } from '../lib/api';
 import { MechanicalButton } from '../components/ui/MechanicalButton';
 import { InkBleedButton } from '../components/ui/InkBleedButton';
 
@@ -31,79 +33,49 @@ const LANES = [
   '05 OFFER'
 ] as const;
 
+const mapStatusToLane = (status?: string): PipelineCard['stage'] => {
+  if (!status) return '01 DISCOVERED';
+  const s = status.toUpperCase();
+  if (s.includes('OFFER')) return '05 OFFER';
+  if (s.includes('INTERVIEW')) return '04 INTERVIEWING';
+  if (s.includes('APPLIED') || s.includes('SUBMITTED')) return '03 SUBMITTED';
+  if (s.includes('TAILOR') || s.includes('INTERESTED')) return '02 TAILORED';
+  return '01 DISCOVERED';
+};
+
 export default function ApplicationCardCatalogPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const [cards, setCards] = useState<PipelineCard[]>([
-    {
-      id: 'c-1',
-      catalogId: 'CAT-1029',
-      company: 'Stripe Engineering',
-      role: 'Staff Distributed Systems Architect',
-      salary: '₹48L - ₹65L',
-      location: 'Bengaluru / Hybrid',
-      stage: '04 INTERVIEWING',
-      fitScore: 94,
-      readinessState: 'STRONGLY_READY',
-      lastActivity: '2h ago',
-      nextStep: 'System Design Round w/ VP Eng (Thu)'
+  const { data: appData, isLoading } = useQuery({
+    queryKey: ['userApplications'],
+    queryFn: () => ApiClient.getUserApplications(),
+  });
+
+  const cards: PipelineCard[] = (appData?.applications || []).map((app: any, idx: number) => ({
+    id: app.id || app._id || `app-${idx}`,
+    catalogId: `APP-${(app.id || app._id || `${idx}`).slice(-4).toUpperCase()}`,
+    company: app.job?.company_name || 'Enterprise Engineering',
+    role: app.job?.title || 'Software Engineer',
+    salary: 'Competitive',
+    location: app.job?.location || 'India',
+    stage: mapStatusToLane(app.status),
+    fitScore: 88,
+    readinessState: 'READY',
+    lastActivity: app.applied_at ? new Date(app.applied_at).toLocaleDateString() : 'Recent',
+    nextStep: app.notes || 'Interview Preparation & Resume Tailoring',
+  }));
+
+  const moveMutation = useMutation({
+    mutationFn: ({ id, newStage }: { id: string; newStage: string }) =>
+      ApiClient.updateUserApplication(id, { status: newStage, stage: newStage }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userApplications'] });
     },
-    {
-      id: 'c-2',
-      catalogId: 'CAT-0941',
-      company: 'Linear Labs',
-      role: 'Lead Full-Stack Product Engineer',
-      salary: '₹38L - ₹52L',
-      location: 'Remote',
-      stage: '03 SUBMITTED',
-      fitScore: 91,
-      readinessState: 'READY',
-      lastActivity: '1d ago',
-      nextStep: 'Technical Screen Scheduled'
-    },
-    {
-      id: 'c-3',
-      catalogId: 'CAT-0812',
-      company: 'Anthropic Research',
-      role: 'Principal AI Reliability Lead',
-      salary: '₹60L - ₹85L',
-      location: 'Bengaluru',
-      stage: '02 TAILORED',
-      fitScore: 88,
-      readinessState: 'NEEDS_PREPARATION',
-      lastActivity: '3d ago',
-      nextStep: 'Submit via Internal Referral'
-    },
-    {
-      id: 'c-4',
-      catalogId: 'CAT-0703',
-      company: 'Databricks',
-      role: 'Staff Data Platform Engineer',
-      salary: '₹42L - ₹58L',
-      location: 'Hyderabad',
-      stage: '01 DISCOVERED',
-      fitScore: 85,
-      readinessState: 'READY',
-      lastActivity: '5d ago',
-      nextStep: 'Generate Tailored Blueprint'
-    },
-    {
-      id: 'c-5',
-      catalogId: 'CAT-0622',
-      company: 'Razorpay Labs',
-      role: 'Distinguished Architect',
-      salary: '₹75L - ₹90L',
-      location: 'Bengaluru',
-      stage: '05 OFFER',
-      fitScore: 97,
-      readinessState: 'STRONGLY_READY',
-      lastActivity: 'Yesterday',
-      nextStep: 'Review Equity Compensation & Sign'
-    }
-  ]);
+  });
 
   const moveCard = (id: string, newStage: PipelineCard['stage']) => {
-    setCards(prev => prev.map(c => c.id === id ? { ...c, stage: newStage } : c));
+    moveMutation.mutate({ id, newStage });
   };
 
   return (

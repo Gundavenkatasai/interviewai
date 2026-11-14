@@ -152,22 +152,25 @@ export const SkillsEditor: React.FC<SkillsEditorProps> = ({
 
               {/* Tag Pills */}
               <div className="flex flex-wrap gap-1.5 min-h-[30px]">
-                {list.map((skill, sIdx) => (
-                  <span
-                    key={sIdx}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-slate-200"
-                  >
-                    <span>{skill}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeSkill(cat.key, sIdx)}
-                      className="text-slate-500 hover:text-rose-400 transition-colors"
-                      title="Remove skill"
+                {list.map((skill: any, sIdx: number) => {
+                  const skillName = typeof skill === "string" ? skill : skill?.name || `Skill-${sIdx}`;
+                  return (
+                    <span
+                      key={sIdx}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-slate-200"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
+                      <span>{skillName}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeSkill(cat.key, sIdx)}
+                        className="text-slate-500 hover:text-rose-400 transition-colors"
+                        title="Remove skill"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
                 {list.length === 0 && (
                   <span className="text-[11px] text-slate-600 italic">No items added yet</span>
                 )}

@@ -2,7 +2,8 @@ import { Profile } from "../profile/profile.model";
 import { Resume } from "../resume/resume.model";
 import { LinkedInAnalysis } from "../linkedin/linkedin.model";
 import { InterviewSession } from "../interview/interview.model";
-import { SavedJob } from "../jobs/jobs.model";
+import { Job, SavedJob, JobApplication } from "../jobs/jobs.model";
+import { ResumeTailoringRun } from "../resume/tailoring/tailoring.model";
 
 export class DashboardService {
   static async getDashboardStats(userId: string) {
@@ -25,8 +26,14 @@ export class DashboardService {
     const latestLinkedIn = await LinkedInAnalysis.findOne({ userId }).sort({ createdAt: -1 });
     const linkedInScore = latestLinkedIn?.score || 0;
 
-    // 3. Saved Jobs Count
-    const savedJobsCount = await SavedJob.countDocuments({ userId });
+    // 3. Jobs & Ingestion Intelligence Counts
+    const [totalJobsDiscovered, savedJobsCount, appliedJobsCount, tailoredResumesCount, activeResumesCount] = await Promise.all([
+      Job.countDocuments({ status: "active" }),
+      SavedJob.countDocuments({ userId }),
+      JobApplication.countDocuments({ userId }),
+      ResumeTailoringRun.countDocuments({ userId }),
+      Resume.countDocuments({ userId, status: { $ne: "archived" } }),
+    ]);
 
     // 4. Interview Sessions & Analytics
     const allSessions = await InterviewSession.find({ userId }).sort({ createdAt: -1 });
@@ -87,24 +94,35 @@ export class DashboardService {
       score: (s as any).score?.overall_score || null,
     }));
 
-    return {
-      // Interview analytics (matching DashboardPage)
-      total_interviews,
-      totalInterviews: total_interviews,
-      completed_interviews,
-      completedInterviews: completed_interviews,
-      average_score: avgOverall,
-      technical_score: avgTechnical,
-      communication_score: avgCommunication,
-      problem_solving_score: avgProblemSolving,
-      confidence_score: avgConfidence,
-      strongest_skills: profile?.skills?.slice(0, 5) || ["System Design", "API Architecture", "Problem Decomposition"],
-      weakest_skills: ["Low-latency Caching", "Detailed Metrics in STAR responses"],
+      const extractedSkills = (profile?.skills || [])
+        .map((s: any) => (typeof s === "string" ? s : s?.name))
+        .filter(Boolean);
+
+      return {
+        // Interview analytics (matching DashboardPage)
+        total_interviews,
+        totalInterviews: total_interviews,
+        completed_interviews,
+        completedInterviews: completed_interviews,
+        average_score: avgOverall,
+        technical_score: avgTechnical,
+        communication_score: avgCommunication,
+        problem_solving_score: avgProblemSolving,
+        confidence_score: avgConfidence,
+        strongest_skills:
+          extractedSkills.length > 0
+            ? extractedSkills.slice(0, 5)
+            : ["System Design", "API Architecture", "Problem Decomposition"],
+        weakest_skills: ["Low-latency Caching", "Detailed Metrics in STAR responses"],
       performance_radar,
       score_over_time,
       recent_interviews: recentSessions,
 
       // Platform & Job tracking metrics
+      totalJobsDiscovered,
+      appliedJobsCount,
+      tailoredResumesCount,
+      activeResumesCount,
       profileReadiness,
       resumeScore,
       linkedInScore,

@@ -14,6 +14,11 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/register", strictRateLimit, AuthController.register);
   app.post("/login", strictRateLimit, AuthController.login);
+  app.post("/google", strictRateLimit, AuthController.googleAuth);
+  app.get("/google/config", async () => ({
+    clientId: process.env.GOOGLE_CLIENT_ID || "684513696427-eo6ditdc0icb9d25quoi87qcgr4kt9to.apps.googleusercontent.com",
+    configured: Boolean(process.env.GOOGLE_CLIENT_ID),
+  }));
   app.post("/demo", AuthController.demo);
   app.post("/reset-password", strictRateLimit, AuthController.resetPassword);
   app.post("/logout", AuthController.logout);

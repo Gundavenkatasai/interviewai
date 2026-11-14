@@ -136,6 +136,29 @@ export class ApiClient {
     return res;
   }
 
+  static async loginWithGoogle(payload: {
+    credential?: string;
+    idToken?: string;
+    code?: string;
+    redirectUri?: string;
+    email?: string;
+    name?: string;
+    fullName?: string;
+    picture?: string;
+    avatarUrl?: string;
+    googleId?: string;
+  }) {
+    const res = await this.request<any>("/api/auth/google", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const token = res?.token || res?.access_token;
+    if (token) {
+      localStorage.setItem("interviewai_token", token);
+    }
+    return res;
+  }
+
   static async demoLogin() {
     const res = await this.request<any>("/api/auth/demo", {
       method: "POST",
@@ -171,6 +194,10 @@ export class ApiClient {
   }
 
   static async getMe() {
+    const token = localStorage.getItem("interviewai_token");
+    if (!token) {
+      return null;
+    }
     return this.request<any>("/api/auth/me");
   }
 
@@ -783,7 +810,12 @@ export class ApiClient {
       }
     }
     const qs = query.toString();
-    return this.request<any>(`/api/jobs${qs ? `?${qs}` : ''}`);
+    const res = await this.request<any>(`/api/jobs${qs ? `?${qs}` : ''}`);
+    return {
+      ...res,
+      data: res.jobs || res.data || [],
+      jobs: res.jobs || res.data || []
+    };
   }
 
   static async getJobSources() {
@@ -928,6 +960,19 @@ export class ApiClient {
     return this.request<any>("/api/user/applications", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  static async updateUserApplication(id: string, data: any) {
+    return this.request<any>(`/api/user/applications/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async deleteUserApplication(id: string) {
+    return this.request<any>(`/api/user/applications/${id}`, {
+      method: "DELETE",
     });
   }
 

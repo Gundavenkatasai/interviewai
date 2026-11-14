@@ -5,7 +5,7 @@ import {
   Search, Briefcase, MapPin, DollarSign, Clock, Building2,
   Bookmark, BookmarkCheck, Star, ArrowRight, RefreshCw, ChevronDown,
   Zap, X, SlidersHorizontal, ChevronUp, Sparkles, ExternalLink,
-  Check, Compass, Globe, GraduationCap, Laptop, ShieldCheck
+  Check, Compass, Globe, GraduationCap, Laptop, ShieldCheck, FileText
 } from "lucide-react";
 import { ApiClient } from "../lib/api";
 import { formatRelativeTime, formatSalary } from "../lib/utils";
@@ -288,14 +288,17 @@ function JobCard({
         {/* Skills */}
         {job.skills?.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-4">
-            {job.skills.slice(0, 4).map((skill: string) => (
-              <span
-                key={skill}
-                className="px-2 py-0.5 rounded text-[11px] bg-[#F5F3EE] border border-[#E5E0D4] text-[#181614] font-mono"
-              >
-                {skill}
-              </span>
-            ))}
+            {job.skills.slice(0, 4).map((skill: any, idx: number) => {
+              const skillName = typeof skill === "string" ? skill : skill?.name || `Skill-${idx}`;
+              return (
+                <span
+                  key={skillName + idx}
+                  className="px-2 py-0.5 rounded text-[11px] bg-[#F5F3EE] border border-[#E5E0D4] text-[#181614] font-mono"
+                >
+                  {skillName}
+                </span>
+              );
+            })}
             {job.skills.length > 4 && (
               <span className="px-1.5 py-0.5 text-[10px] text-[#181614]/50 font-mono">
                 +{job.skills.length - 4} more
@@ -306,21 +309,21 @@ function JobCard({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2 pt-3 border-t border-[#E5E0D4]">
+      <div className="flex items-center gap-1.5 pt-3 border-t border-[#E5E0D4]">
         {applyUrl ? (
           <button
             id={`apply-btn-${job.id}`}
             onClick={handleApplyClick}
-            className="flex-1 py-2 px-3 rounded-md text-xs font-mono font-bold text-white bg-[#C84B26] hover:bg-[#B53E1B] shadow-[0_2px_0_0_#983416] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            className="flex-1 py-2 px-2.5 rounded-md text-xs font-mono font-bold text-white bg-[#C84B26] hover:bg-[#B53E1B] shadow-[0_2px_0_0_#983416] flex items-center justify-center gap-1 transition-all cursor-pointer"
             title={`Apply directly on ${job.source || 'portal'}`}
           >
-            <span>Apply on {job.source ? job.source.charAt(0).toUpperCase() + job.source.slice(1) : 'Portal'}</span>
-            <ExternalLink className="w-3.5 h-3.5" />
+            <span className="truncate">Apply on {job.source ? job.source.charAt(0).toUpperCase() + job.source.slice(1) : 'Portal'}</span>
+            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
           </button>
         ) : (
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/jobs/${job.id}`); }}
-            className="flex-1 py-2 px-3 rounded-md text-xs font-mono font-bold text-white bg-[#172535] hover:bg-[#23384E] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            className="flex-1 py-2 px-2.5 rounded-md text-xs font-mono font-bold text-white bg-[#172535] hover:bg-[#23384E] flex items-center justify-center gap-1 transition-all cursor-pointer"
           >
             <span>View Ticket</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -332,7 +335,7 @@ function JobCard({
             e.stopPropagation();
             onPrepare(job);
           }}
-          className="py-2 px-3 rounded-md text-xs font-mono font-semibold text-[#172535] bg-[#EAEFF5] hover:bg-[#DCE5EF] border border-[#D5DEE8] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+          className="py-2 px-2.5 rounded-md text-xs font-mono font-semibold text-[#172535] bg-[#EAEFF5] hover:bg-[#DCE5EF] border border-[#D5DEE8] flex items-center justify-center gap-1 transition-colors cursor-pointer"
           title="Prepare mock interview"
         >
           <Zap className="w-3.5 h-3.5 text-[#C84B26]" />
@@ -340,9 +343,21 @@ function JobCard({
         </button>
 
         <button
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/jobs/${job.id}/tailor`);
+          }}
+          className="py-2 px-2.5 rounded-md text-xs font-mono font-semibold text-[#2E6347] bg-[#EBF3EE] hover:bg-[#DCEEE2] border border-[#D0E3D6] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+          title="Tailor ATS Resume for this Job"
+        >
+          <FileText className="w-3.5 h-3.5 text-[#2E6347]" />
+          <span>ATS Resume</span>
+        </button>
+
+        <button
           onClick={handleSave}
           disabled={saving}
-          className={`p-2 rounded-md border transition-colors cursor-pointer ${
+          className={`p-2 rounded-md border transition-colors cursor-pointer shrink-0 ${
             saved
               ? "bg-[#EBF3EE] border-[#D0E3D6] text-[#2E6347]"
               : "border-[#E5E0D4] text-[#181614]/50 hover:text-[#181614] bg-white"

@@ -123,6 +123,50 @@ export class UserApplicationsController {
   }
 
   /**
+   * PUT /api/user/applications/:id
+   */
+  static async updateApplication(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user?.sub || "demo-user";
+    const { id } = request.params;
+    const { status, notes, interviewDate, stage, tailoredResumeId, interviewSessionId } = (request.body as any) || {};
+
+    const updateFields: any = {};
+    if (status !== undefined) updateFields.status = status;
+    if (notes !== undefined) updateFields.notes = notes;
+    if (interviewDate !== undefined) updateFields.interviewDate = interviewDate;
+    if (stage !== undefined) updateFields.stage = stage;
+    if (tailoredResumeId !== undefined) updateFields.tailoredResumeId = tailoredResumeId;
+    if (interviewSessionId !== undefined) updateFields.interviewSessionId = interviewSessionId;
+
+    const application = await JobApplication.findOneAndUpdate(
+      { _id: id, userId },
+      { $set: updateFields },
+      { new: true }
+    );
+
+    if (!application) {
+      return reply.status(404).send({ success: false, message: "Application not found" });
+    }
+
+    return reply.send({ success: true, application });
+  }
+
+  /**
+   * DELETE /api/user/applications/:id
+   */
+  static async deleteApplication(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user?.sub || "demo-user";
+    const { id } = request.params;
+
+    const res = await JobApplication.findOneAndDelete({ _id: id, userId });
+    if (!res) {
+      return reply.status(404).send({ success: false, message: "Application not found" });
+    }
+
+    return reply.send({ success: true, message: "Application deleted successfully" });
+  }
+
+  /**
    * GET /api/user/preferences
    */
   static async getPreferences(request: FastifyRequest, reply: FastifyReply) {

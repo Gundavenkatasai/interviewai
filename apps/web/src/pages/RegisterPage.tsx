@@ -4,6 +4,7 @@ import { ArrowRight, Lock, Mail, User, AlertCircle, LogIn, Compass } from "lucid
 import { ApiClient } from "../lib/api";
 import { useAuth } from "../contexts/AuthProvider";
 import { MechanicalButton } from "../components/ui/MechanicalButton";
+import { GoogleAuthButton } from "../components/ui/GoogleAuthButton";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -78,6 +79,17 @@ export default function RegisterPage() {
             )}
           </div>
         )}
+
+        {/* Google Quick Sign Up */}
+        <div className="pt-1">
+          <GoogleAuthButton mode="signup" />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-[#E5E0D4]" />
+          <span className="text-[10px] uppercase font-mono text-[#8C8479] font-medium tracking-wider">or register with email</span>
+          <div className="flex-1 h-px bg-[#E5E0D4]" />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

@@ -254,9 +254,10 @@ export const CreativeTemplate: React.FC<ResumeRenderProps> = ({ resume }) => {
                     <div>
                       <div className="text-xs font-bold uppercase tracking-widest mb-2 text-gray-500">Technical</div>
                       <div className="flex flex-wrap gap-2">
-                        {techSkills.map((s: string) => (
-                          <span key={s} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full border border-gray-200">{s}</span>
-                        ))}
+                        {techSkills.map((s: any, idx: number) => {
+                          const name = typeof s === "string" ? s : s?.name || `Skill-${idx}`;
+                          return <span key={name + idx} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full border border-gray-200">{name}</span>;
+                        })}
                       </div>
                     </div>
                   )}
@@ -264,9 +265,10 @@ export const CreativeTemplate: React.FC<ResumeRenderProps> = ({ resume }) => {
                     <div>
                       <div className="text-xs font-bold uppercase tracking-widest mb-2 text-gray-500">Frameworks</div>
                       <div className="flex flex-wrap gap-2">
-                        {frameworkSkills.map((s: string) => (
-                          <span key={s} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full border border-gray-200">{s}</span>
-                        ))}
+                        {frameworkSkills.map((s: any, idx: number) => {
+                          const name = typeof s === "string" ? s : s?.name || `Skill-${idx}`;
+                          return <span key={name + idx} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full border border-gray-200">{name}</span>;
+                        })}
                       </div>
                     </div>
                   )}
@@ -274,9 +276,10 @@ export const CreativeTemplate: React.FC<ResumeRenderProps> = ({ resume }) => {
                     <div>
                       <div className="text-xs font-bold uppercase tracking-widest mb-2 text-gray-500">Tools</div>
                       <div className="flex flex-wrap gap-2">
-                        {toolSkills.map((s: string) => (
-                          <span key={s} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full border border-gray-200">{s}</span>
-                        ))}
+                        {toolSkills.map((s: any, idx: number) => {
+                          const name = typeof s === "string" ? s : s?.name || `Skill-${idx}`;
+                          return <span key={name + idx} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full border border-gray-200">{name}</span>;
+                        })}
                       </div>
                     </div>
                   )}

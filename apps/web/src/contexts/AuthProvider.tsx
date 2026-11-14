@@ -8,6 +8,10 @@ interface User {
   full_name: string;
   is_active: boolean;
   is_admin?: boolean;
+  authProvider?: "local" | "google";
+  googleId?: string;
+  avatarUrl?: string;
+  emailVerified?: boolean;
 }
 
 interface AuthContextType {
@@ -33,7 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryKey: ["user"],
     queryFn: async () => {
       try {
+        const token = localStorage.getItem("interviewai_token");
+        if (!token) return null;
         const res: any = await ApiClient.getMe();
+        if (!res) return null;
         const userData = res?.user || res;
         if (!userData || !userData.email) return null;
         return {
@@ -42,6 +49,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           full_name: userData.full_name || userData.fullName || "User",
           is_active: userData.isActive !== false,
           is_admin: Boolean(userData.isAdmin),
+          authProvider: userData.authProvider || (userData.googleId ? "google" : "local"),
+          googleId: userData.googleId,
+          avatarUrl: userData.avatarUrl,
+          emailVerified: Boolean(userData.emailVerified),
         } as User;
       } catch {
         return null;

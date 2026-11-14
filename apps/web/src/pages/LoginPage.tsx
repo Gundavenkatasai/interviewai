@@ -4,7 +4,7 @@ import { ArrowRight, Lock, Mail, AlertCircle, Zap, KeyRound, CheckCircle2 } from
 import { ApiClient } from "../lib/api";
 import { useAuth } from "../contexts/AuthProvider";
 import { MechanicalButton } from "../components/ui/MechanicalButton";
-import { InkBleedButton } from "../components/ui/InkBleedButton";
+import { GoogleAuthButton } from "../components/ui/GoogleAuthButton";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -14,7 +14,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -34,22 +33,6 @@ export default function LoginPage() {
       setError(err.message || "Invalid email or password.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleDemoLogin = async () => {
-    setIsDemoLoading(true);
-    setError(null);
-    setSuccessMsg(null);
-
-    try {
-      await ApiClient.demoLogin();
-      refetchUser();
-      navigate("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Failed to log in as demo user.");
-    } finally {
-      setIsDemoLoading(false);
     }
   };
 
@@ -108,16 +91,10 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* 1-Click Demo Login */}
-        <button
-          type="button"
-          onClick={handleDemoLogin}
-          disabled={isDemoLoading || isLoading}
-          className="w-full py-2.5 px-4 rounded-md text-xs font-semibold text-[#2E6347] bg-[#EBF3EE] hover:bg-[#E2EFE7] border border-[#D0E3D6] flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
-        >
-          <Zap className="w-4 h-4 text-[#2E6347]" />
-          <span>{isDemoLoading ? "Authenticating..." : "⚡ Quick 1-Click Sign In (Demo Candidate)"}</span>
-        </button>
+        {/* Google Authentication */}
+        <div className="pt-1">
+          <GoogleAuthButton mode="login" onSuccess={() => navigate("/dashboard")} />
+        </div>
 
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-[#E5E0D4]" />

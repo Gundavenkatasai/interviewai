@@ -1,4 +1,3 @@
-
 export interface TTSProvider {
   synthesize(text: string): Promise<void>;
   stop(): void;
@@ -13,7 +12,7 @@ export class WebSpeechTTSProvider implements TTSProvider {
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (err: Error) => void;
-  
+
   private utterance: SpeechSynthesisUtterance | null = null;
   private watchdogTimer: any = null;
   private keepAliveInterval: any = null;
@@ -28,30 +27,34 @@ export class WebSpeechTTSProvider implements TTSProvider {
       }
 
       if (typeof window === "undefined" || !window.speechSynthesis) {
-        console.warn("SpeechSynthesis not supported in this browser.");
         if (this.onEnd) this.onEnd();
         resolve();
         return;
       }
 
-      this.stop(); // Stop and clear any previous utterances
+      // 1. Cleanly stop any existing speech without triggering spurious interrupted errors
+      this.stop();
 
       try {
         const utterance = new SpeechSynthesisUtterance(cleanText);
         this.utterance = utterance;
-        // Protect against Chrome V8 garbage collection bug
+        // Protect against Chromium V8 garbage collection bug
         (window as any).__currentTTSUtterance = utterance;
 
         utterance.rate = 1.0;
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
 
-        // Try to select an English voice
+        // Try to select natural English voice
         const pickVoice = () => {
           const voices = window.speechSynthesis.getVoices();
           if (voices && voices.length > 0) {
-            const preferredVoice = 
-              voices.find((v) => v.lang === "en-US" && (v.name.includes("Google") || v.name.includes("Natural"))) ||
+            const preferredVoice =
+              voices.find(
+                (v) =>
+                  v.lang === "en-US" &&
+                  (v.name.includes("Google") || v.name.includes("Natural"))
+              ) ||
               voices.find((v) => v.lang === "en-US") ||
               voices.find((v) => v.lang.startsWith("en"));
             if (preferredVoice) {
@@ -94,27 +97,28 @@ export class WebSpeechTTSProvider implements TTSProvider {
         };
 
         utterance.onerror = (event: any) => {
-          console.warn("SpeechSynthesis error:", event?.error);
+          // 'interrupted' and 'canceled' are expected when user skips, pauses, or changes question
+          if (event?.error !== "interrupted" && event?.error !== "canceled") {
+            console.warn("[TTS Notice] SpeechSynthesis event:", event?.error);
+          }
           cleanup();
           if (this.onEnd) this.onEnd();
           resolve();
         };
 
-        // Safety watchdog: Chrome speech synthesis can fail silently or get stuck.
-        // Estimate speech duration based on word count (avg 2.5 words/sec + 4s buffer)
+        // Safety watchdog based on estimated duration
         const wordCount = cleanText.split(/\s+/).length;
         const maxExpectedMs = Math.max(5000, Math.ceil((wordCount / 2.5) * 1000) + 4000);
 
         this.watchdogTimer = setTimeout(() => {
           if (this.isSpeaking || !started) {
-            console.warn(`SpeechSynthesis watchdog timed out after ${maxExpectedMs}ms; completing.`);
             this.stop();
             if (this.onEnd) this.onEnd();
             resolve();
           }
         }, maxExpectedMs);
 
-        // Keep-alive interval: Chrome pauses SpeechSynthesis after 14 seconds
+        // Keep-alive interval for Chromium 14-second pause bug
         this.keepAliveInterval = setInterval(() => {
           if (typeof window !== "undefined" && window.speechSynthesis) {
             if (window.speechSynthesis.paused) {
@@ -123,14 +127,13 @@ export class WebSpeechTTSProvider implements TTSProvider {
           }
         }, 3000);
 
-        // Resume engine in case browser paused it, then speak
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         }
 
         window.speechSynthesis.speak(utterance);
 
-        // Fallback start trigger if onstart doesn't fire within 800ms
+        // Fallback trigger if onstart doesn't fire within 800ms
         setTimeout(() => {
           if (!started && this.utterance === utterance) {
             if (window.speechSynthesis.paused) {
@@ -139,7 +142,6 @@ export class WebSpeechTTSProvider implements TTSProvider {
             if (this.onStart) this.onStart();
           }
         }, 800);
-
       } catch (err: any) {
         console.error("Failed to start SpeechSynthesis:", err);
         this.stop();
@@ -158,6 +160,14 @@ export class WebSpeechTTSProvider implements TTSProvider {
       clearInterval(this.keepAliveInterval);
       this.keepAliveInterval = null;
     }
+
+    if (this.utterance) {
+      // Detach handlers so cancel() doesn't fire interrupted error
+      this.utterance.onstart = null;
+      this.utterance.onend = null;
+      this.utterance.onerror = null;
+    }
+
     if (typeof window !== "undefined" && window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
@@ -166,6 +176,7 @@ export class WebSpeechTTSProvider implements TTSProvider {
         }
       } catch (e) {}
     }
+
     this.isSpeaking = false;
     this.utterance = null;
     if (typeof window !== "undefined") {

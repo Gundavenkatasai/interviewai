@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import mongoose from "mongoose";
 import {
   Resume,
   ResumeVersion,
@@ -60,6 +61,195 @@ export class ResumeController {
       });
     } catch (err) {
       console.error("[ResumeActivity] Error logging activity:", err);
+    }
+  }
+
+  /**
+   * Helper: Sync parsed resume information into the central Profile dossier
+   */
+  public static async syncResumeToProfile(userId: string, profileData: any) {
+    try {
+      if (!userId || !profileData) return;
+      let profile = await Profile.findOne({ userId });
+      if (!profile) {
+        profile = new Profile({ userId });
+      }
+
+      // Sync Personal
+      if (profileData.personal) {
+        if (!profile.personal) profile.personal = {};
+        if (profileData.personal.fullName && !profile.personal.fullName) {
+          profile.personal.fullName = profileData.personal.fullName;
+          profile.personal.name = profileData.personal.fullName;
+        }
+        if (profileData.personal.email && !profile.personal.email) {
+          profile.personal.email = profileData.personal.email;
+        }
+        if (profileData.personal.phone && !profile.personal.phone) {
+          profile.personal.phone = profileData.personal.phone;
+        }
+        if (profileData.personal.location && !profile.personal.location) {
+          profile.personal.location = profileData.personal.location;
+        }
+        if (profileData.personal.linkedin && !(profile as any).linkedin) {
+          (profile as any).linkedin = profileData.personal.linkedin;
+        }
+        if (profileData.personal.github && !(profile as any).github) {
+          (profile as any).github = profileData.personal.github;
+        }
+      }
+
+      // Sync Skills
+      const extractedSkillNames: string[] = [];
+      if (profileData.skills) {
+        if (Array.isArray(profileData.skills)) {
+          for (const s of profileData.skills) {
+            const name = typeof s === 'string' ? s : s?.name || s?.raw || s?.normalized;
+            if (name && typeof name === 'string' && name.trim()) extractedSkillNames.push(name.trim());
+          }
+        } else if (typeof profileData.skills === 'object') {
+          const keys = ['technical', 'languages', 'frameworks', 'databases', 'cloud', 'tools', 'soft'];
+          for (const k of keys) {
+            if (Array.isArray(profileData.skills[k])) {
+              for (const s of profileData.skills[k]) {
+                const name = typeof s === 'string' ? s : s?.name;
+                if (name && typeof name === 'string' && name.trim()) extractedSkillNames.push(name.trim());
+              }
+            }
+          }
+          if (Array.isArray(profileData.skills.structured)) {
+            for (const item of profileData.skills.structured) {
+              const name = item.normalized || item.raw || item.name;
+              if (name && typeof name === 'string' && name.trim()) extractedSkillNames.push(name.trim());
+            }
+          }
+        }
+      }
+
+      if (extractedSkillNames.length > 0) {
+        if (!Array.isArray(profile.skills)) profile.skills = [];
+        const existingSkillSet = new Set(
+          profile.skills.map((s: any) => (typeof s === 'string' ? s : s?.name || '').toLowerCase())
+        );
+
+        for (const skillName of extractedSkillNames) {
+          if (!existingSkillSet.has(skillName.toLowerCase())) {
+            profile.skills.push({
+              id: new mongoose.Types.ObjectId().toString(),
+              name: skillName,
+              level: 'Advanced',
+              category: 'Technical',
+              provenance: {
+                sourceType: 'RESUME',
+                confidence: 0.95,
+                status: 'IMPORTED',
+                extractedAt: new Date(),
+              },
+              verified_status: 'VERIFIED',
+              source: 'RESUME',
+            } as any);
+            existingSkillSet.add(skillName.toLowerCase());
+          }
+        }
+        profile.markModified('skills');
+      }
+
+      // Sync Experience
+      if (Array.isArray(profileData.experience) && profileData.experience.length > 0) {
+        if (!Array.isArray(profile.experience)) profile.experience = [];
+        for (const exp of profileData.experience) {
+          const company = exp.company || exp.organization || 'Company';
+          const title = exp.role || exp.title || exp.position || 'Engineer';
+          const exists = profile.experience.some(
+            (e: any) => e.company?.toLowerCase() === company.toLowerCase() && e.title?.toLowerCase() === title.toLowerCase()
+          );
+          if (!exists) {
+            profile.experience.push({
+              id: exp.id || new mongoose.Types.ObjectId().toString(),
+              company,
+              title,
+              role: title,
+              location: exp.location || '',
+              current: !!exp.current,
+              bullets: exp.bullets || (exp.description ? [exp.description] : []),
+              startDate: exp.startDate || '',
+              endDate: exp.endDate || '',
+              description: exp.description || '',
+              achievements: exp.bullets || [],
+              provenance: {
+                sourceType: 'RESUME',
+                confidence: 0.95,
+                status: 'IMPORTED',
+                extractedAt: new Date(),
+              },
+              verified_status: 'VERIFIED',
+            } as any);
+          }
+        }
+        profile.markModified('experience');
+      }
+
+      // Sync Education
+      if (Array.isArray(profileData.education) && profileData.education.length > 0) {
+        if (!Array.isArray(profile.education)) profile.education = [];
+        for (const edu of profileData.education) {
+          const institution = edu.institution || edu.school || edu.university || 'University';
+          const degree = edu.degree || edu.field || 'Degree';
+          const exists = profile.education.some(
+            (e: any) => e.institution?.toLowerCase() === institution.toLowerCase() && e.degree?.toLowerCase() === degree.toLowerCase()
+          );
+          if (!exists) {
+            profile.education.push({
+              id: edu.id || new mongoose.Types.ObjectId().toString(),
+              institution,
+              degree,
+              field: edu.field || '',
+              startDate: edu.startDate || '',
+              endDate: edu.endDate || '',
+              provenance: {
+                sourceType: 'RESUME',
+                confidence: 0.95,
+                status: 'IMPORTED',
+                extractedAt: new Date(),
+              },
+              verified_status: 'VERIFIED',
+            } as any);
+          }
+        }
+        profile.markModified('education');
+      }
+
+      // Sync Projects
+      if (Array.isArray(profileData.projects) && profileData.projects.length > 0) {
+        if (!Array.isArray(profile.projects)) profile.projects = [];
+        for (const proj of profileData.projects) {
+          const name = proj.name || proj.title || 'Project';
+          const exists = profile.projects.some(
+            (p: any) => p.name?.toLowerCase() === name.toLowerCase()
+          );
+          if (!exists) {
+            profile.projects.push({
+              id: proj.id || new mongoose.Types.ObjectId().toString(),
+              name,
+              description: proj.description || '',
+              url: proj.url || proj.link || '',
+              technologies: proj.technologies || [],
+              bullets: proj.bullets || (proj.description ? [proj.description] : []),
+              provenance: {
+                sourceType: 'RESUME',
+                confidence: 0.95,
+                status: 'IMPORTED',
+                extractedAt: new Date(),
+              },
+            } as any);
+          }
+        }
+        profile.markModified('projects');
+      }
+
+      await profile.save();
+    } catch (err) {
+      console.error('[ResumeController] Failed to sync resume to profile:', err);
     }
   }
 
@@ -486,6 +676,7 @@ export class ResumeController {
       });
 
       await ResumeController.logActivity(userId, resume._id, "uploaded", `Uploaded resume file "${validation.sanitizedFilename}"`);
+      await ResumeController.syncResumeToProfile(userId, sanitizedProfileData);
 
       return {
         success: true,
@@ -743,7 +934,7 @@ export class ResumeController {
     let finalTitle = targetTitle || resume.targetRole;
 
     if (jobId) {
-      const jobObj = await Job.findOne({ _id: jobId, userId: (request as any).user?.id });
+      const jobObj = await Job.findOne({ _id: jobId }) || await Job.findById(jobId);
       if (jobObj) {
         finalJd = `${jobObj.title}\n${jobObj.companyName}\n${jobObj.description || ""}\n${(jobObj.skills || []).join(", ")}`;
         finalTitle = jobObj.title;
@@ -2765,6 +2956,10 @@ export class ResumeController {
       });
     } catch (dbErr) {
       console.warn("[ResumeController] Could not save ResumeImport to DB:", dbErr);
+    }
+
+    if (parsedResult.profileData) {
+      await ResumeController.syncResumeToProfile(userId, parsedResult.profileData);
     }
 
     return {

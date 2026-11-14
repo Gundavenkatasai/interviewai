@@ -29,6 +29,13 @@ export class AuthService {
       throw Object.assign(new Error("Invalid credentials"), { statusCode: 401 });
     }
 
+    if (!user.passwordHash) {
+      throw Object.assign(
+        new Error("This account is registered via Google OAuth. Please sign in using Google."),
+        { statusCode: 400 }
+      );
+    }
+
     const isMatch = await bcryptjs.compare(data.password, user.passwordHash);
     if (!isMatch) {
       throw Object.assign(new Error("Invalid credentials"), { statusCode: 401 });
