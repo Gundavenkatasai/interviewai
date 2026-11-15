@@ -95,13 +95,32 @@ export function useMediaDevices() {
     }
   };
 
-  const toggleCamera = () => {
-    if (videoStream) {
-      const tracks = videoStream.getVideoTracks();
-      tracks.forEach(track => {
-        track.enabled = !cameraEnabled;
-      });
-      setCameraEnabled(!cameraEnabled);
+  const toggleCamera = async () => {
+    if (cameraEnabled) {
+      if (videoStream) {
+        videoStream.getVideoTracks().forEach(track => {
+          try { track.stop(); } catch (_) {}
+        });
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      setVideoStream(null);
+      setCameraEnabled(false);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const vStream = new MediaStream(stream.getVideoTracks());
+        setVideoStream(vStream);
+        setCameraEnabled(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = vStream;
+          videoRef.current.play().catch(() => {});
+        }
+      } catch (err) {
+        console.error("Failed to enable camera", err);
+        setCameraEnabled(false);
+      }
     }
   };
 
@@ -164,17 +183,32 @@ export function useMediaDevices() {
 
   const cleanup = useCallback(() => {
     if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
+      videoStream.getTracks().forEach(track => {
+        try { track.stop(); } catch (_) {}
+      });
+      setVideoStream(null);
     }
     if (audioStream) {
-      audioStream.getTracks().forEach(track => track.stop());
+      audioStream.getTracks().forEach(track => {
+        try { track.stop(); } catch (_) {}
+      });
+      setAudioStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close().catch(console.error);
+      audioContextRef.current = null;
     }
+    analyserRef.current = null;
+    setCameraEnabled(false);
+    setMicEnabled(false);
+    setAudioLevel(0);
   }, [videoStream, audioStream]);
 
   useEffect(() => {

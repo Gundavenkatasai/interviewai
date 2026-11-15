@@ -22,6 +22,63 @@ export class EvaluationEngine {
       return existingEval;
     }
 
+    const text = (answer.transcript || answer.answerText || "").trim();
+    const words = text.split(/\s+/).filter(Boolean).length;
+    const isUnanswered = words < 3 || text === "(No verbal answer provided)";
+
+    if (isUnanswered) {
+      const evaluation = await AnswerEvaluation.create({
+        answerId: answer._id,
+        rubricVersion: "v1.0",
+        score: 0,
+        correct: false,
+        dimensionScores: {
+          technicalAccuracy: 0,
+          relevance: 0,
+          completeness: 0,
+          depth: 0,
+          problemSolving: 0,
+          communication: 0,
+          structure: 0,
+          confidenceClarity: 0,
+        },
+        evidenceState: {
+          technicalAccuracy: "MISSING",
+          relevance: "MISSING",
+          completeness: "MISSING",
+          depth: "MISSING",
+          problemSolving: "MISSING",
+          communication: "MISSING",
+          structure: "MISSING",
+          confidenceClarity: "MISSING",
+        },
+        strengths: [],
+        weaknesses: ["Candidate did not provide an answer to this question."],
+        missingPoints: ["Complete technical explanation and trade-offs were not provided."],
+        evidence: ["No verbal or text response was captured."],
+        feedback: "No answer was submitted for this question.",
+        recommendedAnswer:
+          "A comprehensive answer outlines the fundamental concepts, trade-offs, and concrete production implementation.",
+        suggestedImprovements: ["Submit a structured technical response addressing the prompt."],
+        confidence: 1.0,
+        model: "deterministic-zero",
+        provider: "internal",
+        promptVersion: "INTERVIEW_ANSWER_EVALUATION_v1",
+      });
+
+      await InterviewQuestion.updateOne(
+        { _id: question._id },
+        { status: "SKIPPED", answeredAt: new Date() }
+      );
+
+      await CandidateAnswer.updateOne(
+        { _id: answer._id },
+        { status: "SKIPPED" }
+      );
+
+      return evaluation;
+    }
+
     let candidateContext = "";
     let jobContext = `Role: ${session.role} (${session.experienceLevel} level, ${session.difficulty} difficulty)`;
     try {
@@ -138,9 +195,45 @@ Output strictly JSON matching the required schema.`;
   ): AnswerEvaluationResponse {
     const text = (answer.transcript || answer.answerText || "").trim();
     const words = text.split(/\s+/).filter(Boolean).length;
-    const hasMeaningfulContent = words >= 10;
 
-    const baseScore = hasMeaningfulContent ? Math.min(8.5, 6.0 + Math.min(2.5, words * 0.05)) : 4.0;
+    if (words < 3) {
+      return {
+        score: 0,
+        correct: false,
+        dimensionScores: {
+          technicalAccuracy: 0,
+          relevance: 0,
+          completeness: 0,
+          depth: 0,
+          problemSolving: 0,
+          communication: 0,
+          structure: 0,
+          confidenceClarity: 0,
+        },
+        evidenceState: {
+          technicalAccuracy: "MISSING",
+          relevance: "MISSING",
+          completeness: "MISSING",
+          depth: "MISSING",
+          problemSolving: "MISSING",
+          communication: "MISSING",
+          structure: "MISSING",
+          confidenceClarity: "MISSING",
+        },
+        strengths: [],
+        weaknesses: ["Question was not attempted or answered by the candidate."],
+        missingPoints: ["Core concepts and concrete implementation details were not provided."],
+        evidence: ["No verbal or text response was captured."],
+        feedback: "No substantive answer was provided.",
+        recommendedAnswer:
+          "A comprehensive answer outlines the definition, underlying mechanics, concrete trade-offs, and a production real-world scenario.",
+        suggestedImprovements: ["Answer the question directly with technical depth."],
+        confidence: 1.0,
+      };
+    }
+
+    const hasMeaningfulContent = words >= 10;
+    const baseScore = hasMeaningfulContent ? Math.min(8.5, 6.0 + Math.min(2.5, words * 0.05)) : 3.0;
     const rounded = Number(baseScore.toFixed(1));
 
     return {

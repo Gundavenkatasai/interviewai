@@ -139,6 +139,7 @@ export class ApiClient {
   static async loginWithGoogle(payload: {
     credential?: string;
     idToken?: string;
+    accessToken?: string;
     code?: string;
     redirectUri?: string;
     email?: string;
@@ -823,11 +824,13 @@ export class ApiClient {
   }
 
   static async getJob(id: string) {
-    return this.request<any>(`/api/jobs/${id}`);
+    const res = await this.request<any>(`/api/jobs/${id}`);
+    return res?.data || res?.job || res;
   }
 
   static async getJobMatch(id: string) {
-    return this.request<any>(`/api/jobs/${id}/match`);
+    const res = await this.request<any>(`/api/jobs/${id}/match`);
+    return res?.data || res;
   }
 
   // Day 9: Resume Artifacts
@@ -864,7 +867,8 @@ export class ApiClient {
   }
 
   static async getJobExplanation(id: string) {
-    return this.request<any>(`/api/jobs/${id}/explanation`);
+    const res = await this.request<any>(`/api/jobs/${id}/explanation`);
+    return res?.data || res;
   }
 
   static async saveJob(id: string) {

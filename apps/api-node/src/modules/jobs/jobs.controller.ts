@@ -633,17 +633,11 @@ export class JobsController {
     const job = await Job.findOne({ _id: id });
     if (!job) return reply.status(404).send({ success: false, message: "Job not found" });
 
-    // Strict 72-hour requirement for viewing job details
     const evalResult = JobEligibilityEngine.evaluateJob(job);
-    if (!evalResult.eligible) {
-      return reply.status(410).send({
-        success: false,
-        message: "Job is no longer available (published more than 72 hours ago or unverifiable).",
-        reason: evalResult.reason,
-      });
-    }
-
-    const jobObj = job.toObject();
+    const jobObj: any = job.toObject();
+    jobObj.isExpired = !evalResult.eligible;
+    jobObj.is_expired = !evalResult.eligible;
+    jobObj.expiration_reason = evalResult.eligible ? undefined : evalResult.reason;
 
     // Trust Score
     if (!jobObj.trustScore) {
@@ -694,16 +688,6 @@ export class JobsController {
     
     const job = await Job.findOne({ _id: id });
     if (!job) return reply.status(404).send({ success: false, message: "Job not found" });
-
-    // Strict 72-hour requirement for viewing job details
-    const evalResult = JobEligibilityEngine.evaluateJob(job);
-    if (!evalResult.eligible) {
-      return reply.status(410).send({
-        success: false,
-        message: "Job is no longer available (published more than 72 hours ago or unverifiable).",
-        reason: evalResult.reason,
-      });
-    }
 
     await ApplicationClick.create({
       jobId: id,

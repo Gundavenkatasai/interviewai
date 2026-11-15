@@ -91,21 +91,21 @@ export default function ReportPage() {
 
   // Fallback to session.score if report model is still synthesizing
   const activeReport = report || (session?.score ? {
-    overallScore: session.score.overall_score || 8.0,
+    overallScore: session.score.overall_score ?? 0,
     dimensionScores: {
-      technical: session.score.technical_score || 8.0,
-      communication: session.score.communication_score || 8.0,
-      problemSolving: session.score.problem_solving_score || 8.0,
-      relevance: 8.0,
-      completeness: 7.5,
-      depth: 7.5,
-      structure: 8.0,
-      confidence: session.score.confidence_score || 8.0,
+      technical: session.score.technical_score ?? 0,
+      communication: session.score.communication_score ?? 0,
+      problemSolving: session.score.problem_solving_score ?? 0,
+      relevance: session.score.overall_score ?? 0,
+      completeness: session.score.overall_score ?? 0,
+      depth: session.score.overall_score ?? 0,
+      structure: session.score.overall_score ?? 0,
+      confidence: session.score.confidence_score ?? 0,
     },
     strengths: session.score.strengths || [],
     weaknesses: session.score.areas_for_improvement || [],
     technicalGaps: [],
-    readinessAssessment: session.score.final_recommendation || "Ready",
+    readinessAssessment: session.score.final_recommendation || (session.score.overall_score > 0 ? "Needs Practice" : "Not Ready"),
     recommendedTopics: session.score.recommended_study_topics || [],
     questionResults: (session.questions || []).map((q: any, i: number) => ({
       questionId: q._id || `q-${i}`,
@@ -113,7 +113,7 @@ export default function ReportPage() {
       questionText: q.questionText || q.question_text,
       category: q.category || "technical",
       difficulty: q.difficulty || "medium",
-      score: q.evaluation?.score || 8.0,
+      score: q.evaluation?.score ?? 0,
       candidateAnswer: q.answer?.answerText || q.answer?.transcript,
       whatWentWell: q.evaluation?.strengths || [],
       whatCouldImprove: q.evaluation?.weaknesses || [],
@@ -148,19 +148,24 @@ export default function ReportPage() {
     );
   }
 
+  const isUnattempted = (activeReport.overallScore === 0 || activeReport.overallScore == null) && (!activeReport.strengths || activeReport.strengths.length === 0);
+
   const dims = activeReport.dimensionScores || {};
   const radarData = [
-    { subject: "Technical", score: dims.technical || 8, fullMark: 10 },
-    { subject: "Communication", score: dims.communication || 8, fullMark: 10 },
-    { subject: "Problem Solving", score: dims.problemSolving || 8, fullMark: 10 },
-    { subject: "Relevance", score: dims.relevance || 8, fullMark: 10 },
-    { subject: "Completeness", score: dims.completeness || 7.5, fullMark: 10 },
-    { subject: "Depth", score: dims.depth || 7.5, fullMark: 10 },
-    { subject: "Structure", score: dims.structure || 8, fullMark: 10 },
-    { subject: "Confidence", score: dims.confidence || 8, fullMark: 10 },
+    { subject: "Technical", score: dims.technical ?? 0, fullMark: 10 },
+    { subject: "Communication", score: dims.communication ?? 0, fullMark: 10 },
+    { subject: "Problem Solving", score: dims.problemSolving ?? 0, fullMark: 10 },
+    { subject: "Relevance", score: dims.relevance ?? 0, fullMark: 10 },
+    { subject: "Completeness", score: dims.completeness ?? 0, fullMark: 10 },
+    { subject: "Depth", score: dims.depth ?? 0, fullMark: 10 },
+    { subject: "Structure", score: dims.structure ?? 0, fullMark: 10 },
+    { subject: "Confidence", score: dims.confidence ?? 0, fullMark: 10 },
   ];
 
   const getVerdictBadge = (verdict: string) => {
+    if (isUnattempted) {
+      return "bg-rose-500/10 border-rose-500/30 text-rose-400";
+    }
     if (verdict === "Ready" || verdict === "Strongly Ready") {
       return "bg-emerald-500/10 border-emerald-500/30 text-emerald-400";
     }
@@ -292,6 +297,22 @@ export default function ReportPage() {
           </div>
         </div>
 
+        {/* Unattempted Notice Banner */}
+        {isUnattempted && (
+          <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-amber-300 text-sm">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <span>INTERVIEW NOT ATTEMPTED</span>
+            </div>
+            <p className="text-xs leading-relaxed text-slate-300">
+              You did not submit any answers during this interview. Therefore, there is insufficient evidence to evaluate your technical knowledge, communication or problem-solving ability.
+            </p>
+            <p className="text-xs font-semibold text-amber-300">
+              Recommendation: Retake the interview and submit answers to receive an accurate performance report.
+            </p>
+          </div>
+        )}
+
         {/* Strengths & Weaknesses */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-3">
@@ -308,7 +329,7 @@ export default function ReportPage() {
                   </li>
                 ))
               ) : (
-                <li>Clear articulation of foundational technical concepts.</li>
+                <li className="text-slate-500 italic">No evaluated answers available to identify demonstrated strengths.</li>
               )}
             </ul>
           </div>
@@ -327,7 +348,7 @@ export default function ReportPage() {
                   </li>
                 ))
               ) : (
-                <li>Incorporate quantitative benchmarks and edge-case mitigation in responses.</li>
+                <li className="text-slate-500 italic">Retake the interview with verbal responses to generate targeted growth areas.</li>
               )}
             </ul>
           </div>

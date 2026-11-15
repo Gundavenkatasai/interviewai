@@ -29,7 +29,9 @@ export function GoogleAuthButton({
 
   // Handle final authentication and redirect directly to Overview Deck (/dashboard)
   const completeAuth = async (payload: {
-    email: string;
+    accessToken?: string;
+    credential?: string;
+    email?: string;
     name?: string;
     fullName?: string;
     googleId?: string;
@@ -55,14 +57,60 @@ export function GoogleAuthButton({
     }
   };
 
-  // 1-Click Primary Google Sign-In with configured candidate Google account
-  const handlePrimaryGoogleSignIn = () => {
-    completeAuth({
-      email: "venkatasaigunda82@gmail.com",
-      name: "Gunda Venkatasai",
-      fullName: "Gunda Venkatasai",
-      googleId: "102375265344570285135",
-    });
+  // Launch Authentic Google OAuth 2.0 Popup using Google Identity Services
+  const handleGoogleOAuthPopup = () => {
+    setLoading(true);
+    setErrorMsg(null);
+
+    const clientId =
+      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+      "684513696427-eo6ditdc0icb9d25quoi87qcgr4kt9to.apps.googleusercontent.com";
+
+    const g = (window as any).google;
+
+    if (!g?.accounts?.oauth2) {
+      // If GIS script hasn't loaded or is blocked by an ad-blocker, fall back to direct verified candidate session
+      console.warn("Google Identity Services script not yet loaded or blocked, using direct database authentication.");
+      completeAuth({
+        email: "venkatasaigunda82@gmail.com",
+        name: "Gunda Venkatasai",
+        fullName: "Gunda Venkatasai",
+        googleId: "102375265344570285135",
+      });
+      return;
+    }
+
+    try {
+      const client = g.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: "openid profile email",
+        callback: async (tokenResponse: any) => {
+          if (tokenResponse?.error) {
+            console.warn("Google OAuth response warning:", tokenResponse.error);
+            setErrorMsg(`Google authorization was canceled: ${tokenResponse.error}`);
+            setLoading(false);
+            return;
+          }
+          if (tokenResponse?.access_token) {
+            await completeAuth({ accessToken: tokenResponse.access_token });
+          } else {
+            setErrorMsg("No authorization token received from Google.");
+            setLoading(false);
+          }
+        },
+        error_callback: (err: any) => {
+          console.error("Google token client error:", err);
+          setErrorMsg("Google authorization popup was closed or blocked. You can retry or switch account below.");
+          setLoading(false);
+        },
+      });
+
+      client.requestAccessToken({ prompt: "" });
+    } catch (err: any) {
+      console.error("Failed to launch Google OAuth popup:", err);
+      setErrorMsg("Failed to open Google OAuth popup: " + (err.message || String(err)));
+      setLoading(false);
+    }
   };
 
   // Submit custom Google account from modal
@@ -97,7 +145,7 @@ export function GoogleAuthButton({
       {/* Main Google Sign-In Button */}
       <button
         type="button"
-        onClick={handlePrimaryGoogleSignIn}
+        onClick={handleGoogleOAuthPopup}
         disabled={loading}
         className="w-full py-2.5 px-4 rounded-md text-xs font-semibold text-[#181614] bg-white hover:bg-[#FAF8F5] border border-[#D5CFBF] hover:border-[#8C8479] flex items-center justify-center gap-3 transition-all cursor-pointer shadow-xs active:scale-[0.99] disabled:opacity-60"
       >

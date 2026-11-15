@@ -316,15 +316,87 @@ export default function InterviewBroadcastStudioPage() {
     }
   }, []);
 
+  const stopAllMediaTracks = useCallback(() => {
+    // 1. Explicitly stop all tracks in streamRef
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (_) {}
+      });
+      streamRef.current = null;
+    }
+
+    // 2. Explicitly stop all tracks in mediaStream state
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (_) {}
+      });
+      setMediaStream(null);
+    }
+
+    // 3. Clear video element srcObjects to release WebRTC context
+    if (liveVideoFeedRef.current) {
+      try {
+        liveVideoFeedRef.current.srcObject = null;
+      } catch (_) {}
+    }
+    if (videoPreviewRef.current) {
+      try {
+        videoPreviewRef.current.srcObject = null;
+      } catch (_) {}
+    }
+
+    // 4. Cancel animation frames & close AudioContext
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+
+    // 5. Update states
+    setCameraOn(false);
+    setMicMuted(true);
+    setAudioLevel(0);
+  }, [mediaStream]);
+
   // Initialize media on setup mount
   useEffect(() => {
     if (step === "setup") {
       initializeMedia();
     }
-    return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
   }, [step, initializeMedia]);
+
+  // Cleanup all media tracks on component unmount or page exit/refresh
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      stopAllMediaTracks();
+      ttsProviderRef.current?.stop();
+      sttManagerRef.current?.stop();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, [stopAllMediaTracks]);
+
+  // Cleanup immediately when interview enters 'completed' state
+  useEffect(() => {
+    if (step === "completed") {
+      stopAllMediaTracks();
+      ttsProviderRef.current?.stop();
+      sttManagerRef.current?.stop();
+    }
+  }, [step, stopAllMediaTracks]);
 
   // Re-verify stream attachment when switching to interview stage
   useEffect(() => {
@@ -339,55 +411,61 @@ export default function InterviewBroadcastStudioPage() {
 
   // ── 3. Resilient Camera & Microphone Toggles ───────────────────────────────
   const toggleCamera = async () => {
-    let stream = streamRef.current || mediaStream;
-
-    // If stream is missing or video tracks empty, re-request device stream
-    if (!stream || stream.getVideoTracks().length === 0) {
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
-          audio: { echoCancellation: true, noiseSuppression: true },
+    if (cameraOn) {
+      // ── TURNING CAMERA OFF ──
+      // Stop every video track to release hardware sensor and turn off indicator light
+      const stream = streamRef.current || mediaStream;
+      if (stream) {
+        stream.getVideoTracks().forEach((track) => {
+          try {
+            track.stop();
+            stream.removeTrack(track);
+          } catch (_) {}
         });
-        setMediaStream(newStream);
-        streamRef.current = newStream;
-        setHasMediaPermission(true);
+      }
+
+      // Clear video element srcObjects
+      if (liveVideoFeedRef.current) {
+        liveVideoFeedRef.current.srcObject = null;
+      }
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = null;
+      }
+
+      setCameraOn(false);
+    } else {
+      // ── TURNING CAMERA ON ──
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+        });
+
+        const newVideoTrack = videoStream.getVideoTracks()[0];
+        if (!newVideoTrack) return;
+
+        let activeStream = streamRef.current || mediaStream;
+        if (!activeStream || activeStream.getTracks().length === 0) {
+          activeStream = videoStream;
+        } else {
+          activeStream.addTrack(newVideoTrack);
+        }
+
+        streamRef.current = activeStream;
+        setMediaStream(activeStream);
         setCameraOn(true);
+        setHasMediaPermission(true);
 
         if (liveVideoFeedRef.current) {
-          liveVideoFeedRef.current.srcObject = newStream;
+          liveVideoFeedRef.current.srcObject = activeStream;
           liveVideoFeedRef.current.play().catch(() => {});
         }
         if (videoPreviewRef.current) {
-          videoPreviewRef.current.srcObject = newStream;
+          videoPreviewRef.current.srcObject = activeStream;
           videoPreviewRef.current.play().catch(() => {});
         }
-        return;
-      } catch (e) {
-        console.warn("Failed to request camera stream:", e);
-        return;
-      }
-    }
-
-    const videoTracks = stream.getVideoTracks();
-    const nextCameraState = !cameraOn;
-    videoTracks.forEach((track) => {
-      track.enabled = nextCameraState;
-    });
-    setCameraOn(nextCameraState);
-
-    // Ensure video is actively playing if enabled
-    if (nextCameraState) {
-      if (liveVideoFeedRef.current) {
-        if (!liveVideoFeedRef.current.srcObject) {
-          liveVideoFeedRef.current.srcObject = stream;
-        }
-        liveVideoFeedRef.current.play().catch(() => {});
-      }
-      if (videoPreviewRef.current) {
-        if (!videoPreviewRef.current.srcObject) {
-          videoPreviewRef.current.srcObject = stream;
-        }
-        videoPreviewRef.current.play().catch(() => {});
+      } catch (err) {
+        console.warn("Failed to enable camera stream:", err);
+        setCameraOn(false);
       }
     }
   };
@@ -673,13 +751,17 @@ export default function InterviewBroadcastStudioPage() {
         return;
       }
 
-      const nextQ =
-        nextRes?.question || {
-          questionText: "How do you approach database performance profiling and query latency optimization?",
-          category: "SYSTEM OPTIMIZATION",
-          topic: "Performance",
-          competencies: ["Index Strategy", "Query Planning", "Observability"],
-        };
+      const nextQ = nextRes?.question || null;
+
+      if (!nextQ) {
+        // No further questions available
+        try {
+          const compRes = await ApiClient.completeInterview(sessionId);
+          setFinalReport(compRes?.report || compRes);
+        } catch (_) {}
+        setStep("completed");
+        return;
+      }
 
       setCurrentQuestion(nextQ);
       setQuestionIndex((prev) => prev + 1);
@@ -1499,74 +1581,155 @@ export default function InterviewBroadcastStudioPage() {
       </header>
 
       <main className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 flex-1 space-y-6">
-        <div className="bg-white border border-[#E5E0D4] rounded-lg p-6 sm:p-8 shadow-xs text-center space-y-4">
-          <div className="w-14 h-14 rounded-full bg-[#EBF3EE] border border-[#D0E3D6] text-[#2E6347] flex items-center justify-center mx-auto shadow-xs">
-            <CheckCircle2 className="w-7 h-7" />
-          </div>
+        {(() => {
+          const rawScore = finalReport?.overallScore ?? finalReport?.score?.overall_score ?? 0;
+          const isUnattempted = rawScore === 0 || finalReport?.attemptStatus === "NOT_ATTEMPTED";
 
-          <h1 className="text-2xl font-serif font-bold text-[#181614] tracking-tight">
-            Broadcast Mock Interview Complete
-          </h1>
+          if (isUnattempted) {
+            return (
+              <div className="bg-white border border-[#E5E0D4] rounded-lg p-6 sm:p-8 shadow-xs text-center space-y-5">
+                <div className="w-14 h-14 rounded-full bg-[#FAF8F5] border border-[#E5E0D4] text-[#8C8479] flex items-center justify-center mx-auto shadow-xs">
+                  <AlertCircle className="w-7 h-7 text-[#A36114]" />
+                </div>
 
-          <p className="text-xs text-[#5C564E] max-w-lg mx-auto">
-            Session evaluated against Tier-1 engineering rubrics for{" "}
-            <strong className="text-[#181614]">{targetRole}</strong>.
-          </p>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#A36114] font-bold">
+                    EVALUATION STATUS
+                  </span>
+                  <h1 className="text-2xl font-serif font-bold text-[#181614] tracking-tight">
+                    INTERVIEW NOT ATTEMPTED
+                  </h1>
+                </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
-            <div className="p-3 bg-[#FAF8F5] rounded border border-[#E5E0D4]">
-              <div className="text-xl font-bold font-serif text-[#C84B26]">
-                {finalReport?.overallScore || 86}%
+                <div className="p-4 bg-[#FAF8F5] rounded-md border border-[#E5E0D4] max-w-xl mx-auto text-left space-y-2">
+                  <div className="flex items-center justify-between text-xs font-mono pb-2 border-b border-[#E5E0D4]">
+                    <span className="text-[#8C8479]">Overall Performance Score</span>
+                    <span className="font-bold text-[#181614]">Not available</span>
+                  </div>
+                  <p className="text-xs text-[#5C564E] leading-relaxed">
+                    You did not submit any answers during this interview. Therefore, there is insufficient evidence to evaluate your technical knowledge, communication or problem-solving ability.
+                  </p>
+                  <p className="text-xs text-[#181614] font-medium pt-1">
+                    Recommendation: Retake the interview and submit answers to receive an accurate performance report.
+                  </p>
+                </div>
+
+                <div className="pt-4 flex flex-wrap justify-center gap-3">
+                  <MechanicalButton
+                    variant="vermilion"
+                    size="md"
+                    onClick={() => {
+                      setStep("setup");
+                      setSessionId(null);
+                    }}
+                    icon={<RotateCcw className="w-4 h-4" />}
+                  >
+                    Retake Interview
+                  </MechanicalButton>
+
+                  <MechanicalButton
+                    variant="navy"
+                    size="md"
+                    onClick={() => navigate("/dashboard")}
+                    icon={<ArrowRight className="w-4 h-4" />}
+                    iconPosition="right"
+                  >
+                    Return to Dashboard
+                  </MechanicalButton>
+                </div>
               </div>
-              <div className="text-[10px] font-mono text-[#8C8479] uppercase">Overall Score</div>
-            </div>
+            );
+          }
 
-            <div className="p-3 bg-[#FAF8F5] rounded border border-[#E5E0D4]">
-              <div className="text-xl font-bold font-serif text-[#181614]">
-                {finalReport?.technicalScore || 88}%
+          const scorePercent = Math.round(rawScore <= 10 ? rawScore * 10 : rawScore);
+          const techScore = finalReport?.technicalScore ?? finalReport?.dimensionScores?.technical ?? rawScore;
+          const techPercent = Math.round(techScore <= 10 ? techScore * 10 : techScore);
+          const commScore = finalReport?.communicationScore ?? finalReport?.dimensionScores?.communication ?? rawScore;
+          const commPercent = Math.round(commScore <= 10 ? commScore * 10 : commScore);
+          const readiness = finalReport?.readinessAssessment || (rawScore >= 8 ? "READY" : rawScore >= 6 ? "NEEDS PRACTICE" : "NOT READY");
+
+          return (
+            <div className="bg-white border border-[#E5E0D4] rounded-lg p-6 sm:p-8 shadow-xs text-center space-y-4">
+              <div className="w-14 h-14 rounded-full bg-[#EBF3EE] border border-[#D0E3D6] text-[#2E6347] flex items-center justify-center mx-auto shadow-xs">
+                <CheckCircle2 className="w-7 h-7" />
               </div>
-              <div className="text-[10px] font-mono text-[#8C8479] uppercase">Technical Depth</div>
-            </div>
 
-            <div className="p-3 bg-[#FAF8F5] rounded border border-[#E5E0D4]">
-              <div className="text-xl font-bold font-serif text-[#181614]">
-                {finalReport?.communicationScore || 90}%
+              <h1 className="text-2xl font-serif font-bold text-[#181614] tracking-tight">
+                Broadcast Mock Interview Complete
+              </h1>
+
+              <p className="text-xs text-[#5C564E] max-w-lg mx-auto">
+                Session evaluated against verified engineering rubrics for{" "}
+                <strong className="text-[#181614]">{targetRole}</strong>.
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
+                <div className="p-3 bg-[#FAF8F5] rounded border border-[#E5E0D4]">
+                  <div className="text-xl font-bold font-serif text-[#C84B26]">
+                    {scorePercent}%
+                  </div>
+                  <div className="text-[10px] font-mono text-[#8C8479] uppercase">Overall Score</div>
+                </div>
+
+                <div className="p-3 bg-[#FAF8F5] rounded border border-[#E5E0D4]">
+                  <div className="text-xl font-bold font-serif text-[#181614]">
+                    {techPercent}%
+                  </div>
+                  <div className="text-[10px] font-mono text-[#8C8479] uppercase">Technical Depth</div>
+                </div>
+
+                <div className="p-3 bg-[#FAF8F5] rounded border border-[#E5E0D4]">
+                  <div className="text-xl font-bold font-serif text-[#181614]">
+                    {commPercent}%
+                  </div>
+                  <div className="text-[10px] font-mono text-[#8C8479] uppercase">Communication</div>
+                </div>
+
+                <div className="p-3 bg-[#FAF8F5] rounded border border-[#E5E0D4]">
+                  <div className={`text-xl font-bold font-serif ${readiness === "READY" ? "text-[#2E6347]" : "text-[#A36114]"}`}>
+                    {readiness.toUpperCase()}
+                  </div>
+                  <div className="text-[10px] font-mono text-[#8C8479] uppercase">Readiness</div>
+                </div>
               </div>
-              <div className="text-[10px] font-mono text-[#8C8479] uppercase">STAR Structure</div>
-            </div>
 
-            <div className="p-3 bg-[#FAF8F5] rounded border border-[#E5E0D4]">
-              <div className="text-xl font-bold font-serif text-[#2E6347]">
-                READY
+              <div className="pt-6 border-t border-[#E5E0D4] flex flex-wrap justify-center gap-3">
+                <MechanicalButton
+                  variant="vermilion"
+                  size="md"
+                  onClick={() => {
+                    setStep("setup");
+                    setSessionId(null);
+                  }}
+                  icon={<RotateCcw className="w-4 h-4" />}
+                >
+                  Start Another Rehearsal
+                </MechanicalButton>
+
+                {sessionId && (
+                  <MechanicalButton
+                    variant="navy"
+                    size="md"
+                    onClick={() => navigate(`/reports/${sessionId}`)}
+                    icon={<FileText className="w-4 h-4" />}
+                  >
+                    View Comprehensive Report
+                  </MechanicalButton>
+                )}
+
+                <MechanicalButton
+                  variant="stone"
+                  size="md"
+                  onClick={() => navigate("/dashboard")}
+                  icon={<ArrowRight className="w-4 h-4" />}
+                  iconPosition="right"
+                >
+                  Overview Deck
+                </MechanicalButton>
               </div>
-              <div className="text-[10px] font-mono text-[#8C8479] uppercase">Recommendation</div>
             </div>
-          </div>
-
-          <div className="pt-6 border-t border-[#E5E0D4] flex flex-wrap justify-center gap-3">
-            <MechanicalButton
-              variant="vermilion"
-              size="md"
-              onClick={() => {
-                setStep("setup");
-                setSessionId(null);
-              }}
-              icon={<RotateCcw className="w-4 h-4" />}
-            >
-              Start Another Rehearsal
-            </MechanicalButton>
-
-            <MechanicalButton
-              variant="navy"
-              size="md"
-              onClick={() => navigate("/dashboard")}
-              icon={<ArrowRight className="w-4 h-4" />}
-              iconPosition="right"
-            >
-              View Overview Deck
-            </MechanicalButton>
-          </div>
-        </div>
+          );
+        })()}
       </main>
     </div>
   );

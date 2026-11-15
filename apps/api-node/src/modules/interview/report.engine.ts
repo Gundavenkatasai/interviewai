@@ -143,31 +143,72 @@ export class ReportEngine {
       }
     }
 
-    const divisor = scoredQuestionsCount > 0 ? scoredQuestionsCount : 1;
-    const computedOverallScore = Number((totalScoreSum / divisor).toFixed(1)) || 7.5;
+    const isUnattempted = answeredQuestionsCount === 0;
 
-    const computedDimensions = {
-      technical: Number((dimTotals.technical / divisor).toFixed(1)) || computedOverallScore,
-      communication: Number((dimTotals.communication / divisor).toFixed(1)) || computedOverallScore,
-      problemSolving: Number((dimTotals.problemSolving / divisor).toFixed(1)) || computedOverallScore,
-      relevance: Number((dimTotals.relevance / divisor).toFixed(1)) || computedOverallScore,
-      completeness: Number((dimTotals.completeness / divisor).toFixed(1)) || computedOverallScore,
-      depth: Number((dimTotals.depth / divisor).toFixed(1)) || computedOverallScore,
-      structure: Number((dimTotals.structure / divisor).toFixed(1)) || computedOverallScore,
-      confidence: Number((dimTotals.confidence / divisor).toFixed(1)) || computedOverallScore,
+    let computedOverallScore = 0;
+    let computedDimensions = {
+      technical: 0,
+      communication: 0,
+      problemSolving: 0,
+      relevance: 0,
+      completeness: 0,
+      depth: 0,
+      structure: 0,
+      confidence: 0,
     };
 
-    // 3. AI synthesis for comprehensive diagnostic feedback
-    const systemPrompt = PromptRegistry.get("INTERVIEW_FINAL_REPORT", "v1");
-    const summaryEvidence = questionResults.map(
-      (r, i) => `Q${i + 1} (${r.category} - ${r.difficulty}): "${r.questionText}"
+    let reportAiData: FinalReportResponse;
+
+    if (isUnattempted) {
+      reportAiData = {
+        overallScore: 0,
+        dimensionScores: computedDimensions,
+        strengths: [],
+        weaknesses: ["No questions were answered during this interview session."],
+        technicalGaps: coveredTopics.length > 0 ? coveredTopics : ["All technical domains unattempted"],
+        communicationFeedback: ["Insufficient evidence: no verbal or text responses were provided."],
+        repeatedMistakes: [],
+        topicCoverage: {
+          coveredTopics: [],
+          weakTopics: coveredTopics,
+          strongTopics: [],
+          remainingTopics: coveredTopics,
+        },
+        questionEvaluations: [],
+        recommendedTopics: coveredTopics.length > 0 ? coveredTopics : ["Core role competencies"],
+        recommendedQuestions: questions.map((q) => q.questionText).slice(0, 3),
+        readinessAssessment: "Not Ready",
+        nextBestActions: [
+          "Retake the interview and submit verbal or text answers to receive an accurate performance evaluation.",
+        ],
+        confidence: "HIGH",
+      };
+    } else {
+      const divisor = scoredQuestionsCount > 0 ? scoredQuestionsCount : 1;
+      computedOverallScore = Number((totalScoreSum / divisor).toFixed(1));
+
+      computedDimensions = {
+        technical: Number((dimTotals.technical / divisor).toFixed(1)),
+        communication: Number((dimTotals.communication / divisor).toFixed(1)),
+        problemSolving: Number((dimTotals.problemSolving / divisor).toFixed(1)),
+        relevance: Number((dimTotals.relevance / divisor).toFixed(1)),
+        completeness: Number((dimTotals.completeness / divisor).toFixed(1)),
+        depth: Number((dimTotals.depth / divisor).toFixed(1)),
+        structure: Number((dimTotals.structure / divisor).toFixed(1)),
+        confidence: Number((dimTotals.confidence / divisor).toFixed(1)),
+      };
+
+      // 3. AI synthesis for comprehensive diagnostic feedback
+      const systemPrompt = PromptRegistry.get("INTERVIEW_FINAL_REPORT", "v1");
+      const summaryEvidence = questionResults.map(
+        (r, i) => `Q${i + 1} (${r.category} - ${r.difficulty}): "${r.questionText}"
 Candidate Answer: "${(r.candidateAnswer || "").slice(0, 300)}"
 Score: ${r.score}/10
 Strengths: ${r.whatWentWell.join(", ") || "None noted"}
 Improvements: ${r.whatCouldImprove.join(", ") || "None noted"}`
-    ).join("\n\n");
+      ).join("\n\n");
 
-    const prompt = `${systemPrompt}
+      const prompt = `${systemPrompt}
 
 Target Role: ${session.role}
 Difficulty: ${session.difficulty}
@@ -185,38 +226,38 @@ Skipped Questions: ${skippedQuestionsCount}
 Generate a comprehensive diagnostic report strictly matching the JSON schema.
 Distinguish UNKNOWN vs MISSING. Do not fabricate feedback unsupported by actual answers.`;
 
-    let reportAiData: FinalReportResponse;
-    try {
-      reportAiData = await AIService.generateStructured<FinalReportResponse>(
-        [{ role: "user", content: prompt }],
-        FinalReportResponseSchema,
-        { task: "INTERVIEW_FINAL_REPORT", temperature: 0.2 }
-      );
-    } catch (err) {
-      console.warn("AI report synthesis failed, using deterministic aggregation", err);
-      reportAiData = this.buildDeterministicReport(
-        session,
-        computedOverallScore,
-        computedDimensions,
-        collectedStrengths,
-        collectedWeaknesses,
-        coveredTopics,
-        weakTopics,
-        strongTopics
-      );
-    }
+      try {
+        reportAiData = await AIService.generateStructured<FinalReportResponse>(
+          [{ role: "user", content: prompt }],
+          FinalReportResponseSchema,
+          { task: "INTERVIEW_FINAL_REPORT", temperature: 0.2 }
+        );
+      } catch (err) {
+        console.warn("AI report synthesis failed, using deterministic aggregation", err);
+        reportAiData = this.buildDeterministicReport(
+          session,
+          computedOverallScore,
+          computedDimensions,
+          collectedStrengths,
+          collectedWeaknesses,
+          coveredTopics,
+          weakTopics,
+          strongTopics
+        );
+      }
 
-    if (!reportAiData || !Array.isArray(reportAiData.strengths)) {
-      reportAiData = this.buildDeterministicReport(
-        session,
-        computedOverallScore,
-        computedDimensions,
-        collectedStrengths,
-        collectedWeaknesses,
-        coveredTopics,
-        weakTopics,
-        strongTopics
-      );
+      if (!reportAiData || !Array.isArray(reportAiData.strengths)) {
+        reportAiData = this.buildDeterministicReport(
+          session,
+          computedOverallScore,
+          computedDimensions,
+          collectedStrengths,
+          collectedWeaknesses,
+          coveredTopics,
+          weakTopics,
+          strongTopics
+        );
+      }
     }
 
     // 4. Create and persist immutable InterviewReport
@@ -298,17 +339,25 @@ Distinguish UNKNOWN vs MISSING. Do not fabricate feedback unsupported by actual 
     weakTopics: string[],
     strongTopics: string[]
   ): FinalReportResponse {
+    const isZero = overallScore === 0;
+
     return {
       overallScore,
       dimensionScores: dimensions,
-      strengths: collectedStrengths.length > 0
+      strengths: isZero
+        ? []
+        : collectedStrengths.length > 0
         ? Array.from(new Set(collectedStrengths)).slice(0, 5)
-        : ["Solid foundational technical vocabulary", "Clear pacing and logical articulation"],
-      weaknesses: collectedWeaknesses.length > 0
+        : ["Provided responses to the interview prompts"],
+      weaknesses: isZero
+        ? ["No answers were submitted during this interview session."]
+        : collectedWeaknesses.length > 0
         ? Array.from(new Set(collectedWeaknesses)).slice(0, 5)
         : ["Add more quantitative system metrics and edge-case handling in responses"],
-      technicalGaps: weakTopics.length > 0 ? weakTopics : ["Deep production edge-cases"],
-      communicationFeedback: ["Maintained composed delivery throughout the session"],
+      technicalGaps: weakTopics.length > 0 ? weakTopics : isZero ? ["Interview not attempted"] : ["Production edge-cases"],
+      communicationFeedback: isZero
+        ? ["Insufficient evidence: no verbal or text responses were provided."]
+        : ["Completed response turn within session time limits"],
       repeatedMistakes: [],
       topicCoverage: {
         coveredTopics,
@@ -323,10 +372,12 @@ Distinguish UNKNOWN vs MISSING. Do not fabricate feedback unsupported by actual 
         "Describe your methodology for profiling and fixing database deadlocks in production.",
       ],
       readinessAssessment: overallScore >= 8.0 ? "Ready" : overallScore >= 6.5 ? "Needs Practice" : "Not Ready",
-      nextBestActions: [
-        "Review key architectural patterns for identified weak topics",
-        "Practice timed responses with STAR structure for complex scenario questions",
-      ],
+      nextBestActions: isZero
+        ? ["Retake the mock interview and provide detailed technical answers."]
+        : [
+            "Review key architectural patterns for identified weak topics",
+            "Practice timed responses with STAR structure for complex scenario questions",
+          ],
       confidence: "HIGH",
     };
   }

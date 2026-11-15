@@ -193,9 +193,16 @@ export default function JobDetailPage() {
 
                   return (
                     <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-[#E5E0D4]">
+                      <MechanicalButton
+                        variant="vermilion"
+                        onClick={() => navigate(`/interview/broadcast?job_id=${id}&role=${encodeURIComponent(job.title || "")}&company=${encodeURIComponent(job.company_name || "")}`)}
+                        icon={<Sparkles className="w-4 h-4" />}
+                      >
+                        Practice Mock Interview
+                      </MechanicalButton>
                       {applyUrl && (
                         <MechanicalButton
-                          variant="vermilion"
+                          variant="stone"
                           onClick={handleApplyClick}
                           icon={<ExternalLink className="w-4 h-4" />}
                         >
