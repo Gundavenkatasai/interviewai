@@ -4,7 +4,7 @@ import {
   ArrowLeft, MapPin, DollarSign, Clock, Building2, ExternalLink, Bookmark,
   BookmarkCheck, Zap, Star, AlertCircle, Briefcase, Calendar, FileText, Sparkles,
   Check, ChevronDown, ChevronUp, Layers, Brain, Compass, GraduationCap,
-  CheckCircle2, Copy, Eye, FileCode2, Share2
+  CheckCircle2, Share2
 } from "lucide-react";
 import { useState } from "react";
 import { ApiClient } from "../lib/api";
@@ -17,8 +17,6 @@ export default function JobDetailPage() {
   const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
-  const [viewMode, setViewMode] = useState<"clean" | "raw">("clean");
-  const [copied, setCopied] = useState(false);
 
   const { data: job, isLoading } = useQuery({
     queryKey: ["job", id],
@@ -82,19 +80,11 @@ export default function JobDetailPage() {
   const matchScore = matchDoc?.matchScore != null ? Math.round(matchDoc.matchScore) : null;
   const trustScore = matchDoc?.trustScore != null ? Math.round(matchDoc.trustScore) : null;
 
-  // Extract clean structured attributes and clean markdown description
+  // Extract clean structured attributes
   const extractJobAttributes = (item: any) => {
     const desc = item?.description || "";
 
-    // 1. Clean description of broken markdown images and unwrap links
-    const cleanedDesc = desc
-      .replace(/!\[.*?\]\(.*?\)/g, "") // strip image embeds
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // unwrap links into clean readable text
-      .replace(/\r\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-
-    // 2. Salary / Compensation extraction
+    // 1. Salary / Compensation extraction
     let salary = "Not disclosed";
     if (item?.salary_min || item?.salary_max) {
       salary = formatSalary(item.salary_min, item.salary_max, item.salary_currency, item.salary_period);
@@ -151,18 +141,10 @@ export default function JobDetailPage() {
       experience,
       eligibility,
       workMode,
-      cleanedDesc,
     };
   };
 
   const attrs = extractJobAttributes(job);
-
-  const handleCopyDescription = () => {
-    if (!job?.description) return;
-    navigator.clipboard.writeText(attrs.cleanedDesc || job.description);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div className="min-h-screen bg-[#F5F3EE] py-8 px-4 sm:px-6 lg:px-8">
@@ -406,110 +388,6 @@ export default function JobDetailPage() {
                   );
                 })()}
               </div>
-            </div>
-
-            {/* Requisition Spec / Complete Job Description */}
-            <div className="bg-white rounded-lg border border-[#E5E0D4] shadow-sm p-6 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#E5E0D4] gap-2">
-                <div>
-                  <h2 className="font-serif font-bold text-base text-[#181614]">Requisition Full Specification</h2>
-                  <span className="font-mono text-[10px] text-[#8C8479]">DOCUMENT SECTION 01 • VERIFIED SCOPE</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="flex rounded-md bg-[#FAF8F5] border border-[#E5E0D4] p-0.5 text-xs font-mono">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("clean")}
-                      className={`px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1.5 ${
-                        viewMode === "clean"
-                          ? "bg-white text-[#181614] font-bold shadow-xs border border-[#E5E0D4]"
-                          : "text-[#8C8479] hover:text-[#181614]"
-                      }`}
-                    >
-                      <Eye className="w-3.5 h-3.5 text-[#C84B26]" />
-                      <span>Formatted View</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("raw")}
-                      className={`px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1.5 ${
-                        viewMode === "raw"
-                          ? "bg-white text-[#181614] font-bold shadow-xs border border-[#E5E0D4]"
-                          : "text-[#8C8479] hover:text-[#181614]"
-                      }`}
-                    >
-                      <FileCode2 className="w-3.5 h-3.5 text-[#172535]" />
-                      <span>Raw Source Text</span>
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleCopyDescription}
-                    title="Copy Job Description"
-                    className="p-1.5 rounded bg-[#FAF8F5] border border-[#E5E0D4] hover:bg-white text-[#5C564E] hover:text-[#181614] transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-mono"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-[#2E6347]" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? "Copied" : "Copy"}</span>
-                  </button>
-                </div>
-              </div>
-
-              {job.description ? (
-                viewMode === "clean" ? (
-                  <div className="space-y-4 text-xs text-[#181614]/90 leading-relaxed font-sans">
-                    {attrs.cleanedDesc.split(/\n\n+/).map((para: string, idx: number) => {
-                      const trimmed = para.trim();
-                      if (!trimmed) return null;
-
-                      // If paragraph is a list of items (e.g. skills or bullet lines)
-                      const lines = trimmed.split("\n").map((l: string) => l.trim()).filter(Boolean);
-                      if (lines.length > 1 && lines.every((l: string) => l.length < 100)) {
-                        return (
-                          <div key={idx} className="p-3 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md space-y-1.5">
-                            {lines.map((item: string, lIdx: number) => (
-                              <div key={lIdx} className="flex items-start gap-2 font-mono text-[11px] text-[#181614]">
-                                <span className="text-[#C84B26] font-bold mt-0.5">•</span>
-                                <span>{item.replace(/^[•\-*]\s*/, "")}</span>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      }
-
-                      // Check if line is a subsection label
-                      if (/^(?:Key Benefits|About Us|Responsibilities|Requirements|Eligibility|Selection Process|Perks|Stipend):/i.test(trimmed)) {
-                        const [label, ...rest] = trimmed.split(":");
-                        return (
-                          <div key={idx} className="p-3 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md space-y-1">
-                            <span className="font-mono text-[11px] font-bold text-[#C84B26] uppercase tracking-wider block">
-                              {label}
-                            </span>
-                            <p className="text-xs text-[#181614] leading-relaxed">
-                              {rest.join(":").trim()}
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <p key={idx} className="leading-relaxed">
-                          {trimmed}
-                        </p>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <pre className="p-4 bg-[#FAF8F5] rounded border border-[#E5E0D4] text-[11px] font-mono leading-relaxed text-[#181614] whitespace-pre-wrap overflow-x-auto">
-                    {job.description}
-                  </pre>
-                )
-              ) : (
-                <p className="text-xs text-[#181614]/50 italic">
-                  Complete requisition copy not provided in index feed. Open application portal above to inspect full text.
-                </p>
-              )}
             </div>
           </div>
 
