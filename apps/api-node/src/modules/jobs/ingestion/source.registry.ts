@@ -18,6 +18,11 @@ import { FounditZunoAdapter } from "./adapters/founditzuno.adapter";
 import { NaukriCampusAdapter } from "./adapters/naukricampus.adapter";
 import { GlassdoorAdapter } from "./adapters/glassdoor.adapter";
 import { IndeedAdapter } from "./adapters/indeed.adapter";
+import { GreenhouseAdapter } from "./adapters/greenhouse.adapter";
+import { LeverAdapter } from "./adapters/lever.adapter";
+import { AshbyAdapter } from "./adapters/ashby.adapter";
+import { SmartRecruitersAdapter } from "./adapters/smartrecruiters.adapter";
+import { WorkableAdapter } from "./adapters/workable.adapter";
 
 export interface SourceInfo {
   key: string;
@@ -39,6 +44,13 @@ export class JobSourceRegistry {
   private static instances: Map<string, JobSourceAdapter> = new Map();
 
   static {
+    // Official ATS & Direct Company Feeds
+    this.register(new GreenhouseAdapter());
+    this.register(new LeverAdapter());
+    this.register(new AshbyAdapter());
+    this.register(new SmartRecruitersAdapter());
+    this.register(new WorkableAdapter());
+
     // Specialized Native Sources
     this.register(new LinkedInAdapter());
     this.register(new NaukriAdapter());

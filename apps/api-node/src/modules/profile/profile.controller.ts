@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { ProfileService } from "./profile.service";
+import { CandidateContextService } from "./candidate-context.service";
 import { UpdateProfileSchema, FactVerificationSchema, ConflictResolutionSchema } from "./profile.schema";
 
 export class ProfileController {
@@ -46,6 +47,16 @@ export class ProfileController {
     try {
       const summary = await ProfileService.getIntelligenceSummary(userId);
       return { success: true, data: summary };
+    } catch (error: any) {
+      return reply.status(500).send({ success: false, error: { code: "SERVER_ERROR", message: error.message } });
+    }
+  }
+
+  static async getCandidateContext(request: FastifyRequest, reply: FastifyReply) {
+    const userId = (request as any).user?.sub || (request as any).user?.id;
+    try {
+      const context = await CandidateContextService.getCandidateContext(userId);
+      return { success: true, data: context };
     } catch (error: any) {
       return reply.status(500).send({ success: false, error: { code: "SERVER_ERROR", message: error.message } });
     }

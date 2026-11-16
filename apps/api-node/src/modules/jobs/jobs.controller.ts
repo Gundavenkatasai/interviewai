@@ -1276,4 +1276,75 @@ export class JobsController {
 
     return { success: true, data: explanation };
   }
+
+  static async getJobJD(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const { id } = request.params;
+    const job: any = await Job.findOne({ _id: id });
+    if (!job) {
+      return reply.status(404).send({ success: false, message: "Job not found" });
+    }
+
+    return {
+      success: true,
+      data: {
+        jobId: job.id,
+        title: job.title,
+        company: job.company_name || job.companyName,
+        location: job.location,
+        workMode: job.work_mode || job.workMode,
+        employmentType: job.employment_type || job.employmentType,
+        experienceLevel: job.experience_level || job.experienceLevel,
+        description: job.description,
+        skills: job.skills || [],
+        salaryMin: job.salary_min || job.salaryMin,
+        salaryMax: job.salary_max || job.salaryMax,
+        salaryCurrency: job.salary_currency || job.salaryCurrency,
+        source: job.source,
+        sourceUrl: job.source_url || job.sourceUrl,
+        applyUrl: job.apply_url || job.applyUrl || job.source_url || job.sourceUrl,
+        postedAt: job.posted_at || job.postedAt,
+        isExpired: job.is_expired || job.isExpired,
+        contentHash: job.content_hash || job.contentHash,
+      }
+    };
+  }
+
+  static async generateAtsResume(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const { id } = request.params;
+    const userId = (request as any).user?.sub || (request as any).user?.id;
+    if (!userId) {
+      return reply.status(401).send({ success: false, message: "Unauthorized" });
+    }
+
+    const job: any = await Job.findOne({ _id: id });
+    if (!job) {
+      return reply.status(404).send({ success: false, message: "Job requisition not found" });
+    }
+
+    const { Resume } = require("../resume/resume.model");
+    const resume = await Resume.findOne({ userId }).sort({ updatedAt: -1 });
+    if (!resume) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "RESUME_REQUIRED",
+          message: "Please upload an existing verified resume before generating a job-tailored ATS resume."
+        }
+      });
+    }
+
+    const { TailoringService } = require("../resume/tailoring/tailoring.service");
+    const plan = await TailoringService.generatePlan(resume, job);
+
+    return {
+      success: true,
+      data: {
+        jobId: job.id,
+        jobTitle: job.title,
+        company: job.company_name || job.companyName,
+        resumeId: resume.id,
+        tailoringPlan: plan,
+      }
+    };
+  }
 }

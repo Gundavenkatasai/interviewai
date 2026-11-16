@@ -258,6 +258,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(usersRoutes, { prefix: "/api/users" });
   app.register(adminRoutes, { prefix: "/api/admin" });
   app.register(userApplicationsRoutes, { prefix: "/api/user" });
+  app.register(userApplicationsRoutes, { prefix: "/api/applications" });
   app.register(importedDocxRoutes, { prefix: "/api/resume/imported-docx" });
   app.register(websocketRoutes);
 

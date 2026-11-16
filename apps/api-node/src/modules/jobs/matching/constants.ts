@@ -1,13 +1,21 @@
-export const MATCH_ENGINE_VERSION = "v1.0.0";
+export const MATCH_ENGINE_VERSION = "v2.0.0";
 export const TRUST_ENGINE_VERSION = "v1.0.0";
 
-// Weights for the deterministic match aggregator
+// Six configurable scoring dimensions (as specified in Master Build Requirements: 30%, 20%, 20%, 10%, 10%, 10% = 100%)
 export const MATCH_WEIGHTS = {
-  ROLE: 25,
-  SKILLS: 40,
+  TECHNICAL_SKILLS: 30,
+  REQUIRED_QUALIFICATIONS: 20,
+  PROJECTS_AND_EXPERIENCE: 20,
+  EDUCATION_AND_ELIGIBILITY: 10,
+  RESPONSIBILITIES_ALIGNMENT: 10,
+  LOCATION_AND_PREFERENCES: 10,
+
+  // Backward-compatible aliases for legacy callers
+  SKILLS: 30,
+  ROLE: 20,
   EXPERIENCE: 20,
   LOCATION: 10,
-  WORK_MODE: 5,
+  WORK_MODE: 0,
 };
 
 // Trust Engine constants

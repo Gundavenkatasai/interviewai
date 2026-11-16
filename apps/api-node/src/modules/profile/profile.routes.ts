@@ -14,4 +14,7 @@ export async function profileRoutes(app: FastifyInstance) {
   
   // Career Intelligence
   app.get("/intelligence-summary", { preValidation: [authenticate] }, ProfileController.getIntelligenceSummary);
+
+  // Centralized Candidate Context
+  app.get("/context", { preValidation: [authenticate] }, ProfileController.getCandidateContext);
 }

@@ -48,6 +48,14 @@ export async function jobsRoutes(app: FastifyInstance) {
   // Single job - MUST be after all specific routes
   // @ts-ignore
   app.get("/:id", { preValidation: [optionalAuthenticate] }, JobsController.getJob);
+
+  // Exact JD & Requisition Specification
+  // @ts-ignore
+  app.get("/:id/jd", { preValidation: [optionalAuthenticate] }, JobsController.getJobJD);
+
+  // Job-Specific ATS Tailored Resume Trigger
+  // @ts-ignore
+  app.post("/:id/ats-resume", { preValidation: [authenticate] }, JobsController.generateAtsResume);
   
   // @ts-ignore
   app.post("/:id/apply-click", { preValidation: [authenticate] }, JobsController.trackClick);

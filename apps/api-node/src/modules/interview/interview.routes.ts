@@ -5,7 +5,10 @@ import { authenticate } from "../../middleware/auth";
 export async function interviewRoutes(app: FastifyInstance) {
   // Session CRUD
   app.post("/", { preValidation: [authenticate] }, InterviewController.createSession);
+  app.post("/prepare", { preValidation: [authenticate] }, InterviewController.createSession);
+  app.post("/start", { preValidation: [authenticate] }, InterviewController.createSession);
   app.get("/", { preValidation: [authenticate] }, InterviewController.getSessions);
+  app.get("/history", { preValidation: [authenticate] }, InterviewController.getSessions);
   // @ts-ignore
   app.get("/:id", { preValidation: [authenticate] }, InterviewController.getSession);
   // @ts-ignore
@@ -14,6 +17,8 @@ export async function interviewRoutes(app: FastifyInstance) {
   // Interview actions
   // @ts-ignore
   app.post("/:id/answers", { preValidation: [authenticate] }, InterviewController.submitAnswer);
+  // @ts-ignore
+  app.post("/:id/answer", { preValidation: [authenticate] }, InterviewController.submitAnswer);
   // @ts-ignore
   app.post("/:id/skip", { preValidation: [authenticate] }, InterviewController.skipQuestion);
   // @ts-ignore
