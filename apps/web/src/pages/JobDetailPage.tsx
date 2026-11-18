@@ -84,14 +84,21 @@ export default function JobDetailPage() {
   const extractJobAttributes = (item: any) => {
     const desc = item?.description || "";
 
-    // 1. Salary / Compensation extraction
+    // 1. Clean description of broken markdown images and unwrap links
+    const cleanDesc = desc
+      .replace(/!\[.*?\]\(.*?\)/g, "") // strip image embeds
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // unwrap links into clean readable text
+      .replace(/\r\n/g, "\n");
+
+    // 2. Salary / Compensation extraction (with deduplication)
     let salary = "Not disclosed";
     if (item?.salary_min || item?.salary_max) {
       salary = formatSalary(item.salary_min, item.salary_max, item.salary_currency, item.salary_period);
     } else {
-      const m1 = desc.match(/(?:₹|Rs\.?)\s*[\d,]+(?:\s*[-–to]\s*[\d,]+)?(?:\s*\/\s*(?:year|month|annum|PA|hr|p\.a\.))?/i);
+      const m1 = desc.match(/(?:₹|Rs\.?)\s*[\d,]+(?:\s*[-–to]\s*[\d,]+)?/i);
       if (m1) {
-        salary = m1[0].trim();
+        const periodMatch = desc.match(/\/\s*(?:year|month|annum|PA|hr|p\.a\.)/i);
+        salary = m1[0].trim() + (periodMatch ? " " + periodMatch[0].trim() : "");
       } else {
         const m2 = desc.match(/\b\d+(?:\.\d+)?\s*(?:[-–to]\s*\d+(?:\.\d+)?\s*)?LPA\b/i);
         if (m2) {
@@ -115,7 +122,7 @@ export default function JobDetailPage() {
       if (/(?:No experience required|Fresher Job|Freshers?|Fresher|Entry[- ]Level)/i.test(desc)) {
         experience = "Fresher / Entry-Level (0 years required)";
       } else {
-        const mExp = desc.match(/(\d+\+?\s*(?:[-–to]\s*\d+)?\s*(?:years?|yrs?)(?:\s*of\s*experience)?)/i);
+        const mExp = desc.match(/(\d+\+?\s*(?:[-–to]\s*\d+)?\s*(?:years?|yrs?)(?:\(s\))?(?:\s*of\s*experience)?)/i);
         if (mExp) {
           experience = mExp[0].trim();
         } else if (item?.employment_type === "INTERNSHIP") {
@@ -136,11 +143,65 @@ export default function JobDetailPage() {
     // 5. Work arrangement
     const workMode = item?.work_mode || (item?.location?.toLowerCase().includes("remote") ? "REMOTE" : "ONSITE");
 
+    // 6. Structured Responsibilities extraction
+    let responsibilities: string[] = [];
+    const respMatch = cleanDesc.match(
+      /(?:Key\s*Responsibilities|Responsibilities|Day-to-day\s*responsibilities|Job\s*Description|About\s*the\s*role)[:\s]+([\s\S]*?)(?=(?:\n\s*[A-Z][a-zA-Z0-9\s#+.-]{1,25}\s*\n\s*[A-Z]|\n\s*(?:Skills|Requirements|Perks|Who\s*can\s*apply|Selection\s*process|Eligibility|Stipend):|\n\s*₹|$))/i
+    );
+    if (respMatch) {
+      const rawResp = respMatch[1].trim();
+      const items = rawResp
+        .split(/(?:^|\n|\s+)(?:\d+\.|\*|•|-)\s+/)
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 5);
+      if (items.length > 0) {
+        responsibilities = items;
+      } else if (rawResp.length > 10) {
+        responsibilities = [rawResp];
+      }
+    }
+
+    // 7. Structured Competencies / Toolchain Extraction
+    const descLines = cleanDesc.split("\n").map((l: string) => l.trim()).filter(Boolean);
+    const extractedSkills: string[] = [];
+    const blacklist = new Set([
+      "actively hiring", "today", "about us", "apply", "job", "jobs", "coimbatore", "india",
+      "internshala", "naukri", "linkedin", "unstop", "freshers", "full time", "internship",
+      "work from home", "remote", "onsite", "hybrid", "stipend", "perks", "not disclosed"
+    ]);
+
+    descLines.forEach((line: string) => {
+      const lower = line.toLowerCase();
+      if (
+        line.length >= 2 &&
+        line.length <= 25 &&
+        !line.includes("http") &&
+        !line.includes("₹") &&
+        !line.includes("responsibilities") &&
+        !line.includes("year") &&
+        !blacklist.has(lower) &&
+        /^[A-Za-z0-9#+.\s-]+$/.test(line) &&
+        line.split(" ").length <= 3
+      ) {
+        if (
+          !line.toLowerCase().includes(item?.title?.toLowerCase() || "___") &&
+          !line.toLowerCase().includes(item?.company_name?.toLowerCase() || "___")
+        ) {
+          extractedSkills.push(line);
+        }
+      }
+    });
+
+    const baseSkills = (item?.skills || []).map((s: any) => typeof s === "string" ? s : s?.name || "").filter(Boolean);
+    const allSkills = Array.from(new Set([...baseSkills, ...extractedSkills]));
+
     return {
       salary,
       experience,
       eligibility,
       workMode,
+      responsibilities,
+      allSkills,
     };
   };
 
@@ -311,24 +372,51 @@ export default function JobDetailPage() {
                   </div>
                 </div>
 
-                {/* Requisition Skills */}
-                {job.skills?.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-mono uppercase tracking-wider text-[#181614]/60 mb-2.5">
-                      Target Competencies & Toolchain ({job.skills.length})
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {job.skills.map((skill: any, idx: number) => {
-                        const skillName = typeof skill === "string" ? skill : skill?.name || `Skill-${idx}`;
-                        return (
-                          <span
-                            key={skillName + idx}
-                            className="px-2.5 py-1 rounded bg-[#FAF8F5] border border-[#E5E0D4] text-[#181614] font-mono text-xs font-medium"
-                          >
-                            {skillName}
+                {/* Clean Key Responsibilities & Scope */}
+                {attrs.responsibilities.length > 0 && (
+                  <div className="bg-[#FAF8F5] border border-[#E5E0D4] rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#E5E0D4] pb-2">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#181614] flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#2E6347]" />
+                        KEY RESPONSIBILITIES & SCOPE
+                      </span>
+                      <span className="text-[9px] font-mono text-[#8C8479]">
+                        {attrs.responsibilities.length} {attrs.responsibilities.length === 1 ? "REQUIREMENT" : "REQUIREMENTS"}
+                      </span>
+                    </div>
+                    <ul className="space-y-2">
+                      {attrs.responsibilities.map((r, idx) => (
+                        <li key={idx} className="flex items-start gap-2.5 text-xs text-[#181614]/90 leading-relaxed font-sans">
+                          <span className="w-5 h-5 rounded-full bg-white border border-[#E5E0D4] flex items-center justify-center font-mono text-[10px] font-bold text-[#C84B26] shrink-0 mt-0.5 shadow-2xs">
+                            {idx + 1}
                           </span>
-                        );
-                      })}
+                          <span>{r}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Requisition Skills & Target Competencies */}
+                {attrs.allSkills.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <p className="text-[11px] font-mono uppercase tracking-wider text-[#181614]/60">
+                        Target Competencies & Toolchain ({attrs.allSkills.length})
+                      </p>
+                      <span className="text-[9px] font-mono text-[#2E6347] bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6] font-semibold">
+                        VERIFIED KEYWORDS
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {attrs.allSkills.map((skillName: string, idx: number) => (
+                        <span
+                          key={skillName + idx}
+                          className="px-2.5 py-1 rounded bg-[#FAF8F5] border border-[#E5E0D4] text-[#181614] font-mono text-xs font-medium"
+                        >
+                          {skillName}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 )}
