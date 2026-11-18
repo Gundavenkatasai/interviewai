@@ -1036,6 +1036,16 @@ export class ApiClient {
    * any edited text back into the original document's XML, preserving
    * all fonts, colors, margins and formatting exactly.
    */
+  /**
+   * Export high-fidelity single-page A4 PDF using backend Chromium vector pipeline
+   */
+  static async downloadResumePdf(id: string, options?: { templateId?: string }): Promise<Blob> {
+    return this.requestBlob(`/api/resumes/${id}/export/pdf`, {
+      method: "POST",
+      body: JSON.stringify(options || {})
+    });
+  }
+
   static async downloadResumeDocx(id: string): Promise<Blob> {
     return this.requestBlob(`/api/resumes/${id}/export/docx`, { method: "POST" });
   }
@@ -1122,14 +1132,14 @@ export class ApiClient {
     });
   }
 
-  static async tailorResume(id: string, data: { jobId?: string; jobDescription?: string; targetTitle?: string }) {
+  static async tailorResume(id: string, data: { jobId?: string; jobDescription?: string; targetTitle?: string; preferredTemplateId?: string }) {
     return this.request<any>(`/api/resumes/${id}/tailor`, {
       method: "POST",
       body: JSON.stringify(data)
     });
   }
 
-  static async applyTailoring(id: string, data: { appliedDiffs: any[]; targetRole?: string; newResumeName?: string }) {
+  static async applyTailoring(id: string, data: { appliedDiffs?: any[]; targetRole?: string; newResumeName?: string; structuredResume?: any; template?: string; jobId?: string }) {
     return this.request<any>(`/api/resumes/${id}/apply-tailoring`, {
       method: "POST",
       body: JSON.stringify(data)

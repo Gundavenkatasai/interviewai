@@ -212,6 +212,12 @@ export interface IResumeATSAnalysis {
 }
 
 export type ResumeTemplateId =
+  | "tech-fresher"
+  | "classic-ats"
+  | "modern-tech"
+  | "modern-minimal"
+  | "experienced-prof"
+  | "academic"
   | "ats_classic"
   | "ats_modern"
   | "ats_minimal"
@@ -222,7 +228,6 @@ export type ResumeTemplateId =
   | "experienced_pro"
   | "minimal"
   | "two_column"
-  | "academic"
   | "executive"
   | "technical"
   | "creative"
@@ -260,6 +265,7 @@ export interface IResume {
   optimizedDocxPath?: string;
   latestOptimizationPlan?: any;
   beforeAfterReport?: any;
+  tailoredForJobId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -384,6 +390,12 @@ const resumeSchema = new Schema<IResume>(
     template: {
       type: String,
       enum: [
+        "tech-fresher",
+        "classic-ats",
+        "modern-tech",
+        "modern-minimal",
+        "experienced-prof",
+        "academic",
         "ats_classic",
         "ats_modern",
         "ats_minimal",
@@ -394,7 +406,6 @@ const resumeSchema = new Schema<IResume>(
         "experienced_pro",
         "minimal",
         "two_column",
-        "academic",
         "executive",
         "technical",
         "creative",
@@ -417,7 +428,8 @@ const resumeSchema = new Schema<IResume>(
     originalDocxPath: { type: String },
     optimizedDocxPath: { type: String },
     latestOptimizationPlan: { type: Schema.Types.Mixed },
-    beforeAfterReport: { type: Schema.Types.Mixed }
+    beforeAfterReport: { type: Schema.Types.Mixed },
+    tailoredForJobId: { type: String, index: true }
   },
   { timestamps: true }
 );

@@ -142,6 +142,8 @@ export async function resumeRoutes(app: FastifyInstance) {
 
   // Exports
   // @ts-ignore
+  app.post("/:id/export/pdf", { preValidation: [authenticate] }, ResumeController.exportPdf);
+  // @ts-ignore
   app.post("/:id/export/docx", { preValidation: [authenticate] }, ResumeController.exportDocx);
   // @ts-ignore
   app.post("/:id/export/txt", { preValidation: [authenticate] }, ResumeController.exportTxt);

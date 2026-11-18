@@ -125,13 +125,14 @@ export class ResumeParser {
     // 2. Identify sections by headers
     const sectionHeaders = [
       { key: "summary", regex: /^(?:summary|professional summary|profile|about me|executive summary)\s*(?::)?\s*$/i },
-      { key: "experience", regex: /^(?:experience|work experience|employment history|professional experience)\s*(?::)?\s*$/i },
-      { key: "education", regex: /^(?:education|academic background|qualifications|training)\s*(?::)?\s*$/i },
-      { key: "projects", regex: /^(?:projects|personal projects|key projects|academic projects)\s*(?::)?\s*$/i },
       { key: "skills", regex: /^(?:skills|technical skills|technologies|core competencies|proficiencies)\s*(?::)?\s*$/i },
-      { key: "certifications", regex: /^(?:certifications|licenses & certifications|certificates)\s*(?::)?\s*$/i },
-      { key: "achievements", regex: /^(?:achievements|awards & achievements|honors & awards|awards)\s*(?::)?\s*$/i },
+      { key: "projects", regex: /^(?:projects|personal projects|key projects|academic projects|technical projects)\s*(?::)?\s*$/i },
+      { key: "experience", regex: /^(?:experience|work experience|employment history|professional experience)\s*(?::)?\s*$/i },
       { key: "internships", regex: /^(?:internships|internship experience)\s*(?::)?\s*$/i },
+      { key: "training", regex: /^(?:training|trainings|vocational training|coursework|relevant coursework)\s*(?::)?\s*$/i },
+      { key: "certifications", regex: /^(?:certifications|licenses & certifications|certificates)\s*(?::)?\s*$/i },
+      { key: "achievements", regex: /^(?:achievements|awards & achievements|honors & awards|awards|accomplishments)\s*(?::)?\s*$/i },
+      { key: "education", regex: /^(?:education|academic background|qualifications|academic history)\s*(?::)?\s*$/i },
       { key: "publications", regex: /^(?:publications|research papers)\s*(?::)?\s*$/i },
       { key: "volunteer", regex: /^(?:volunteer|community service|volunteering)\s*(?::)?\s*$/i },
       { key: "languages", regex: /^(?:languages|language proficiencies)\s*(?::)?\s*$/i },
@@ -144,6 +145,7 @@ export class ResumeParser {
       education: [],
       projects: [],
       skills: [],
+      training: [],
       certifications: [],
       achievements: [],
       internships: [],
@@ -197,90 +199,237 @@ export class ResumeParser {
         if (isBullet) {
           curExp.bullets.push(line.replace(/^[-•*·]\s*/, ""));
         } else if (line.length > 5) {
-          curExp.bullets.push(line);
+          if (curExp.bullets.length > 0) {
+            curExp.bullets[curExp.bullets.length - 1] += " " + line.trim();
+          } else {
+            curExp.bullets.push(line.trim());
+          }
         }
       }
     }
     if (curExp) experience.push(curExp);
 
-    // Parse Education
+    // Parse Education (Enhanced for 2-line institution + degree/gpa/dates formats)
     const education: any[] = [];
     const eduLines = sectionChunks.education || [];
-    let curEdu: any = null;
 
-    for (const line of eduLines) {
-      const yearMatch = line.match(/(?:19|20)\d{2}/);
-      if (yearMatch) {
-        if (curEdu) education.push(curEdu);
-        curEdu = {
+    for (let i = 0; i < eduLines.length; i++) {
+      const l1 = eduLines[i];
+      const l2 = eduLines[i + 1] || "";
+
+      const combined = `${l1} ${l2}`;
+      const dateMatch = combined.match(/(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}\s*(?:[-–—]|\s+to\s+)\s*(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}|present)|\b(?:19|20)\d{2}\s*(?:[-–—]|\s+to\s+)\s*(?:(?:19|20)\d{2}|present)\b)/i);
+      const scoreMatch = combined.match(/(?:CGPA|GPA|Percentage):\s*[\d.]+/i);
+
+      if (l2 && (dateMatch || scoreMatch || /bachelor|master|b\.tech|intermediate|ssc|high school|diploma/i.test(l2))) {
+        const dateStr = dateMatch ? dateMatch[0] : "";
+        let degreeLine = l2.replace(dateStr, "").trim();
+        const scoreStr = scoreMatch ? scoreMatch[0] : "";
+        if (scoreStr) degreeLine = degreeLine.replace(scoreStr, "").replace(/\|\s*$/, "").trim();
+
+        const pipeParts = degreeLine.split("|").map((s) => s.trim()).filter(Boolean);
+
+        education.push({
           id: String(education.length + 1),
-          institution: line.split(/[,|\-]/)[0]?.trim() || "University",
-          degree: line.split(/[,|\-]/)[1]?.trim() || "Degree",
+          institution: l1.trim(),
+          degree: pipeParts[0] || "Degree",
+          field: pipeParts.length > 1 ? pipeParts[1] : "",
+          startDate: dateStr.split(/(?:[-–—]|\s+to\s+)/i)[0]?.trim() || "",
+          endDate: dateStr.split(/(?:[-–—]|\s+to\s+)/i)[1]?.trim() || "",
+          gpa: scoreStr,
+          provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
+        });
+        i++; // skip next line as it was part of this entry
+      } else if (dateMatch || /bachelor|master|b\.tech|intermediate|ssc|school|university/i.test(l1)) {
+        education.push({
+          id: String(education.length + 1),
+          institution: l1.split(/[,|\-]/)[0]?.trim() || "University",
+          degree: l1.split(/[,|\-]/)[1]?.trim() || "Degree",
           field: "",
           startDate: "",
-          endDate: yearMatch[0],
+          endDate: dateMatch ? dateMatch[0] : "",
+          gpa: scoreMatch ? scoreMatch[0] : "",
           provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
-        };
+        });
       }
     }
-    if (curEdu) education.push(curEdu);
 
-    const skillsText = (sectionChunks.skills || []).join(" ").replace(/\s{2,}/g, " ");
+    // Parse Categorized Skills
     const parsedSkills = { ...defaultSkills };
-    const skillTokens = skillsText
-      .split(/[,|•·\n]/)
-      .map((s) => s.trim().replace(/^.*:\s*/, "")) // Also strip categories like "Languages:"
-      .filter((s) => s.length > 1 && s.length < 50);
-
-    const knownLangs = ["javascript", "typescript", "python", "java", "c++", "c#", "go", "rust", "php", "ruby", "sql", "html", "css"];
-    const knownFrameworks = ["react", "node.js", "next.js", "vue", "angular", "express", "fastify", "django", "spring", "flask"];
-    const knownDbs = ["mongodb", "postgresql", "mysql", "redis", "sqlite", "dynamodb", "elasticsearch"];
-    const knownCloud = ["aws", "azure", "gcp", "docker", "kubernetes", "terraform", "ci/cd", "linux"];
-
     const structuredSkills: any[] = [];
-    for (const token of skillTokens) {
-      const lower = token.toLowerCase();
-      let category = "technical";
-      if (knownLangs.some((l) => lower.includes(l))) { parsedSkills.languages.push(token); category = "language"; }
-      else if (knownFrameworks.some((f) => lower.includes(f))) { parsedSkills.frameworks.push(token); category = "framework"; }
-      else if (knownDbs.some((d) => lower.includes(d))) { parsedSkills.databases.push(token); category = "database"; }
-      else if (knownCloud.some((c) => lower.includes(c))) { parsedSkills.cloud.push(token); category = "cloud"; }
-      else { parsedSkills.technical.push(token); }
-      
-      structuredSkills.push({
-        id: String(structuredSkills.length + 1),
-        raw: token,
-        normalized: token, // basic normalization fallback
-        category,
-        provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
-      });
-    }
+    const skillLines = sectionChunks.skills || [];
+
+    skillLines.forEach((line) => {
+      const cleaned = line.replace(/^[-•*·]\s*/, "");
+      const colIdx = cleaned.indexOf(":");
+      if (colIdx !== -1) {
+        const categoryName = cleaned.slice(0, colIdx).trim().toLowerCase();
+        const tokens = cleaned.slice(colIdx + 1).split(/[,|•·]/).map((s) => s.trim()).filter(Boolean);
+
+        tokens.forEach((token) => {
+          if (categoryName.includes("lang")) parsedSkills.languages.push(token);
+          else if (categoryName.includes("web") || categoryName.includes("framework")) parsedSkills.frameworks.push(token);
+          else if (categoryName.includes("data") || categoryName.includes("db")) parsedSkills.databases.push(token);
+          else if (categoryName.includes("tool") || categoryName.includes("platform")) parsedSkills.tools.push(token);
+          else if (categoryName.includes("soft")) parsedSkills.soft.push(token);
+          else parsedSkills.technical.push(token);
+
+          structuredSkills.push({
+            id: String(structuredSkills.length + 1),
+            raw: token,
+            normalized: token,
+            category: categoryName,
+            provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
+          });
+        });
+      } else {
+        const tokens = cleaned.split(/[,|•·]/).map((s) => s.trim()).filter(Boolean);
+        tokens.forEach((token) => {
+          parsedSkills.technical.push(token);
+          structuredSkills.push({
+            id: String(structuredSkills.length + 1),
+            raw: token,
+            normalized: token,
+            category: "technical",
+            provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
+          });
+        });
+      }
+    });
+
+    // Deduplicate lists
+    parsedSkills.languages = Array.from(new Set(parsedSkills.languages));
+    parsedSkills.frameworks = Array.from(new Set(parsedSkills.frameworks));
+    parsedSkills.databases = Array.from(new Set(parsedSkills.databases));
+    parsedSkills.tools = Array.from(new Set(parsedSkills.tools));
+    parsedSkills.soft = Array.from(new Set(parsedSkills.soft));
+    parsedSkills.technical = Array.from(new Set(parsedSkills.technical));
     parsedSkills.structured = structuredSkills;
 
-    // Parse Projects
+    // Parse Projects (Advanced: Avoids Line-Wrap Splitting & Captures Tech Stacks & Links)
     const projects: any[] = [];
     const projLines = sectionChunks.projects || [];
     let curProj: any = null;
 
     for (const line of projLines) {
       const isBullet = /^[-•*·]\s*/.test(line);
-      const isTitle = !isBullet && line.length > 3 && (line.length < 60 || line.includes("|") || line.includes(" – ") || line.includes(" - ")) && !line.toLowerCase().startsWith("tech") && !line.toLowerCase().startsWith("implemented") && !line.toLowerCase().startsWith("designed") && !line.toLowerCase().startsWith("developed") && !line.toLowerCase().startsWith("built") && !line.toLowerCase().startsWith("automated") && !line.toLowerCase().startsWith("configured") && !line.toLowerCase().startsWith("deployed") && !line.toLowerCase().startsWith("improved") && !line.toLowerCase().startsWith("leveraged") && !line.toLowerCase().startsWith("added") && !line.toLowerCase().startsWith("created") && !line.toLowerCase().startsWith("set up");
-      
-      if (isTitle) {
+      const isTechLine = /^tech(?:nologies)?:\s*/i.test(line);
+
+      // Date regex for project header
+      const dateMatch = line.match(/(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}\s*(?:[-–—]|\s+to\s+)\s*(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}|present))/i);
+
+      // Project Header Condition: Non-bullet, non-tech line with separator or date
+      const isProjectHeader = !isBullet && !isTechLine && (
+        Boolean(dateMatch) ||
+        line.includes(" | ") ||
+        line.includes(" – ") ||
+        line.includes(" - ")
+      ) && !/^(developed|built|implemented|created|engineered|configured|deployed|automated|improved|leveraged|designed)/i.test(line);
+
+      if (isProjectHeader) {
         if (curProj) projects.push(curProj);
+
+        let pName = line;
+        let pDesc = "";
+        const pDate = dateMatch ? dateMatch[0] : "";
+
+        if (pDate) {
+          pName = pName.replace(pDate, "").trim();
+        }
+
+        // Split on space-hyphen-space or pipe, preserving hyphens inside words (e.g. Smart-Audit AI)
+        const dashParts = pName.split(/\s+[-–—]\s+/);
+        if (dashParts.length > 1) {
+          pName = dashParts[0].trim();
+          pDesc = dashParts.slice(1).join(" - ").replace(/\|\s*(?:GitHub|Live|Link).*/i, "").trim();
+        } else {
+          const pipeParts = pName.split(/\s*\|\s*/);
+          pName = pipeParts[0].trim();
+          if (pipeParts.length > 1) {
+            pDesc = pipeParts.slice(1).filter((p) => !/^(GitHub|Live|Link)/i.test(p)).join(" | ").trim();
+          }
+        }
+
+        pName = pName.replace(/\|\s*$/, "").trim();
+
         curProj = {
           id: String(projects.length + 1),
-          name: line.replace(/[:\-].*$/, "").trim(),
-          description: line,
+          name: pName,
+          role: "Developer",
+          description: pDesc,
           technologies: [],
           bullets: [],
+          url: line.includes("Live") ? "https://live-demo.com" : line.includes("GitHub") ? "https://github.com" : undefined,
           provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
         };
-      } else if (curProj) {
-        curProj.bullets.push(line.replace(/^[-•*·]\s*/, ""));
+      } else if (isTechLine && curProj) {
+        const techStr = line.replace(/^tech(?:nologies)?:\s*/i, "");
+        const techs = techStr.split(/[,|•·]/).map((t) => t.trim()).filter(Boolean);
+        curProj.technologies = techs;
+      } else if (isBullet && curProj) {
+        curProj.bullets.push(line.replace(/^[-•*·]\s*/, "").trim());
+      } else if (curProj && curProj.bullets.length > 0) {
+        // Line-wrap continuation from previous bullet!
+        curProj.bullets[curProj.bullets.length - 1] += " " + line.trim();
       }
     }
     if (curProj) projects.push(curProj);
+
+    // Parse Certifications
+    const certifications: any[] = [];
+    (sectionChunks.certifications || []).forEach((line) => {
+      const cleaned = line.replace(/^[-•*·]\s*/, "").trim();
+      if (!cleaned) return;
+      const dateMatch = cleaned.match(/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}/i);
+      const dateStr = dateMatch ? dateMatch[0] : "";
+      const namePart = cleaned.replace(dateStr, "").trim();
+      const parts = namePart.split(/\s*[-–—]\s*/);
+      let certName = parts[0];
+      let issuer = parts[1] || "Accredited Issuer";
+      if (parts.length > 2) {
+        certName = parts.slice(0, parts.length - 1).join(" - ");
+        issuer = parts[parts.length - 1];
+      }
+      certifications.push({
+        id: String(certifications.length + 1),
+        name: certName.trim(),
+        issuer: issuer.trim(),
+        date: dateStr,
+        provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
+      });
+    });
+
+    // Parse Achievements
+    const achievements: any[] = [];
+    (sectionChunks.achievements || []).forEach((line) => {
+      const cleaned = line.replace(/^[-•*·]\s*/, "").trim();
+      if (cleaned.length > 5) {
+        achievements.push({
+          id: String(achievements.length + 1),
+          title: cleaned.slice(0, 80),
+          description: cleaned
+        });
+      }
+    });
+
+    // Parse Training & Custom Sections
+    const customSections: any[] = [];
+    if (sectionChunks.training && sectionChunks.training.length > 0) {
+      const trainingItems: string[] = [];
+      sectionChunks.training.forEach((line) => {
+        const cleaned = line.replace(/^[-•*·]\s*/, "").trim();
+        if (cleaned) trainingItems.push(cleaned);
+      });
+      if (trainingItems.length > 0) {
+        customSections.push({
+          id: "custom-training",
+          name: "Vocational & Technical Training",
+          content: trainingItems.join("\n"),
+          bullets: trainingItems,
+          items: trainingItems
+        });
+      }
+    }
 
     // Parse Languages
     const languages: any[] = [];
@@ -300,7 +449,7 @@ export class ResumeParser {
     let confidence: "high" | "medium" | "low" = "high";
     let confidenceMessage = "Information extracted with high confidence.";
 
-    if (!personal.email || experience.length === 0) {
+    if (!personal.email || (experience.length === 0 && projects.length === 0)) {
       confidence = "low";
       confidenceMessage = "Please verify this information. Critical contact or experience fields could not be cleanly detected.";
     } else if (allSkillsCount(parsedSkills) < 4 || !personal.phone) {
@@ -316,14 +465,14 @@ export class ResumeParser {
       education,
       projects,
       skills: parsedSkills,
-      certifications: [],
-      achievements: [],
+      certifications,
+      achievements,
       internships: [],
       publications: [],
       volunteer: [],
       languages,
       interests: [],
-      customSections: []
+      customSections
     };
 
     return { profileData, confidence, confidenceMessage };

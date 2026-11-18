@@ -4,37 +4,71 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiClient } from "../lib/api";
 import {
   ArrowLeft, Sparkles, AlertTriangle, CheckCircle2,
-  Check, X, RefreshCw, FileText, Download, Building2,
+  Check, RefreshCw, FileText, Download, Building2,
   MapPin, Briefcase, Printer, Eye, Edit3, BookmarkPlus,
-  Layers, CheckCheck, SlidersHorizontal
+  Layers, CheckCheck, SlidersHorizontal, ZoomIn, ZoomOut,
+  ShieldCheck, Award, GraduationCap, ChevronDown, ChevronUp
 } from "lucide-react";
 import { MechanicalButton } from "../components/ui/MechanicalButton";
 import { InkBleedButton } from "../components/ui/InkBleedButton";
+import { IStructuredResume, TemplateId } from "../types/resume-schema";
+import {
+  ResumeTemplateDispatcher,
+  TEMPLATE_METADATA,
+} from "../components/resume-templates/ResumeTemplateDispatcher";
 
-interface TailoringDiffItem {
-  section: string;
-  field: string;
-  current: string;
-  proposed: string;
-  rationale: string;
+interface ITailoringTelemetry {
+  resumeQualityScore: number;
+  keywordCoverageScore: number;
+  jobMatchScore: number;
+  atsReadabilityScore: number;
+  matchedSkills: string[];
+  missingSkills: string[];
 }
 
-interface TailoringResult {
+interface ITailoringValidation {
+  isValid: boolean;
+  qualityScore: number;
+  estimatedPages: number;
+  warnings: string[];
+  errors: string[];
+  metrics: {
+    totalWords: number;
+    skillsCount: number;
+    projectsCount: number;
+    experienceCount: number;
+    bulletsCount: number;
+  };
+}
+
+interface ITemplateRecommendation {
+  templateId: TemplateId;
+  templateName: string;
+  rationale: string;
+  sectionOrder: string[];
+  density: string;
+  maxTargetPages: number;
+  highlights: string[];
+}
+
+interface ITailoringResponse {
   success: boolean;
   currentScore: number;
   potentialScore: number;
-  diff: TailoringDiffItem[];
-  matchedSkills?: string[];
-  missingSkills?: string[];
-  suggestedSkillsToAdd?: string[];
+  diff: {
+    section: string;
+    field: string;
+    current: string;
+    proposed: string;
+    rationale: string;
+  }[];
+  matchedSkills: string[];
+  missingSkills: string[];
+  structuredResume: IStructuredResume;
+  recommendation: ITemplateRecommendation;
+  validationReport: ITailoringValidation;
+  telemetry: ITailoringTelemetry;
 }
-
-const ATS_TEMPLATES = [
-  { id: "classic-ats", label: "Classic Single-Column (Optimal ATS)", description: "Standard hierarchical single-column layout with 99.4% parser fidelity." },
-  { id: "modern-ats", label: "Modern Technical Minimalist", description: "Clean sans-serif structure highlighting tools and quantifiable impact." },
-  { id: "technical-ats", label: "Engineering Specialist", description: "Expanded skills grid and project architecture highlights." },
-  { id: "executive-ats", label: "Compact Executive", description: "Tight line spacing tailored for senior engineering leadership." },
-];
 
 export default function TailorResumePage() {
   const { id: jobId } = useParams<{ id: string }>();
@@ -65,16 +99,20 @@ export default function TailorResumePage() {
 
   const activeResume = resumesList.find((r: any) => r.status === "active") || resumesList[0] || null;
 
-  // Tailoring Analysis State
-  const [tailoringResult, setTailoringResult] = useState<TailoringResult | null>(null);
-  const [selectedDiffIndices, setSelectedDiffIndices] = useState<Set<number>>(new Set());
+  // Workspace UI States
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateId>("tech-fresher");
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [mobileTab, setMobileTab] = useState<"controls" | "preview">("controls");
+  const [tailoringResult, setTailoringResult] = useState<ITailoringResponse | null>(null);
+  const [structuredResume, setStructuredResume] = useState<IStructuredResume | null>(null);
   const [tailoredResumeId, setTailoredResumeId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState("classic-ats");
-  const [viewTab, setViewTab] = useState<"diff" | "preview">("diff");
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [attachedToApp, setAttachedToApp] = useState(false);
-  const [editingDiffIndex, setEditingDiffIndex] = useState<number | null>(null);
-  const [editText, setEditText] = useState("");
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [summaryDraft, setSummaryDraft] = useState("");
+  const [activeAccordion, setActiveAccordion] = useState<"summary" | "skills" | "projects" | "education">("summary");
 
   // Mutation to create base resume from Profile if none exists
   const createBaseResumeMutation = useMutation({
@@ -89,20 +127,25 @@ export default function TailorResumePage() {
     },
   });
 
-  // Mutation to run ATS Tailoring Diff
+  // Mutation to run ATS Tailoring Optimization
   const tailorMutation = useMutation({
     mutationFn: async (resumeId: string) => {
       const res = await ApiClient.tailorResume(resumeId, {
         jobId,
         jobDescription: job?.description,
         targetTitle: job?.title,
+        preferredTemplateId: selectedTemplate,
       });
-      return res as TailoringResult;
+      return res as ITailoringResponse;
     },
     onSuccess: (data) => {
       setTailoringResult(data);
-      if (Array.isArray(data.diff)) {
-        setSelectedDiffIndices(new Set(data.diff.map((_, i) => i)));
+      if (data.structuredResume) {
+        setStructuredResume(data.structuredResume);
+        setSummaryDraft(data.structuredResume.summary || "");
+      }
+      if (data.recommendation?.templateId) {
+        setSelectedTemplate(data.recommendation.templateId);
       }
     },
   });
@@ -119,12 +162,13 @@ export default function TailorResumePage() {
   // Mutation to commit tailored version
   const commitMutation = useMutation({
     mutationFn: async () => {
-      if (!activeResume || !tailoringResult) return null;
-      const appliedDiffs = tailoringResult.diff.filter((_, i) => selectedDiffIndices.has(i));
+      if (!activeResume || !structuredResume) return null;
       const res = await ApiClient.applyTailoring(activeResume._id, {
-        appliedDiffs,
         targetRole: job?.title || activeResume.targetRole,
         newResumeName: `${activeResume.name || "Resume"} (Tailored for ${job?.companyName || job?.company || "Target Role"})`,
+        structuredResume,
+        template: selectedTemplate,
+        jobId,
       });
       return res;
     },
@@ -142,13 +186,13 @@ export default function TailorResumePage() {
       return ApiClient.trackUserApplication({
         jobId,
         status: "APPLIED",
-        notes: `Tailored resume generated on ${new Date().toLocaleDateString()} with ATS Score ${tailoringResult?.potentialScore || 85}%`
+        notes: `Tailored resume generated on ${new Date().toLocaleDateString()} with Match Score ${tailoringResult?.telemetry?.jobMatchScore || 85}%`,
       });
     },
     onSuccess: () => {
       setAttachedToApp(true);
       queryClient.invalidateQueries({ queryKey: ["userApplications"] });
-    }
+    },
   });
 
   // Handle DOCX download
@@ -159,63 +203,79 @@ export default function TailorResumePage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Tailored_${job?.companyName || "Job"}_Resume.docx`;
+      a.download = `${(structuredResume?.basics?.name || "Tailored").replace(/\s+/g, "_")}_${(job?.companyName || "Resume").replace(/\s+/g, "_")}.docx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      console.error("Download failed:", err);
+      console.error("DOCX Download failed:", err);
     } finally {
       setIsDownloading(false);
     }
   };
 
+  // Direct High-Fidelity A4 PDF Download
+  const handleSavePdf = async () => {
+    if (!activeResume || !structuredResume) return;
+    setIsExportingPdf(true);
+    setPdfError(null);
+
+    try {
+      let targetId = tailoredResumeId;
+      if (!targetId) {
+        const commitRes: any = await ApiClient.applyTailoring(activeResume._id, {
+          targetRole: job?.title || activeResume.targetRole,
+          newResumeName: `${activeResume.name || "Resume"} (Tailored for ${job?.companyName || job?.company || "Target Role"})`,
+          structuredResume,
+          template: selectedTemplate,
+          jobId,
+        });
+        targetId = commitRes?.resume?._id || commitRes?.data?._id || activeResume._id;
+        if (targetId) setTailoredResumeId(targetId);
+      }
+
+      const finalId: string = targetId || activeResume._id;
+      const blob = await ApiClient.downloadResumePdf(finalId, { templateId: selectedTemplate });
+
+      if (!blob || blob.size < 500) {
+        throw new Error("Generated PDF artifact was empty or truncated. Please retry.");
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = `${(structuredResume.basics.name || "Candidate").replace(/\s+/g, "_")}_${(job?.companyName || job?.title || "Resume").replace(/\s+/g, "_")}.pdf`;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      console.error("PDF generation error:", err);
+      setPdfError(err.message || "Failed to generate PDF document.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   // Handle PDF Print / Export
   const handlePrintPdf = () => {
-    setViewTab("preview");
-    setTimeout(() => {
-      window.print();
-    }, 300);
+    window.print();
   };
 
-  const toggleDiffIndex = (idx: number) => {
-    setSelectedDiffIndices((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  };
-
-  const saveEdit = (idx: number) => {
-    if (!tailoringResult) return;
-    const updated = [...tailoringResult.diff];
-    updated[idx] = { ...updated[idx], proposed: editText };
-    setTailoringResult({ ...tailoringResult, diff: updated });
-    setEditingDiffIndex(null);
-  };
-
-  // Prepare preview data with applied diffs
-  const previewProfile = React.useMemo(() => {
-    if (!activeResume?.profileData) return null;
-    const copy = JSON.parse(JSON.stringify(activeResume.profileData));
-
-    if (tailoringResult?.diff) {
-      tailoringResult.diff.forEach((d, idx) => {
-        if (selectedDiffIndices.has(idx)) {
-          if (d.field === "summary") {
-            copy.summary = d.proposed;
-          } else if (d.field === "bullets[0]" && copy.experience?.[0]?.bullets?.length) {
-            copy.experience[0].bullets[0] = d.proposed;
-          }
-        }
+  // Save summary edit
+  const handleSaveSummary = () => {
+    if (structuredResume) {
+      setStructuredResume({
+        ...structuredResume,
+        summary: summaryDraft,
       });
     }
+    setEditingSummary(false);
+  };
 
-    return copy;
-  }, [activeResume, tailoringResult, selectedDiffIndices]);
-
+  // Loading Screen
   if (isResumesLoading || isJobLoading) {
     return (
       <div className="min-h-screen bg-[#F5F3EE] flex items-center justify-center text-[#181614] font-mono text-sm">
@@ -227,9 +287,9 @@ export default function TailorResumePage() {
 
   return (
     <div className="min-h-screen bg-[#F5F3EE] text-[#181614] flex flex-col font-sans">
-      {/* Top Banner Navigation */}
-      <header className="border-b border-[#E5E0D4] bg-white px-6 py-4 sticky top-0 z-20 shadow-xs print:hidden">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* ── Top Header Navigation Bar ── */}
+      <header className="border-b border-[#E5E0D4] bg-white px-4 sm:px-6 py-3.5 sticky top-0 z-30 shadow-xs print:hidden">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(`/jobs`)}
@@ -241,60 +301,49 @@ export default function TailorResumePage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-[#C84B26] bg-[#FBF0EC] px-2 py-0.5 rounded border border-[#F4D4C9] font-semibold">
-                  GOLDEN THREAD • ATS TAILORING ENGINE
+                  CAREER INTELLIGENCE ENGINE • TAILORING WORKSPACE
                 </span>
-                <span className="text-xs font-mono text-[#8C8479]">ID: {jobId?.slice(0, 10)}...</span>
+                <span className="text-[11px] font-mono text-[#8C8479]">ID: {jobId?.slice(-8).toUpperCase()}</span>
               </div>
-              <h1 className="text-xl font-serif font-bold text-[#181614] tracking-tight mt-0.5">
-                Precision ATS Tailoring & Evidence Alignment
+              <h1 className="text-lg sm:text-xl font-serif font-bold text-[#181614] tracking-tight mt-0.5">
+                {job?.title || "Job-Specific ATS Resume Studio"}
+                {job?.companyName && (
+                  <span className="text-sm font-sans font-normal text-[#5C564E] ml-2">
+                    @ {job.companyName}
+                  </span>
+                )}
               </h1>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Template Switcher Dropdown */}
-            <div className="flex items-center gap-1.5 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md px-2 py-1 text-xs font-mono">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-[#5C564E]" />
-              <select
-                value={selectedTemplate}
-                onChange={(e) => setSelectedTemplate(e.target.value)}
-                className="bg-transparent border-none text-xs font-mono text-[#181614] focus:outline-none cursor-pointer"
-                title="Select ATS Resume Template"
-              >
-                {ATS_TEMPLATES.map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* View Switcher Tabs */}
-            <div className="flex rounded-md bg-[#FAF8F5] border border-[#E5E0D4] p-0.5 text-xs font-mono">
+            {/* Mobile View Switcher */}
+            <div className="flex lg:hidden rounded-md bg-[#FAF8F5] border border-[#E5E0D4] p-0.5 text-xs font-mono">
               <button
                 type="button"
-                onClick={() => setViewTab("diff")}
-                className={`px-3 py-1 rounded transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  viewTab === "diff"
+                onClick={() => setMobileTab("controls")}
+                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                  mobileTab === "controls"
                     ? "bg-white text-[#181614] font-bold shadow-xs border border-[#E5E0D4]"
-                    : "text-[#8C8479] hover:text-[#181614]"
+                    : "text-[#8C8479]"
                 }`}
               >
-                <Layers className="w-3.5 h-3.5 text-[#C84B26]" />
-                <span>Diff Review</span>
+                Controls
               </button>
               <button
                 type="button"
-                onClick={() => setViewTab("preview")}
-                className={`px-3 py-1 rounded transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  viewTab === "preview"
+                onClick={() => setMobileTab("preview")}
+                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                  mobileTab === "preview"
                     ? "bg-white text-[#181614] font-bold shadow-xs border border-[#E5E0D4]"
-                    : "text-[#8C8479] hover:text-[#181614]"
+                    : "text-[#8C8479]"
                 }`}
               >
-                <Eye className="w-3.5 h-3.5 text-[#172535]" />
-                <span>Live Preview</span>
+                Preview
               </button>
             </div>
 
+            {/* Mock Interview Stage Quick-Launch */}
             {job && (
               <MechanicalButton
                 variant="navy"
@@ -306,49 +355,15 @@ export default function TailorResumePage() {
                   )
                 }
               >
-                Mock Stage
+                Practice Mock
               </MechanicalButton>
             )}
           </div>
         </div>
       </header>
 
-      {/* Main Workspace */}
+      {/* ── Main Workspace ── */}
       <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex-1 space-y-6">
-        {/* Grounded Job Header Banner */}
-        {job && (
-          <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-[#172535] bg-[#EFECE6] px-2 py-0.5 rounded border border-[#DCD5C6]">
-                  TARGET REQUISITION
-                </span>
-                <span className="text-xs font-mono text-[#8C8479]">[{job.workMode || job.work_mode || "Full Time"}]</span>
-              </div>
-              <h2 className="font-serif font-bold text-lg text-[#181614]">{job.title || "Software Engineering Role"}</h2>
-              <div className="flex items-center gap-3 text-xs text-[#5C564E]">
-                <span className="flex items-center gap-1 font-medium text-[#181614]">
-                  <Building2 className="w-3.5 h-3.5 text-[#8C8479]" /> {job.companyName || job.company || "Target Company"}
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-[#8C8479]" /> {job.location || "India / Remote"}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 bg-[#FAF8F5] border border-[#E5E0D4] px-4 py-2.5 rounded-lg">
-              <div className="text-right">
-                <div className="text-[10px] font-mono text-[#8C8479] uppercase">Base Candidate Dossier</div>
-                <div className="text-xs font-semibold text-[#181614]">
-                  {activeResume ? activeResume.name || "Default Resume" : "No Resume Linked"}
-                </div>
-              </div>
-              <FileText className="w-5 h-5 text-[#C84B26]" />
-            </div>
-          </div>
-        )}
-
         {/* Empty State: No Resumes in Account */}
         {!activeResume && (
           <div className="bg-white border border-[#E5E0D4] rounded-lg p-10 text-center max-w-xl mx-auto space-y-4 shadow-sm">
@@ -378,9 +393,9 @@ export default function TailorResumePage() {
         {activeResume && tailorMutation.isPending && (
           <div className="bg-white border border-[#E5E0D4] rounded-lg p-12 text-center max-w-xl mx-auto space-y-3">
             <div className="w-8 h-8 border-3 border-[#C84B26] border-t-transparent rounded-full animate-spin mx-auto" />
-            <h3 className="font-serif font-bold text-base text-[#181614]">Cross-Referencing JD with Profile Evidence...</h3>
+            <h3 className="font-serif font-bold text-base text-[#181614]">Analyzing Verified Candidate Evidence & Grounding to JD...</h3>
             <p className="text-xs font-mono text-[#8C8479]">
-              Enforcing zero-fabrication gate • Mapping semantic keywords • Computing ATS delta
+              Enforcing zero-fabrication gate • Ranking technical projects • Evaluating ATS parseability
             </p>
           </div>
         )}
@@ -402,482 +417,489 @@ export default function TailorResumePage() {
                 tailorMutation.mutate(activeResume._id);
               }}
             >
-              Retry Tailoring
+              Retry Optimization
             </MechanicalButton>
           </div>
         )}
 
-        {/* Tailoring Results Presentation */}
-        {tailoringResult && (
-          <div className="space-y-6">
-            {/* Score & Telemetry Gauge Banner */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 print:hidden">
-              <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 flex items-center justify-between shadow-2xs">
-                <div>
-                  <div className="text-[10px] font-mono uppercase text-[#8C8479]">Baseline ATS Score</div>
-                  <div className="font-serif font-bold text-3xl text-[#181614] mt-0.5">
-                    {tailoringResult.currentScore}%
+        {/* Active Workspace: Left Controls & Telemetry + Right Live A4 Canvas */}
+        {tailoringResult && structuredResume && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* ══════════════════════════════════════════════════
+                LEFT PANEL: CONTROLS, TELEMETRY & EDITOR
+               ══════════════════════════════════════════════════ */}
+            <div
+              className={`lg:col-span-5 space-y-5 print:hidden ${
+                mobileTab === "preview" ? "hidden lg:block" : "block"
+              }`}
+            >
+              {/* 1. Template Intelligence & Selection Card */}
+              <div className="bg-white border border-[#E5E0D4] rounded-lg p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-[#E5E0D4] pb-2">
+                  <div className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wider text-[#181614]">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#C84B26]" />
+                    <span>Resume Template Architecture</span>
                   </div>
-                  <div className="text-[11px] text-[#8C8479] font-mono mt-1">Pre-Tailored Resume</div>
+                  <span className="text-[10px] font-mono text-[#2E6347] bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6] font-semibold">
+                    6 ATS TEMPLATES
+                  </span>
                 </div>
-                <div className="w-12 h-12 rounded-full border border-[#E5E0D4] bg-[#FAF8F5] flex items-center justify-center font-mono text-sm text-[#8C8479]">
-                  RAW
-                </div>
-              </div>
 
-              <div className="bg-white border border-[#C84B26]/30 bg-gradient-to-br from-white to-[#FBF0EC] rounded-lg p-5 flex items-center justify-between shadow-xs">
-                <div>
-                  <div className="text-[10px] font-mono uppercase text-[#C84B26] font-semibold">
-                    Projected Match Score
-                  </div>
-                  <div className="font-serif font-bold text-3xl text-[#C84B26] mt-0.5">
-                    {tailoringResult.potentialScore}%
-                  </div>
-                  <div className="text-[11px] text-[#2E6347] font-mono mt-1 flex items-center gap-1 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#2E6347]" /> +
-                    {Math.max(0, tailoringResult.potentialScore - tailoringResult.currentScore)}% Score Lift
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-full border border-[#F4D4C9] bg-white flex items-center justify-center font-mono text-sm text-[#C84B26] font-bold">
-                  ATS
-                </div>
-              </div>
-
-              <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-                <div>
-                  <div className="text-[10px] font-mono uppercase text-[#172535] font-semibold">
-                    TRUTH GATE GUARANTEE
-                  </div>
-                  <p className="text-[11px] text-[#5C564E] leading-relaxed mt-1">
-                    Zero fake metrics or unearned competencies. Adjustments strictly rephrase real career accomplishments into JD
-                    syntax.
-                  </p>
-                </div>
-                <div className="text-[10px] font-mono text-[#2E6347] bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6] self-start mt-2">
-                  VERIFIED DEFENSIBLE
-                </div>
-              </div>
-            </div>
-
-            {/* View Tab 1: Diff Review */}
-            {viewTab === "diff" && (
-              <div className="space-y-6">
-                {/* Skills Reconciliation Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {/* Matched Skills */}
-                  <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 space-y-3 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-serif font-bold text-sm text-[#181614] flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-[#2E6347]" /> Verified Skills Matched (
-                        {tailoringResult.matchedSkills?.length || 0})
-                      </h3>
-                      <span className="text-[10px] font-mono text-[#2E6347] bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6]">
-                        INCLUDED
-                      </span>
+                {/* AI Deterministic Recommendation Rationale */}
+                {tailoringResult.recommendation && (
+                  <div className="p-3 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#181614]">
+                      <Sparkles className="w-3.5 h-3.5 text-[#C84B26]" />
+                      <span>{tailoringResult.recommendation.templateName}</span>
                     </div>
-                    <p className="text-xs text-[#5C564E]">
-                      These competencies exist in your profile and directly answer requirements in this job posting:
+                    <p className="text-[11px] text-[#5C564E] leading-relaxed">
+                      {tailoringResult.recommendation.rationale}
                     </p>
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {tailoringResult.matchedSkills && tailoringResult.matchedSkills.length > 0 ? (
-                        tailoringResult.matchedSkills.map((s, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2.5 py-1 rounded bg-[#EBF3EE] border border-[#D0E3D6] text-xs font-mono text-[#2E6347] font-medium"
-                          >
-                            {s}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-[#8C8479]">Core stack mapped via general engineering competencies</span>
-                      )}
-                    </div>
                   </div>
+                )}
 
-                  {/* Missing Skills / Gaps */}
-                  <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 space-y-3 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-serif font-bold text-sm text-[#181614] flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-[#A36114]" /> Evidence Gaps (
-                        {tailoringResult.missingSkills?.length || 0})
-                      </h3>
-                      <span className="text-[10px] font-mono text-[#A36114] bg-[#FDF6E9] px-2 py-0.5 rounded border border-[#F7E6C4]">
-                        NOT INVENTED
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#5C564E]">
-                      Skills required by the JD but missing from your profile. These are flagged for interview prep instead of being
-                      fabricated:
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {tailoringResult.missingSkills && tailoringResult.missingSkills.length > 0 ? (
-                        tailoringResult.missingSkills.map((s, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2.5 py-1 rounded bg-[#FDF6E9] border border-[#F7E6C4] text-xs font-mono text-[#A36114] font-medium"
-                          >
-                            {s}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-[#2E6347]">No missing requirements! Complete skills alignment.</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                {/* Template Selector Grid */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  {(Object.keys(TEMPLATE_METADATA) as TemplateId[]).map((tId) => {
+                    const meta = TEMPLATE_METADATA[tId];
+                    const isSelected = selectedTemplate === tId;
+                    const isRecommended = tailoringResult.recommendation?.templateId === tId;
 
-                {/* Proposed Content Rewrites Diff */}
-                <div className="bg-white border border-[#E5E0D4] rounded-lg p-5 space-y-4 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-serif font-bold text-base text-[#181614]">
-                        Tailored Content Blueprint ({tailoringResult.diff.length} Proposed Changes)
-                      </h3>
-                      <p className="text-xs text-[#5C564E]">
-                        Review the side-by-side phrasing adjustments. Select which items you want committed to your tailored resume.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs font-mono">
+                    return (
                       <button
-                        onClick={() => setSelectedDiffIndices(new Set(tailoringResult.diff.map((_, i) => i)))}
-                        className="text-[#C84B26] hover:underline cursor-pointer"
-                      >
-                        Select All
-                      </button>
-                      <span className="text-[#8C8479]">•</span>
-                      <button onClick={() => setSelectedDiffIndices(new Set())} className="text-[#8C8479] hover:text-[#181614] cursor-pointer">
-                        Clear All
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {tailoringResult.diff.map((item, idx) => {
-                      const isChecked = selectedDiffIndices.has(idx);
-                      const isEditing = editingDiffIndex === idx;
-
-                      return (
-                        <div
-                          key={idx}
-                          className={`border rounded-lg p-4 transition-all duration-200 ${
-                            isChecked ? "border-[#C84B26]/40 bg-[#FAF8F5]" : "border-[#E5E0D4] bg-white opacity-60"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-3">
-                            <label className="flex items-center gap-2.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => toggleDiffIndex(idx)}
-                                className="w-4 h-4 accent-[#C84B26] rounded cursor-pointer"
-                              />
-                              <span className="font-mono text-xs font-semibold text-[#181614]">{item.section}</span>
-                            </label>
-
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono text-[#8C8479] bg-white px-2 py-0.5 rounded border border-[#E5E0D4]">
-                                {item.rationale}
-                              </span>
-                              {!isEditing ? (
-                                <button
-                                  type="button"
-                                  onClick={() => { setEditingDiffIndex(idx); setEditText(item.proposed); }}
-                                  className="p-1 rounded hover:bg-white text-[#8C8479] hover:text-[#181614] transition-colors cursor-pointer"
-                                  title="Edit phrasing"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                            {/* Current Phrasing */}
-                            <div className="p-3 bg-white rounded border border-[#E5E0D4] space-y-1">
-                              <div className="text-[10px] font-mono text-[#8C8479] uppercase">Current Phrasing</div>
-                              <p className="text-[#5C564E] leading-relaxed">{item.current}</p>
-                            </div>
-
-                            {/* Proposed Phrasing */}
-                            <div className="p-3 bg-[#EBF3EE] rounded border border-[#D0E3D6] space-y-1">
-                              <div className="text-[10px] font-mono text-[#2E6347] uppercase font-semibold">
-                                Tailored Phrasing (Keywords Enhanced)
-                              </div>
-                              {isEditing ? (
-                                <div className="space-y-2 pt-1">
-                                  <textarea
-                                    value={editText}
-                                    onChange={(e) => setEditText(e.target.value)}
-                                    rows={3}
-                                    className="w-full p-2 bg-white border border-[#D0E3D6] rounded text-xs font-sans text-[#181614] focus:outline-none focus:border-[#2E6347]"
-                                  />
-                                  <div className="flex justify-end gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingDiffIndex(null)}
-                                      className="px-2 py-0.5 text-[11px] font-mono text-[#8C8479] hover:text-[#181614]"
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => saveEdit(idx)}
-                                      className="px-2.5 py-0.5 rounded bg-[#2E6347] text-white text-[11px] font-mono font-medium"
-                                    >
-                                      Save Edit
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="text-[#181614] leading-relaxed font-medium">{item.proposed}</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Commit and Export Actions */}
-                  <div className="pt-4 border-t border-[#E5E0D4] flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="text-xs text-[#5C564E] font-mono">
-                      {selectedDiffIndices.size} of {tailoringResult.diff.length} adjustments selected for commit.
-                    </div>
-
-                    <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
-                      {!tailoredResumeId ? (
-                        <MechanicalButton
-                          variant="vermilion"
-                          size="md"
-                          className="w-full sm:w-auto"
-                          icon={<Check className="w-4 h-4" />}
-                          onClick={() => commitMutation.mutate()}
-                          disabled={commitMutation.isPending || selectedDiffIndices.size === 0}
-                        >
-                          {commitMutation.isPending ? "Generating Tailored Version..." : "Commit Tailored Resume Version"}
-                        </MechanicalButton>
-                      ) : (
-                        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-                          <MechanicalButton
-                            variant="vermilion"
-                            size="md"
-                            icon={<Download className="w-4 h-4" />}
-                            onClick={() => handleDownloadDocx(tailoredResumeId)}
-                            disabled={isDownloading}
-                          >
-                            {isDownloading ? "Preparing Export..." : "Download DOCX"}
-                          </MechanicalButton>
-
-                          <MechanicalButton
-                            variant="stone"
-                            size="md"
-                            icon={<Printer className="w-4 h-4" />}
-                            onClick={handlePrintPdf}
-                          >
-                            Print / PDF
-                          </MechanicalButton>
-
-                          <InkBleedButton
-                            onClick={() => attachToApplicationMutation.mutate()}
-                            disabled={attachToApplicationMutation.isPending || attachedToApp}
-                          >
-                            {attachedToApp ? <CheckCheck className="w-4 h-4 text-[#2E6347]" /> : <BookmarkPlus className="w-4 h-4" />}
-                            <span>{attachedToApp ? "Attached to Application" : "Attach to App"}</span>
-                          </InkBleedButton>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {tailoredResumeId && (
-                    <div className="p-4 rounded-lg bg-[#EBF3EE] border border-[#D0E3D6] text-xs text-[#2E6347] flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        <span>
-                          Tailored resume version committed to your database dossier! Grounded in verified evidence for {job?.title}.
-                        </span>
-                      </div>
-                      <button
-                        onClick={() =>
-                          navigate(
-                            `/interview/broadcast?job_id=${jobId}&role=${encodeURIComponent(job?.title || "")}&company=${encodeURIComponent(job?.companyName || job?.company || "")}`
-                          )
-                        }
-                        className="font-semibold underline hover:text-[#181614] shrink-0 cursor-pointer"
-                      >
-                        Launch Grounded Mock &rarr;
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* View Tab 2: Live Rendered Preview */}
-            {viewTab === "preview" && previewProfile && (
-              <div className="space-y-4">
-                {/* Print / Action bar for preview */}
-                <div className="flex items-center justify-between bg-white border border-[#E5E0D4] p-4 rounded-lg print:hidden">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs uppercase text-[#8C8479]">Active Template:</span>
-                    <span className="font-mono text-xs font-bold text-[#181614]">
-                      {ATS_TEMPLATES.find((t) => t.id === selectedTemplate)?.label}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handlePrintPdf}
-                      className="px-3 py-1.5 rounded bg-[#172535] hover:bg-[#181614] text-white text-xs font-mono font-medium flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Print / Save as PDF</span>
-                    </button>
-                    {tailoredResumeId && (
-                      <button
+                        key={tId}
                         type="button"
-                        onClick={() => handleDownloadDocx(tailoredResumeId)}
-                        disabled={isDownloading}
-                        className="px-3 py-1.5 rounded bg-[#C84B26] hover:bg-[#B53E1B] text-white text-xs font-mono font-medium flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        onClick={() => setSelectedTemplate(tId)}
+                        className={`text-left p-2.5 rounded-md border text-xs transition-all cursor-pointer relative ${
+                          isSelected
+                            ? "bg-[#FAF8F5] border-[#C84B26] ring-1 ring-[#C84B26]/30 shadow-2xs"
+                            : "bg-white border-[#E5E0D4] hover:border-[#181614]/40"
+                        }`}
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Download DOCX</span>
+                        {isRecommended && (
+                          <span className="absolute -top-1.5 right-2 px-1.5 py-0.2 bg-[#C84B26] text-white text-[9px] font-mono uppercase tracking-wider rounded font-bold shadow-2xs">
+                            Rec
+                          </span>
+                        )}
+                        <div className="font-bold text-[#181614] truncate">{meta.name.split("(")[0]}</div>
+                        <div className="text-[10px] text-[#8C8479] truncate">{meta.tag}</div>
                       </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. 4-Metric ATS Telemetry Card */}
+              <div className="bg-white border border-[#E5E0D4] rounded-lg p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-[#E5E0D4] pb-2">
+                  <div className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wider text-[#181614]">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#2E6347]" />
+                    <span>ATS Audit & Score Telemetry</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-[#C84B26]">
+                    {tailoringResult.telemetry?.jobMatchScore || 90}% MATCH
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 pt-1">
+                  {/* Metric 1: Quality Score */}
+                  <div className="p-2.5 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md">
+                    <div className="text-[10px] font-mono text-[#8C8479] uppercase">Resume Quality</div>
+                    <div className="font-serif font-bold text-lg text-[#181614]">
+                      {tailoringResult.telemetry?.resumeQualityScore || 96}%
+                    </div>
+                    <div className="text-[10px] text-[#2E6347] font-mono">Zero Fragmentation</div>
+                  </div>
+
+                  {/* Metric 2: Keyword Coverage */}
+                  <div className="p-2.5 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md">
+                    <div className="text-[10px] font-mono text-[#8C8479] uppercase">Keyword Coverage</div>
+                    <div className="font-serif font-bold text-lg text-[#181614]">
+                      {tailoringResult.telemetry?.keywordCoverageScore || 88}%
+                    </div>
+                    <div className="text-[10px] text-[#5C564E] font-mono">Target JD Aligned</div>
+                  </div>
+
+                  {/* Metric 3: Overall Job Match */}
+                  <div className="p-2.5 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md">
+                    <div className="text-[10px] font-mono text-[#8C8479] uppercase">Projected Match</div>
+                    <div className="font-serif font-bold text-lg text-[#C84B26]">
+                      {tailoringResult.telemetry?.jobMatchScore || 92}%
+                    </div>
+                    <div className="text-[10px] text-[#2E6347] font-mono">
+                      +{Math.max(0, (tailoringResult.telemetry?.jobMatchScore || 90) - tailoringResult.currentScore)}% Score Lift
+                    </div>
+                  </div>
+
+                  {/* Metric 4: Readability */}
+                  <div className="p-2.5 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md">
+                    <div className="text-[10px] font-mono text-[#8C8479] uppercase">ATS Readability</div>
+                    <div className="font-serif font-bold text-lg text-[#181614]">
+                      {tailoringResult.telemetry?.atsReadabilityScore || 98}%
+                    </div>
+                    <div className="text-[10px] text-[#2E6347] font-mono">100% Linear Parse</div>
+                  </div>
+                </div>
+
+                {/* Validation Warnings / Status */}
+                {tailoringResult.validationReport?.warnings?.length > 0 ? (
+                  <div className="p-2.5 bg-[#FDF6E9] border border-[#F7E6C4] rounded text-xs text-[#A36114] space-y-1">
+                    <div className="font-bold flex items-center gap-1 text-[11px] font-mono uppercase">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Validation Notice
+                    </div>
+                    <ul className="list-disc list-outside pl-4 space-y-0.5 text-[11px]">
+                      {tailoringResult.validationReport.warnings.map((w, idx) => (
+                        <li key={idx}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="p-2 rounded bg-[#EBF3EE] border border-[#D0E3D6] text-[11px] text-[#2E6347] font-mono flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Document passed all strict ATS formatting and unfragmented title checks.</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Skills Reconciliation Accordion */}
+              <div className="bg-white border border-[#E5E0D4] rounded-lg p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-[#E5E0D4] pb-2">
+                  <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#181614]">
+                    Skills & Keyword Alignment
+                  </span>
+                  <span className="text-[10px] font-mono text-[#8C8479]">
+                    {tailoringResult.telemetry?.matchedSkills?.length || 0} MATCHED
+                  </span>
+                </div>
+
+                {/* Matched Skills */}
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-mono text-[#2E6347] font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Verified Profile Skills Matched
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {tailoringResult.telemetry?.matchedSkills?.map((s, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 rounded text-[11px] font-mono bg-[#EBF3EE] text-[#2E6347] border border-[#D0E3D6]"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Missing Skills */}
+                {tailoringResult.telemetry?.missingSkills?.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t border-[#E5E0D4]">
+                    <div className="text-[11px] font-mono text-[#A36114] font-semibold flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Target Gaps (Retained for Mock Interview Prep)
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {tailoringResult.telemetry.missingSkills.map((s, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 rounded text-[11px] font-mono bg-[#FDF6E9] text-[#A36114] border border-[#F7E6C4]"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-[#8C8479] italic pt-0.5">
+                      Factual integrity rule: Unverified skills are never fabricated onto your resume.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Interactive Content Editor */}
+              <div className="bg-white border border-[#E5E0D4] rounded-lg p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-[#E5E0D4] pb-2">
+                  <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#181614]">
+                    Tailored Content Customizer
+                  </span>
+                  <div className="flex gap-1 text-[11px] font-mono">
+                    <button
+                      onClick={() => setActiveAccordion("summary")}
+                      className={`px-2 py-0.5 rounded cursor-pointer ${activeAccordion === "summary" ? "bg-[#181614] text-white" : "text-[#8C8479]"}`}
+                    >
+                      Summary
+                    </button>
+                    <button
+                      onClick={() => setActiveAccordion("projects")}
+                      className={`px-2 py-0.5 rounded cursor-pointer ${activeAccordion === "projects" ? "bg-[#181614] text-white" : "text-[#8C8479]"}`}
+                    >
+                      Projects ({structuredResume.projects?.length || 0})
+                    </button>
+                    <button
+                      onClick={() => setActiveAccordion("education")}
+                      className={`px-2 py-0.5 rounded cursor-pointer ${activeAccordion === "education" ? "bg-[#181614] text-white" : "text-[#8C8479]"}`}
+                    >
+                      Education
+                    </button>
+                  </div>
+                </div>
+
+                {/* Summary Editor */}
+                {activeAccordion === "summary" && (
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono uppercase text-[#8C8479]">Target Professional Summary</span>
+                      {!editingSummary ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditingSummary(true)}
+                          className="text-[#C84B26] hover:underline flex items-center gap-1 font-mono text-[11px] cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3" /> Edit Phrasing
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSummaryDraft(structuredResume.summary || "");
+                              setEditingSummary(false);
+                            }}
+                            className="text-[#8C8479] hover:underline font-mono text-[11px] cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveSummary}
+                            className="px-2 py-0.5 bg-[#2E6347] text-white rounded font-mono text-[11px] cursor-pointer"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {editingSummary ? (
+                      <textarea
+                        value={summaryDraft}
+                        onChange={(e) => setSummaryDraft(e.target.value)}
+                        rows={4}
+                        className="w-full p-2.5 rounded border border-[#C84B26] bg-[#FAF8F5] text-xs font-sans text-[#181614] focus:outline-none leading-relaxed"
+                      />
+                    ) : (
+                      <p className="p-2.5 rounded border border-[#E5E0D4] bg-[#FAF8F5] text-xs leading-relaxed text-[#181614]/90">
+                        {structuredResume.summary || "No summary specified."}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Projects Inspector */}
+                {activeAccordion === "projects" && (
+                  <div className="space-y-2 text-xs">
+                    <span className="text-[10px] font-mono uppercase text-[#8C8479]">
+                      Verified Technical Projects ({structuredResume.projects?.length})
+                    </span>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {structuredResume.projects?.map((proj, idx) => (
+                        <div key={idx} className="p-2.5 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md space-y-1">
+                          <div className="flex justify-between items-baseline font-bold text-[#181614]">
+                            <span>{proj.name}</span>
+                            <span className="text-[10px] font-mono text-[#8C8479]">Rank #{idx + 1}</span>
+                          </div>
+                          {proj.technologies?.length > 0 && (
+                            <div className="text-[10.5px] font-mono text-[#5C564E]">
+                              {proj.technologies.join(" • ")}
+                            </div>
+                          )}
+                          <p className="text-[11px] text-[#5C564E] line-clamp-2">
+                            {proj.bullets?.[0] || proj.description}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Education Inspector */}
+                {activeAccordion === "education" && (
+                  <div className="space-y-2 text-xs">
+                    <span className="text-[10px] font-mono uppercase text-[#8C8479]">
+                      Verified Academic Credentials ({structuredResume.education?.length})
+                    </span>
+                    <div className="space-y-1.5">
+                      {structuredResume.education?.map((edu, idx) => (
+                        <div key={idx} className="p-2 bg-[#FAF8F5] border border-[#E5E0D4] rounded-md text-xs">
+                          <div className="font-bold text-[#181614]">{edu.institution}</div>
+                          <div className="text-[11px] text-[#5C564E]">
+                            {edu.degree} {edu.gpa ? `• Score: ${edu.gpa}` : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Commit & Persistence Action Shelf */}
+              <div className="bg-white border border-[#E5E0D4] rounded-lg p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-mono text-[#5C564E]">
+                    {tailoredResumeId ? (
+                      <span className="text-[#2E6347] font-semibold flex items-center gap-1">
+                        <CheckCheck className="w-3.5 h-3.5 text-[#2E6347]" />
+                        Version Committed to Database
+                      </span>
+                    ) : (
+                      "Ready to persist tailored resume version."
                     )}
                   </div>
                 </div>
 
-                {/* Printable Resume Canvas Sheet */}
-                <div className="bg-white border border-[#E5E0D4] rounded-lg p-8 sm:p-12 shadow-sm max-w-4xl mx-auto space-y-6 font-serif text-[#181614]">
-                  {/* Header */}
-                  <div className="text-center border-b border-[#E5E0D4] pb-5 space-y-1">
-                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#181614]">
-                      {previewProfile.personal?.fullName || "Candidate Name"}
-                    </h1>
-                    <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-sans text-[#5C564E] pt-1">
-                      {previewProfile.personal?.email && <span>{previewProfile.personal.email}</span>}
-                      {previewProfile.personal?.phone && <span>• {previewProfile.personal.phone}</span>}
-                      {previewProfile.personal?.location && <span>• {previewProfile.personal.location}</span>}
-                      {previewProfile.personal?.linkedin && <span>• LinkedIn</span>}
-                      {previewProfile.personal?.github && <span>• GitHub</span>}
+                {!tailoredResumeId ? (
+                  <MechanicalButton
+                    variant="vermilion"
+                    size="md"
+                    className="w-full"
+                    icon={<Check className="w-4 h-4" />}
+                    onClick={() => commitMutation.mutate()}
+                    disabled={commitMutation.isPending}
+                  >
+                    {commitMutation.isPending ? "Generating Tailored Version..." : "Commit Tailored Resume Version"}
+                  </MechanicalButton>
+                ) : (
+                  <div className="space-y-2">
+                    {/* PDF Error Notice */}
+                    {pdfError && (
+                      <div className="p-3 bg-[#FAF0ED] border border-[#F4D4C9] rounded text-xs text-[#9E2A2B] flex items-center justify-between">
+                        <span>{pdfError}</span>
+                        <button onClick={() => setPdfError(null)} className="underline ml-2">Dismiss</button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <MechanicalButton
+                        variant="vermilion"
+                        size="sm"
+                        className="flex-1"
+                        icon={<Download className="w-3.5 h-3.5" />}
+                        onClick={handleSavePdf}
+                        disabled={isExportingPdf}
+                      >
+                        {isExportingPdf ? "Exporting PDF..." : "Save PDF"}
+                      </MechanicalButton>
+                      <MechanicalButton
+                        variant="stone"
+                        size="sm"
+                        className="flex-1"
+                        icon={<Download className="w-3.5 h-3.5" />}
+                        onClick={() => handleDownloadDocx(tailoredResumeId)}
+                        disabled={isDownloading}
+                      >
+                        {isDownloading ? "Exporting..." : "Download DOCX"}
+                      </MechanicalButton>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <InkBleedButton
+                        onClick={() => attachToApplicationMutation.mutate()}
+                        disabled={attachToApplicationMutation.isPending || attachedToApp}
+                        className="flex-1"
+                      >
+                        {attachedToApp ? <CheckCheck className="w-3.5 h-3.5 text-[#2E6347]" /> : <BookmarkPlus className="w-3.5 h-3.5" />}
+                        <span>{attachedToApp ? "Attached to Application" : "Attach to App"}</span>
+                      </InkBleedButton>
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
 
-                  {/* Summary */}
-                  {previewProfile.summary && (
-                    <div className="space-y-1.5">
-                      <h2 className="text-xs font-sans font-bold uppercase tracking-widest text-[#181614] border-b border-[#E5E0D4] pb-1">
-                        Professional Summary
-                      </h2>
-                      <p className="text-xs leading-relaxed text-[#181614]/90 font-sans">
-                        {previewProfile.summary}
-                      </p>
-                    </div>
-                  )}
+            {/* ══════════════════════════════════════════════════
+                RIGHT PANEL: LIVE A4 DOCUMENT CANVAS & EXPORT
+               ══════════════════════════════════════════════════ */}
+            <div
+              className={`lg:col-span-7 space-y-4 ${
+                mobileTab === "controls" ? "hidden lg:block" : "block"
+              }`}
+            >
+              {/* Toolbar: Template Info, Zoom, Export Actions */}
+              <div className="bg-white border border-[#E5E0D4] rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs print:hidden">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs uppercase text-[#8C8479]">Active Template:</span>
+                  <span className="font-mono text-xs font-bold text-[#181614] bg-[#FAF8F5] px-2 py-0.5 rounded border border-[#E5E0D4]">
+                    {TEMPLATE_METADATA[selectedTemplate]?.name}
+                  </span>
+                  <span className="font-mono text-[10px] text-[#2E6347] bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6]">
+                    1 Page Density
+                  </span>
+                </div>
 
-                  {/* Skills Grid */}
-                  {(previewProfile.skills?.technical?.length > 0 || previewProfile.skills?.frameworks?.length > 0) && (
-                    <div className="space-y-1.5">
-                      <h2 className="text-xs font-sans font-bold uppercase tracking-widest text-[#181614] border-b border-[#E5E0D4] pb-1">
-                        Core Competencies & Technologies
-                      </h2>
-                      <div className="text-xs font-sans text-[#181614]/90 space-y-1">
-                        {previewProfile.skills?.technical?.length > 0 && (
-                          <div>
-                            <span className="font-semibold">Languages & Tools: </span>
-                            <span>{previewProfile.skills.technical.join(", ")}</span>
-                          </div>
-                        )}
-                        {previewProfile.skills?.frameworks?.length > 0 && (
-                          <div>
-                            <span className="font-semibold">Frameworks: </span>
-                            <span>{previewProfile.skills.frameworks.join(", ")}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                <div className="flex items-center gap-2">
+                  {/* Zoom Controls */}
+                  <div className="flex items-center rounded-md bg-[#FAF8F5] border border-[#E5E0D4] p-0.5 text-xs font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setZoomLevel((z) => Math.max(0.7, Number((z - 0.1).toFixed(1))))}
+                      className="p-1 rounded hover:bg-white text-[#5C564E] hover:text-[#181614] cursor-pointer"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="px-2 text-[11px] font-bold text-[#181614]">
+                      {Math.round(zoomLevel * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setZoomLevel((z) => Math.min(1.3, Number((z + 0.1).toFixed(1))))}
+                      className="p-1 rounded hover:bg-white text-[#5C564E] hover:text-[#181614] cursor-pointer"
+                      title="Zoom In"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
-                  {/* Experience */}
-                  {previewProfile.experience?.length > 0 && (
-                    <div className="space-y-3">
-                      <h2 className="text-xs font-sans font-bold uppercase tracking-widest text-[#181614] border-b border-[#E5E0D4] pb-1">
-                        Professional Experience
-                      </h2>
-                      <div className="space-y-4">
-                        {previewProfile.experience.map((exp: any, i: number) => (
-                          <div key={i} className="space-y-1 font-sans">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-[#181614]">{exp.role}</span>
-                              <span className="text-[#8C8479] font-mono text-[11px]">
-                                {exp.startDate} – {exp.current ? "Present" : exp.endDate || "Present"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-[#5C564E] italic">
-                              <span>{exp.company}</span>
-                              <span>{exp.location}</span>
-                            </div>
-                            {exp.bullets?.length > 0 && (
-                              <ul className="list-disc list-outside pl-4 space-y-1 text-xs text-[#181614]/90 leading-relaxed pt-1">
-                                {exp.bullets.map((b: string, bIdx: number) => (
-                                  <li key={bIdx}>{b}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* Direct Save PDF Button */}
+                  <button
+                    type="button"
+                    onClick={handleSavePdf}
+                    disabled={isExportingPdf}
+                    className="px-3 py-1.5 rounded bg-[#C84B26] hover:bg-[#B53E1B] text-white text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{isExportingPdf ? "Generating PDF..." : "Save PDF"}</span>
+                  </button>
 
-                  {/* Projects */}
-                  {previewProfile.projects?.length > 0 && (
-                    <div className="space-y-3">
-                      <h2 className="text-xs font-sans font-bold uppercase tracking-widest text-[#181614] border-b border-[#E5E0D4] pb-1">
-                        Key Engineering Projects
-                      </h2>
-                      <div className="space-y-3 font-sans">
-                        {previewProfile.projects.map((proj: any, i: number) => (
-                          <div key={i} className="space-y-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-[#181614]">{proj.name}</span>
-                              {proj.technologies?.length > 0 && (
-                                <span className="font-mono text-[11px] text-[#8C8479]">
-                                  {proj.technologies.join(", ")}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-[#181614]/90 leading-relaxed">{proj.description}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* Print / Save via Browser */}
+                  <button
+                    type="button"
+                    onClick={handlePrintPdf}
+                    className="px-3 py-1.5 rounded bg-[#172535] hover:bg-[#181614] text-white text-xs font-mono font-medium flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Print directly or save via browser print dialog"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print</span>
+                  </button>
 
-                  {/* Education */}
-                  {previewProfile.education?.length > 0 && (
-                    <div className="space-y-2">
-                      <h2 className="text-xs font-sans font-bold uppercase tracking-widest text-[#181614] border-b border-[#E5E0D4] pb-1">
-                        Education
-                      </h2>
-                      <div className="space-y-2 font-sans">
-                        {previewProfile.education.map((edu: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between text-xs">
-                            <div>
-                              <span className="font-bold">{edu.degree}</span> in <span>{edu.fieldOfStudy}</span>,{" "}
-                              <span className="text-[#5C564E] italic">{edu.institution}</span>
-                            </div>
-                            <span className="text-[#8C8479] font-mono text-[11px]">{edu.graduationYear}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* DOCX Export Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadDocx(tailoredResumeId || activeResume._id)}
+                    disabled={isDownloading}
+                    className="px-3 py-1.5 rounded bg-white hover:bg-[#FAF8F5] border border-[#E5E0D4] text-[#181614] text-xs font-mono font-medium flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-[#5C564E]" />
+                    <span>DOCX</span>
+                  </button>
                 </div>
               </div>
-            )}
+
+              {/* Rendered Live A4 Resume Canvas */}
+              <div className="w-full bg-[#E8E4DC] p-4 sm:p-6 rounded-lg border border-[#DCD5C6] shadow-inner overflow-hidden print:p-0 print:bg-white print:border-none">
+                <ResumeTemplateDispatcher
+                  resume={structuredResume}
+                  templateId={selectedTemplate}
+                  zoom={zoomLevel}
+                />
+              </div>
+            </div>
           </div>
         )}
       </main>

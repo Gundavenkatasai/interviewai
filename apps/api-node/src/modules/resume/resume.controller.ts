@@ -38,6 +38,8 @@ import { DocxEngine, DocxValidator } from "./docx-engine";
 import { StructurePreservingDocxGenerator } from "./docx-engine/structure-preserver";
 import { PdfEngine } from "./pdf-engine/pdf.engine";
 import { OptimizationService, OptimizationValidator, IOptimizationProposal, IBeforeAfterReport } from "./optimization";
+import { ResumeContentIntelligenceService } from "./tailoring/resume-content-intelligence.service";
+import { ResumePdfExporterService } from "./pdf-export/resume-pdf-exporter.service";
 import { Profile } from "../profile/profile.model";
 import { Job } from "../jobs/jobs.model";
 import { ResumeSecurity } from "./resume.security";
@@ -918,12 +920,12 @@ export class ResumeController {
   }
 
   /**
-   * 19. Tailor Resume Diff Generator
+   * 19. Tailor Resume Diff & Content Intelligence Generator
    */
   static async tailorResume(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
     const { id } = request.params;
-    const { jobId, jobDescription, targetTitle } = (request.body as any) || {};
+    const { jobId, jobDescription, targetTitle, preferredTemplateId } = (request.body as any) || {};
 
     const resume = await Resume.findOne({ _id: id, userId });
     if (!resume) {
@@ -932,12 +934,16 @@ export class ResumeController {
 
     let finalJd = jobDescription || "";
     let finalTitle = targetTitle || resume.targetRole;
+    let jobSkills: string[] = [];
+    let companyName = "Target Company";
 
     if (jobId) {
       const jobObj = await Job.findOne({ _id: jobId }) || await Job.findById(jobId);
       if (jobObj) {
-        finalJd = `${jobObj.title}\n${jobObj.companyName}\n${jobObj.description || ""}\n${(jobObj.skills || []).join(", ")}`;
+        finalJd = `${jobObj.title}\n${jobObj.companyName}\n${jobObj.description || ""}`;
         finalTitle = jobObj.title;
+        companyName = jobObj.companyName;
+        jobSkills = jobObj.skills || [];
       }
     }
 
@@ -945,8 +951,55 @@ export class ResumeController {
       return reply.status(400).send({ success: false, message: "Job description is required for tailoring" });
     }
 
-    const tailoringDiff = await ResumeMatcher.generateTailoringDiff(resume.profileData, finalJd, finalTitle);
-    return { success: true, ...tailoringDiff };
+    // Run end-to-end Content Intelligence Optimization
+    const optimization = await ResumeContentIntelligenceService.optimizeForJob(
+      resume.profileData,
+      {
+        id: jobId || "target-job",
+        title: finalTitle,
+        companyName,
+        description: finalJd,
+        skills: jobSkills
+      },
+      preferredTemplateId
+    );
+
+    // Build diff for user review
+    const diff: any[] = [];
+    if (optimization.structuredResume.summary && optimization.structuredResume.summary !== resume.profileData.summary) {
+      diff.push({
+        section: "Professional Summary",
+        field: "summary",
+        current: resume.profileData.summary || "No summary specified",
+        proposed: optimization.structuredResume.summary,
+        rationale: "Aligns core headline with target job description and engineering competencies"
+      });
+    }
+
+    if (optimization.structuredResume.projects?.[0]?.bullets?.[0] && resume.profileData.projects?.[0]?.bullets?.[0]) {
+      diff.push({
+        section: `Project (${optimization.structuredResume.projects[0].name})`,
+        field: "bullets[0]",
+        current: resume.profileData.projects[0].bullets[0],
+        proposed: optimization.structuredResume.projects[0].bullets[0],
+        rationale: "Emphasizes action verbs, technical architecture, and verified JD technologies"
+      });
+    }
+
+    const { score: currentScore } = ResumeATS.calculateScore(resume.profileData, finalTitle);
+
+    return {
+      success: true,
+      currentScore,
+      potentialScore: optimization.telemetry.jobMatchScore,
+      diff,
+      matchedSkills: optimization.telemetry.matchedSkills,
+      missingSkills: optimization.telemetry.missingSkills,
+      structuredResume: optimization.structuredResume,
+      recommendation: optimization.recommendation,
+      validationReport: optimization.validationReport,
+      telemetry: optimization.telemetry
+    };
   }
 
   /**
@@ -955,7 +1008,7 @@ export class ResumeController {
   static async applyTailoring(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const userId = (request as any).user.sub;
     const { id } = request.params;
-    const { appliedDiffs, targetRole, newResumeName } = (request.body as any) || {};
+    const { appliedDiffs, targetRole, newResumeName, structuredResume, template, jobId } = (request.body as any) || {};
 
     const original = await Resume.findOne({ _id: id, userId });
     if (!original) {
@@ -965,11 +1018,56 @@ export class ResumeController {
     // Clone profileData
     const newProfileData: IResumeProfileData = JSON.parse(JSON.stringify(original.profileData));
 
+    // If a full structured resume was provided, adopt its optimized sections
+    if (structuredResume) {
+      if (structuredResume.summary) newProfileData.summary = structuredResume.summary;
+      if (structuredResume.projects?.length) {
+        newProfileData.projects = structuredResume.projects.map((p: any, i: number) => ({
+          id: String(i + 1),
+          name: p.name,
+          role: p.role || "Developer",
+          description: p.description || "",
+          technologies: p.technologies || [],
+          bullets: p.bullets || [],
+          url: p.githubUrl || p.liveUrl
+        }));
+      }
+      if (structuredResume.education?.length) {
+        newProfileData.education = structuredResume.education.map((e: any, i: number) => ({
+          id: String(i + 1),
+          institution: e.institution,
+          degree: e.degree,
+          field: e.fieldOfStudy || "",
+          startDate: e.startDate || "",
+          endDate: e.endDate || "",
+          gpa: e.gpa || ""
+        }));
+      }
+      if (structuredResume.certifications?.length) {
+        newProfileData.certifications = structuredResume.certifications.map((c: any, i: number) => ({
+          id: String(i + 1),
+          name: c.name,
+          issuer: c.issuer,
+          date: c.date || ""
+        }));
+      }
+      if (structuredResume.achievements?.length) {
+        newProfileData.achievements = structuredResume.achievements.map((a: any, i: number) => ({
+          id: String(i + 1),
+          title: a.title,
+          description: a.description || a.title
+        }));
+      }
+    }
+
+    // Apply any explicit selected diffs
     for (const d of appliedDiffs || []) {
       if (d.field === "summary") {
         newProfileData.summary = d.proposed;
       } else if (d.field === "bullets[0]" && newProfileData.experience?.[0]?.bullets?.length) {
         newProfileData.experience[0].bullets[0] = d.proposed;
+      } else if (d.field?.startsWith("projects[0]") && newProfileData.projects?.[0]?.bullets?.length) {
+        newProfileData.projects[0].bullets[0] = d.proposed;
       }
     }
 
@@ -983,16 +1081,17 @@ export class ResumeController {
     });
     const { score, analysis } = ResumeATS.mapAtsReportToAnalysis(atsReport);
 
-    const tailoredResume = await Resume.create({
+    const tailoredResume: any = await Resume.create({
       userId,
       name: newResumeName || `${original.name} (Tailored for ${targetTitle})`,
       targetRole: targetTitle,
       profileData: newProfileData,
-      template: original.template,
+      template: template || original.template || "classic-ats",
       atsScore: score,
       atsAnalysis: analysis,
+      tailoredForJobId: jobId,
       version: 1
-    });
+    } as any);
 
     await ResumeVersion.create({
       resumeId: tailoredResume._id,
@@ -1002,7 +1101,7 @@ export class ResumeController {
       atsScore: score,
       targetRole: targetTitle,
       name: tailoredResume.name,
-      changeSummary: `Tailored version created from ${original.name}`
+      changeSummary: `Tailored version created from ${original.name} for ${targetTitle}`
     });
 
     await ResumeController.logActivity(userId, tailoredResume._id, "tailored", `Created tailored version "${tailoredResume.name}"`);
@@ -1137,6 +1236,46 @@ export class ResumeController {
       versionB: { versionNumber: verB.versionNumber, atsScore: verB.atsScore, createdAt: verB.createdAt },
       diffs
     };
+  }
+
+  /**
+   * 23b. Export High-Fidelity Single-Page A4 PDF
+   * Uses Puppeteer / System Chromium with ATS-optimized vector typography and selectable text.
+   */
+  static async exportPdf(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const userId = (request as any).user.sub;
+    const { id } = request.params;
+    const { templateId } = (request.body as any) || {};
+
+    const resume = await Resume.findOne({ _id: id, userId });
+    if (!resume) {
+      return reply.status(404).send({ success: false, message: "Resume not found" });
+    }
+
+    try {
+      // Build structured resume for deterministic 1-page A4 rendering
+      let structured = (resume as any).structuredResume;
+      if (!structured) {
+        structured = ResumeContentIntelligenceService.buildStructuredFromProfile(resume.profileData);
+      }
+
+      const activeTemplate = (templateId || resume.template || "tech-fresher") as any;
+      const buffer = await ResumePdfExporterService.exportToPdf(structured, activeTemplate);
+
+      const safeFilename = `${(resume.profileData?.personal?.fullName || "Resume").replace(/\s+/g, "_")}_Resume.pdf`;
+
+      await ResumeController.logActivity(userId, resume._id, "exported", "Exported resume as High-Fidelity A4 PDF");
+
+      reply.header("Content-Type", "application/pdf");
+      reply.header("Content-Disposition", `attachment; filename="${safeFilename}"`);
+      return reply.send(buffer);
+    } catch (err: any) {
+      console.error("[exportPdf] PDF generation failed:", err);
+      return reply.status(500).send({
+        success: false,
+        message: "Failed to generate PDF: " + (err.message || "Unknown error")
+      });
+    }
   }
 
   /**

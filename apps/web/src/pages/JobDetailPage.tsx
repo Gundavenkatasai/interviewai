@@ -143,7 +143,7 @@ export default function JobDetailPage() {
     // 5. Work arrangement
     const workMode = item?.work_mode || (item?.location?.toLowerCase().includes("remote") ? "REMOTE" : "ONSITE");
 
-    // 6. Structured Responsibilities extraction
+    // 6. Structured Responsibilities & Scope extraction
     let responsibilities: string[] = [];
     const respMatch = cleanDesc.match(
       /(?:Key\s*Responsibilities|Responsibilities|Day-to-day\s*responsibilities|Job\s*Description|About\s*the\s*role)[:\s]+([\s\S]*?)(?=(?:\n\s*[A-Z][a-zA-Z0-9\s#+.-]{1,25}\s*\n\s*[A-Z]|\n\s*(?:Skills|Requirements|Perks|Who\s*can\s*apply|Selection\s*process|Eligibility|Stipend):|\n\s*₹|$))/i
@@ -152,22 +152,39 @@ export default function JobDetailPage() {
       const rawResp = respMatch[1].trim();
       const items = rawResp
         .split(/(?:^|\n|\s+)(?:\d+\.|\*|•|-)\s+/)
-        .map((s: string) => s.trim())
+        .map((s: string) => s.replace(/\s*\d+\.\s*$/, "").trim())
         .filter((s: string) => s.length > 5);
       if (items.length > 0) {
         responsibilities = items;
       } else if (rawResp.length > 10) {
-        responsibilities = [rawResp];
+        responsibilities = [rawResp.replace(/\s*\d+\.\s*$/, "").trim()];
       }
     }
 
-    // 7. Structured Competencies / Toolchain Extraction
+    // 7. Role Overview & Narrative Scope extraction
     const descLines = cleanDesc.split("\n").map((l: string) => l.trim()).filter(Boolean);
+    let roleSummary = "";
+    const narrativeLines = descLines.filter((l: string) =>
+      l.length >= 35 &&
+      !l.includes("₹") &&
+      !l.includes("http") &&
+      !l.toLowerCase().includes("actively hiring") &&
+      !l.toLowerCase().includes("key responsibilities") &&
+      !l.toLowerCase().includes("responsibilities:") &&
+      !responsibilities.some((r) => r.includes(l.slice(0, 25)))
+    );
+    if (narrativeLines.length > 0) {
+      roleSummary = narrativeLines.join(" ");
+    }
+
+    // 8. Structured Competencies / Toolchain Extraction
     const extractedSkills: string[] = [];
     const blacklist = new Set([
-      "actively hiring", "today", "about us", "apply", "job", "jobs", "coimbatore", "india",
-      "internshala", "naukri", "linkedin", "unstop", "freshers", "full time", "internship",
-      "work from home", "remote", "onsite", "hybrid", "stipend", "perks", "not disclosed"
+      "actively hiring", "today", "yesterday", "just now", "about us", "apply", "apply now",
+      "job", "jobs", "coimbatore", "india", "internshala", "naukri", "linkedin", "unstop",
+      "freshers", "fresher", "full time", "internship", "work from home", "remote", "onsite",
+      "hybrid", "stipend", "perks", "not disclosed", "view details", "posted", "save",
+      "view job", "few hours ago", "urgent hiring", "immediate joiner"
     ]);
 
     descLines.forEach((line: string) => {
@@ -180,6 +197,9 @@ export default function JobDetailPage() {
         !line.includes("responsibilities") &&
         !line.includes("year") &&
         !blacklist.has(lower) &&
+        !/^\+\d+\s*more$/i.test(line) &&
+        !/^\d+\s*(?:hours?|days?|mins?|weeks?)\s*ago$/i.test(line) &&
+        !/^just\s*now$/i.test(line) &&
         /^[A-Za-z0-9#+.\s-]+$/.test(line) &&
         line.split(" ").length <= 3
       ) {
@@ -201,6 +221,7 @@ export default function JobDetailPage() {
       eligibility,
       workMode,
       responsibilities,
+      roleSummary,
       allSkills,
     };
   };
@@ -371,6 +392,24 @@ export default function JobDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Role Summary & Scope Context */}
+                {attrs.roleSummary && (
+                  <div className="bg-[#FAF8F5] border border-[#E5E0D4] rounded-lg p-4 space-y-2">
+                    <div className="flex items-center justify-between border-b border-[#E5E0D4] pb-2">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#181614] flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-[#C84B26]" />
+                        POSITION OVERVIEW & SCOPE
+                      </span>
+                      <span className="text-[9px] font-mono text-[#2E6347] bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6] font-semibold">
+                        VERIFIED SUMMARY
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#181614]/90 leading-relaxed font-sans">
+                      {attrs.roleSummary}
+                    </p>
+                  </div>
+                )}
 
                 {/* Clean Key Responsibilities & Scope */}
                 {attrs.responsibilities.length > 0 && (
