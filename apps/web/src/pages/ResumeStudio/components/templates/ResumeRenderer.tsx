@@ -72,6 +72,8 @@ export const ResumeRenderer = forwardRef<HTMLDivElement, ResumeRendererProps>(
     return (
       <div
         ref={ref}
+        id="resume-a4-canvas"
+        data-resume-print="true"
         style={dimensionStyle}
         className={`bg-white shadow-2xl rounded-sm print:shadow-none print:m-0 overflow-hidden shrink-0 ${className}`}
       >

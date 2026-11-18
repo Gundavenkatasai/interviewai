@@ -876,7 +876,7 @@ export default function ResumeStudioPage() {
             )}
 
             {/* Report Actions Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/70 border border-slate-800 rounded-2xl p-4 print:hidden">
               <div>
                 <span className="text-[11px] font-bold text-orange-400 uppercase tracking-wider">ATS Audit Report</span>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">

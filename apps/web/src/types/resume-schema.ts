@@ -6,6 +6,8 @@ export type TemplateId =
   | "academic"
   | "modern-tech";
 
+export type LayoutDensity = "spacious" | "balanced" | "compact";
+
 export interface IResumeBasics {
   name: string;
   professionalTitle?: string;

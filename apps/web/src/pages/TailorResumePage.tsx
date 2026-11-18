@@ -16,6 +16,7 @@ import {
   ResumeTemplateDispatcher,
   TEMPLATE_METADATA,
 } from "../components/resume-templates/ResumeTemplateDispatcher";
+import { printResumeDocument, validateResumeForPrint } from "../lib/resume-printer";
 
 interface ITailoringTelemetry {
   resumeQualityScore: number;
@@ -108,6 +109,7 @@ export default function TailorResumePage() {
   const [tailoredResumeId, setTailoredResumeId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [attachedToApp, setAttachedToApp] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
@@ -259,9 +261,27 @@ export default function TailorResumePage() {
     }
   };
 
-  // Handle PDF Print / Export
-  const handlePrintPdf = () => {
-    window.print();
+  // Handle PDF Print / Export using dedicated isolated print engine
+  const handlePrintPdf = async () => {
+    setIsPrinting(true);
+    setPdfError(null);
+    try {
+      const validation = validateResumeForPrint("resume-a4-canvas");
+      if (!validation.valid) {
+        setPdfError(validation.error || "Cannot print: resume canvas is not ready.");
+        return;
+      }
+      const res = await printResumeDocument("resume-a4-canvas");
+      if (!res.success && res.error) {
+        console.warn("Dedicated print warning, using window.print fallback:", res.error);
+        window.print();
+      }
+    } catch (err: any) {
+      console.error("Print error:", err);
+      window.print();
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   // Save summary edit
@@ -871,11 +891,12 @@ export default function TailorResumePage() {
                   <button
                     type="button"
                     onClick={handlePrintPdf}
-                    className="px-3 py-1.5 rounded bg-[#172535] hover:bg-[#181614] text-white text-xs font-mono font-medium flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    title="Print directly or save via browser print dialog"
+                    disabled={isPrinting}
+                    className="px-3 py-1.5 rounded bg-[#172535] hover:bg-[#181614] text-white text-xs font-mono font-medium flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    title="Print directly or save as PDF via browser print dialog"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    <span>Print</span>
+                    <span>{isPrinting ? "Printing..." : "Print"}</span>
                   </button>
 
                   {/* DOCX Export Button */}

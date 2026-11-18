@@ -4,6 +4,7 @@ import {
   ArrowLeft, Check, RefreshCw, AlertCircle, Undo2, Redo2,
   Share2, Download, Eye, FileText, ChevronDown, Printer
 } from "lucide-react";
+import { printResumeDocument } from "../../../lib/resume-printer";
 
 interface ResumeTopBarProps {
   resumeName: string;
@@ -282,11 +283,16 @@ export const ResumeTopBar: React.FC<ResumeTopBarProps> = ({
               </button>
               <div className="pt-1 mt-1 border-t border-slate-800">
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setExportOpen(false);
-                    window.print();
+                    try {
+                      const res = await printResumeDocument("resume-a4-canvas");
+                      if (!res.success) window.print();
+                    } catch (_) {
+                      window.print();
+                    }
                   }}
-                  className="w-full text-left px-3 py-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 flex items-center gap-2"
+                  className="w-full text-left px-3 py-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 flex items-center gap-2 cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print Document</span>
