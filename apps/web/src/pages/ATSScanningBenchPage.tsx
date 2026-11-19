@@ -40,6 +40,7 @@ export default function ATSScanningBenchPage() {
   // Filter Issues
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [ruleLedgerFilter, setRuleLedgerFilter] = useState<"ALL" | "PASSED" | "FAILED" | "NOT_APPLICABLE">("ALL");
 
   // Improvement Drawer
   const [showImproveModal, setShowImproveModal] = useState(false);
@@ -722,6 +723,46 @@ export default function ATSScanningBenchPage() {
               </div>
             </div>
 
+            {/* ── Candidate Classification & Policy Readout ── */}
+            {currentAnalysis.candidateClassification && (
+              <div className="bg-white rounded-lg border border-[#E5E0D4] p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#8C8479] font-bold">
+                      CANDIDATE CLASSIFICATION:
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-[#172535] text-white">
+                      {currentAnalysis.candidateClassification.experienceLevel === "FRESHER" ? "🎓 FRESHER" :
+                       currentAnalysis.candidateClassification.experienceLevel === "EXPERIENCED" ? "💼 EXPERIENCED" :
+                       currentAnalysis.candidateClassification.experienceLevel === "INTERNSHIP_ONLY" ? "🌱 INTERNSHIP-ONLY" :
+                       currentAnalysis.candidateClassification.experienceLevel === "MIXED" ? "⚡ MIXED CAREER" : "👤 GENERAL"}
+                    </span>
+                    <span className="text-xs font-mono text-[#2E6347] bg-[#EBF3EE] px-2 py-0.5 rounded border border-[#D0E3D6]">
+                      Confidence: {currentAnalysis.candidateClassification.classificationConfidence}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#5C564E]">
+                    <span className="font-semibold text-[#181614]">Applied Policy:</span> {currentAnalysis.candidateClassification.appliedScoringPolicy}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs font-mono text-[#8C8479] border-t md:border-t-0 md:border-l border-[#E5E0D4] pt-2 md:pt-0 md:pl-4 shrink-0">
+                  <div className="text-center">
+                    <span className="block text-sm font-bold text-[#181614]">{currentAnalysis.candidateClassification.verifiedEmploymentCount}</span>
+                    <span className="text-[9px] uppercase">Full-Time</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-sm font-bold text-[#181614]">{currentAnalysis.candidateClassification.verifiedInternshipCount}</span>
+                    <span className="text-[9px] uppercase">Internships</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-sm font-bold text-[#181614]">{currentAnalysis.candidateClassification.projectCount}</span>
+                    <span className="text-[9px] uppercase">Projects</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── Section B: 7 Category-Wise Score Cards ── */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -775,6 +816,23 @@ export default function ATSScanningBenchPage() {
                         <p className="text-[11px] text-[#8C8479] leading-relaxed line-clamp-2">
                           {item.data.summary}
                         </p>
+
+                        {/* Subcategory Scores for Experience & Projects */}
+                        {item.key === "experienceProjects" && (
+                          <div className="pt-1 flex flex-wrap gap-1 text-[9px] font-mono">
+                            <span className="px-1.5 py-0.5 rounded bg-[#FAF8F5] border border-[#E5E0D4] text-[#5C564E]">
+                              Roles: <strong className="text-[#181614]">{item.data.professionalEmploymentScore ?? "N/A"}</strong>
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-[#FAF8F5] border border-[#E5E0D4] text-[#5C564E]">
+                              Projects: <strong className="text-[#181614]">{item.data.projectScore ?? 0} pts</strong>
+                            </span>
+                            {item.data.internshipScore !== "N/A" && item.data.internshipScore !== undefined && (
+                              <span className="px-1.5 py-0.5 rounded bg-[#FAF8F5] border border-[#E5E0D4] text-[#5C564E]">
+                                Interns: <strong className="text-[#181614]">{item.data.internshipScore} pts</strong>
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t border-[#F5F3EE] mt-3 text-[10px] font-mono text-[#8C8479]">
@@ -995,6 +1053,89 @@ export default function ATSScanningBenchPage() {
                 </div>
               )}
             </div>
+
+            {/* ── Section E: Transparent Evidence Rule Ledger ── */}
+            {currentAnalysis.ruleLedger && currentAnalysis.ruleLedger.length > 0 && (
+              <div className="bg-white rounded-lg border border-[#E5E0D4] p-6 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E0D4] pb-3">
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-[#181614]">
+                      Transparent ATS Rule Evaluation Ledger ({currentAnalysis.ruleLedger.length} Rules)
+                    </h3>
+                    <p className="text-xs text-[#8C8479] mt-0.5">
+                      Deterministic evidence evaluated across parsing, contact, keywords, experience, projects, and formatting.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-[#F5F3EE] p-1 rounded-md text-xs font-mono">
+                    {(["ALL", "PASSED", "FAILED", "NOT_APPLICABLE"] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setRuleLedgerFilter(st)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                          ruleLedgerFilter === st
+                            ? "bg-white text-[#181614] shadow-2xs"
+                            : "text-[#8C8479] hover:text-[#181614]"
+                        }`}
+                      >
+                        {st.replace("_", " ")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="divide-y divide-[#F5F3EE] overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-wider text-[#8C8479] border-b border-[#E5E0D4]">
+                        <th className="pb-2 font-bold">Rule ID & Name</th>
+                        <th className="pb-2 font-bold">Category</th>
+                        <th className="pb-2 font-bold">Status</th>
+                        <th className="pb-2 font-bold">Points</th>
+                        <th className="pb-2 font-bold">Extracted Evidence</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F3EE]">
+                      {currentAnalysis.ruleLedger
+                        .filter((r) => ruleLedgerFilter === "ALL" || r.status === ruleLedgerFilter)
+                        .map((rule) => {
+                          const statusBadge =
+                            rule.status === "PASSED"
+                              ? "bg-[#EBF3EE] text-[#2E6347] border-[#D0E3D6]"
+                              : rule.status === "FAILED"
+                              ? "bg-[#FCEEEE] text-[#9E2A2B] border-[#F7D0D0]"
+                              : rule.status === "NOT_APPLICABLE"
+                              ? "bg-[#F5F3EE] text-[#8C8479] border-[#E5E0D4]"
+                              : "bg-[#FDF6E9] text-[#A36114] border-[#F7E6C4]";
+
+                          return (
+                            <tr key={rule.ruleId} className="hover:bg-[#FAF8F5] transition-colors">
+                              <td className="py-2.5 pr-3">
+                                <span className="font-bold text-[#181614] block">{rule.name}</span>
+                                <span className="text-[10px] text-[#8C8479]">{rule.ruleId}</span>
+                              </td>
+                              <td className="py-2.5 pr-3 text-[11px] text-[#5C564E]">
+                                {rule.category}
+                              </td>
+                              <td className="py-2.5 pr-3">
+                                <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${statusBadge}`}>
+                                  {rule.status.replace("_", " ")}
+                                </span>
+                              </td>
+                              <td className="py-2.5 pr-3 font-bold text-[#181614]">
+                                {rule.earnedPoints} / {rule.maxPoints}
+                              </td>
+                              <td className="py-2.5 text-[11px] text-[#5C564E] max-w-xs truncate" title={rule.evidence}>
+                                {rule.evidence}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* ── Section G: Improvement Roadmap ── */}
             <div className="bg-white rounded-lg border border-[#E5E0D4] p-6 shadow-sm space-y-4">

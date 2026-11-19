@@ -124,15 +124,15 @@ export class ResumeParser {
 
     // 2. Identify sections by headers
     const sectionHeaders = [
-      { key: "summary", regex: /^(?:summary|professional summary|profile|about me|executive summary)\s*(?::)?\s*$/i },
-      { key: "skills", regex: /^(?:skills|technical skills|technologies|core competencies|proficiencies)\s*(?::)?\s*$/i },
-      { key: "projects", regex: /^(?:projects|personal projects|key projects|academic projects|technical projects)\s*(?::)?\s*$/i },
-      { key: "experience", regex: /^(?:experience|work experience|employment history|professional experience)\s*(?::)?\s*$/i },
-      { key: "internships", regex: /^(?:internships|internship experience)\s*(?::)?\s*$/i },
+      { key: "summary", regex: /^(?:summary|professional summary|profile|about me|executive summary|overview)\s*(?::)?\s*$/i },
+      { key: "skills", regex: /^(?:skills|technical skills|technologies|core competencies|proficiencies|skills & tools)\s*(?::)?\s*$/i },
+      { key: "projects", regex: /^(?:projects|personal projects|key projects|academic projects|technical projects|academic & personal projects|selected projects|software projects)\s*(?::)?\s*$/i },
+      { key: "experience", regex: /^(?:experience|work experience|employment history|professional experience|employment|work history)\s*(?::)?\s*$/i },
+      { key: "internships", regex: /^(?:internships|internship experience|internship|intern experiences)\s*(?::)?\s*$/i },
       { key: "training", regex: /^(?:training|trainings|vocational training|coursework|relevant coursework)\s*(?::)?\s*$/i },
-      { key: "certifications", regex: /^(?:certifications|licenses & certifications|certificates)\s*(?::)?\s*$/i },
+      { key: "certifications", regex: /^(?:certifications|licenses & certifications|certificates|certifications & licenses)\s*(?::)?\s*$/i },
       { key: "achievements", regex: /^(?:achievements|awards & achievements|honors & awards|awards|accomplishments)\s*(?::)?\s*$/i },
-      { key: "education", regex: /^(?:education|academic background|qualifications|academic history)\s*(?::)?\s*$/i },
+      { key: "education", regex: /^(?:education|academic background|qualifications|academic history|academics)\s*(?::)?\s*$/i },
       { key: "publications", regex: /^(?:publications|research papers)\s*(?::)?\s*$/i },
       { key: "volunteer", regex: /^(?:volunteer|community service|volunteering)\s*(?::)?\s*$/i },
       { key: "languages", regex: /^(?:languages|language proficiencies)\s*(?::)?\s*$/i },
@@ -171,43 +171,122 @@ export class ResumeParser {
     // Parse Professional Summary
     const summary = (sectionChunks.summary || []).join(" ").slice(0, 1000);
 
-    // Parse Experience
-    const experience: any[] = [];
-    const expLines = sectionChunks.experience || [];
-    let curExp: any = null;
+    // Helper to parse role entries (Experience or Internships) with robust date & title extraction
+    const parseRoleEntries = (rawLines: string[]): any[] => {
+      const entries: any[] = [];
+      let curEntry: any = null;
 
-    for (const line of expLines) {
-      const dateMatch = line.match(/(?:19|20)\d{2}\s*(?:-|–|to)\s*(?:(?:19|20)\d{2}|present)/i);
-      const isBullet = /^[-•*·]\s*/.test(line);
+      for (const line of rawLines) {
+        const dateMatch = line.match(
+          /(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}\s*(?:[-–—]|\s+to\s+)\s*(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}|present)|\b(?:19|20)\d{2}\s*(?:[-–—]|\s+to\s+)\s*(?:(?:19|20)\d{2}|present)\b)/i
+        );
+        const isBullet = /^[-•*·]\s*/.test(line);
+        const isHeader = !isBullet && (
+          Boolean(dateMatch) ||
+          line.includes(" | ") ||
+          line.includes(" – ") ||
+          line.includes(" - ") ||
+          line.includes(",") ||
+          /(?:developer|engineer|architect|manager|lead|consultant|analyst|specialist|officer|designer|administrator|coordinator|director|programmer|technician)/i.test(line)
+        ) && !/^(responsibilities|achievements|technologies|built|developed|designed|engineered|assisted|responsible|utilized|spearheaded|managed)\b/i.test(line);
 
-      if (dateMatch && !isBullet) {
-        if (curExp) experience.push(curExp);
-        const parts = line.split(/[|,\-–]/).map((p) => p.trim());
-        curExp = {
-          id: String(experience.length + 1),
-          company: parts[0] || "Company",
-          role: parts[1] || "Role",
-          location: "",
-          startDate: dateMatch[0].split(/(?:-|–|to)/)[0].trim(),
-          endDate: dateMatch[0].split(/(?:-|–|to)/)[1]?.trim() || "Present",
-          current: /present/i.test(line),
-          description: "",
-          bullets: [],
-          provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
-        };
-      } else if (curExp) {
-        if (isBullet) {
-          curExp.bullets.push(line.replace(/^[-•*·]\s*/, ""));
-        } else if (line.length > 5) {
-          if (curExp.bullets.length > 0) {
-            curExp.bullets[curExp.bullets.length - 1] += " " + line.trim();
-          } else {
-            curExp.bullets.push(line.trim());
+        if (isHeader) {
+          if (curEntry) entries.push(curEntry);
+          const dateStr = dateMatch ? dateMatch[0] : "";
+          const withoutDate = dateStr ? line.replace(dateStr, "").trim() : line.trim();
+          const parts = withoutDate.split(/\s*[-–—|,]\s*/).filter(Boolean);
+          const startDate = dateStr ? (dateStr.split(/(?:[-–—]|\s+to\s+)/i)[0]?.trim() || "") : "";
+          const endDate = dateStr ? (dateStr.split(/(?:[-–—]|\s+to\s+)/i)[1]?.trim() || "Present") : "";
+
+          let role = "Role";
+          let company = "Company";
+          if (parts.length >= 2) {
+            if (/(?:developer|engineer|architect|manager|lead|consultant|analyst|specialist|officer|designer)/i.test(parts[0])) {
+              role = parts[0];
+              company = parts[1];
+            } else {
+              company = parts[0];
+              role = parts[1];
+            }
+          } else if (parts.length === 1) {
+            company = parts[0];
+            role = parts[0];
+          }
+
+          curEntry = {
+            id: String(entries.length + 1),
+            company,
+            role,
+            location: parts[2] || "",
+            startDate,
+            endDate,
+            current: /present/i.test(endDate),
+            description: "",
+            bullets: [],
+            provenance: { sourceType: "RESUME", status: "PARSED", extractedAt: new Date() }
+          };
+        } else if (curEntry) {
+          if (isBullet) {
+            curEntry.bullets.push(line.replace(/^[-•*·]\s*/, "").trim());
+          } else if (line.length > 5) {
+            if (curEntry.bullets.length > 0) {
+              curEntry.bullets[curEntry.bullets.length - 1] += " " + line.trim();
+            } else {
+              curEntry.bullets.push(line.trim());
+            }
           }
         }
       }
-    }
-    if (curExp) experience.push(curExp);
+      if (curEntry) entries.push(curEntry);
+      return entries;
+    };
+
+    // Parse raw experience and internships
+    const rawExperienceEntries = parseRoleEntries(sectionChunks.experience || []);
+    const rawInternshipEntries = parseRoleEntries(sectionChunks.internships || []);
+
+    // Strict classification: Prevent internships or projects from contaminating verified employment
+    const verifiedExperience: any[] = [];
+    const verifiedInternships: any[] = [...rawInternshipEntries];
+    const projectCandidatesFromExp: any[] = [];
+
+    rawExperienceEntries.forEach((entry) => {
+      const roleLower = (entry.role || "").toLowerCase();
+      const compLower = (entry.company || "").toLowerCase();
+      const titleCombo = `${roleLower} ${compLower}`;
+
+      if (
+        /\b(?:intern|internship|trainee|fellow|fellowship|apprentice)\b/i.test(titleCombo) ||
+        compLower.includes("internship")
+      ) {
+        verifiedInternships.push({
+          ...entry,
+          id: String(verifiedInternships.length + 1)
+        });
+      } else if (
+        /\b(?:project|projects|capstone|hackathon|academic project|personal project|coursework|side project|thesis)\b/i.test(titleCombo) ||
+        compLower.includes("project") ||
+        compLower === "role" ||
+        compLower === "developer"
+      ) {
+        projectCandidatesFromExp.push({
+          id: String(projectCandidatesFromExp.length + 1),
+          name: entry.role !== "Role" && entry.role !== entry.company ? entry.role : entry.company,
+          role: "Developer",
+          description: entry.company,
+          technologies: [],
+          bullets: entry.bullets,
+          provenance: entry.provenance
+        });
+      } else {
+        verifiedExperience.push({
+          ...entry,
+          id: String(verifiedExperience.length + 1)
+        });
+      }
+    });
+
+    const experience = verifiedExperience;
 
     // Parse Education (Enhanced for 2-line institution + degree/gpa/dates formats)
     const education: any[] = [];
@@ -307,7 +386,7 @@ export class ResumeParser {
     parsedSkills.structured = structuredSkills;
 
     // Parse Projects (Advanced: Avoids Line-Wrap Splitting & Captures Tech Stacks & Links)
-    const projects: any[] = [];
+    const projects: any[] = [...projectCandidatesFromExp];
     const projLines = sectionChunks.projects || [];
     let curProj: any = null;
 
@@ -316,15 +395,16 @@ export class ResumeParser {
       const isTechLine = /^tech(?:nologies)?:\s*/i.test(line);
 
       // Date regex for project header
-      const dateMatch = line.match(/(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}\s*(?:[-–—]|\s+to\s+)\s*(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}|present))/i);
+      const dateMatch = line.match(/(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}\s*(?:[-–—]|\s+to\s+)\s*(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z’']*\s*\d{2,4}|present)|\b(?:19|20)\d{2}\s*(?:[-–—]|\s+to\s+)\s*(?:(?:19|20)\d{2}|present)\b)/i);
 
-      // Project Header Condition: Non-bullet, non-tech line with separator or date
+      // Project Header Condition: Non-bullet, non-tech line with separator, date, or standalone project title
       const isProjectHeader = !isBullet && !isTechLine && (
         Boolean(dateMatch) ||
         line.includes(" | ") ||
         line.includes(" – ") ||
-        line.includes(" - ")
-      ) && !/^(developed|built|implemented|created|engineered|configured|deployed|automated|improved|leveraged|designed)/i.test(line);
+        line.includes(" - ") ||
+        (line.length < 70 && !/^(developed|built|implemented|created|engineered|configured|deployed|automated|improved|leveraged|designed|utilized|managed|spearheaded|orchestrated|responsible|assisted|led)\b/i.test(line))
+      );
 
       if (isProjectHeader) {
         if (curProj) projects.push(curProj);
@@ -467,7 +547,7 @@ export class ResumeParser {
       skills: parsedSkills,
       certifications,
       achievements,
-      internships: [],
+      internships: verifiedInternships,
       publications: [],
       volunteer: [],
       languages,

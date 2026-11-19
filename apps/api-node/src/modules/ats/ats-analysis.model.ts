@@ -1,12 +1,41 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { randomUUID } from "crypto";
 
+export interface IATSRuleResult {
+  ruleId: string;
+  name: string;
+  category: string;
+  status: "PASSED" | "FAILED" | "NOT_APPLICABLE" | "WARNING";
+  earnedPoints: number;
+  maxPoints: number;
+  evidence: string;
+  recommendation?: string;
+}
+
+export interface ICandidateClassificationData {
+  experienceLevel: "FRESHER" | "INTERNSHIP_ONLY" | "EXPERIENCED" | "MIXED" | "UNKNOWN";
+  verifiedEmploymentCount: number;
+  verifiedInternshipCount: number;
+  projectCount: number;
+  educationCount: number;
+  statedYearsOfExperience: number;
+  classificationConfidence: "HIGH" | "MEDIUM" | "LOW";
+  classificationEvidence: string;
+  appliedScoringPolicy: string;
+}
+
 export interface ICategoryScoreDetail {
   score: number;
   maxScore: number;
   percentage: number;
   summary: string;
   issuesCount: number;
+  candidateType?: string;
+  appliedPolicy?: string;
+  professionalEmploymentScore?: number | "N/A";
+  projectScore?: number;
+  internshipScore?: number | "N/A";
+  ruleResults?: IATSRuleResult[];
 }
 
 export interface IATSIssueItem {
@@ -83,6 +112,8 @@ export interface IResumeAnalysis {
   beforeScore?: number;
   afterScore?: number;
   scoringVersion: string;
+  candidateClassification?: ICandidateClassificationData;
+  ruleLedger?: IATSRuleResult[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -101,6 +132,8 @@ const resumeAnalysisSchema = new Schema<IResumeAnalysis>(
     jobDescriptionText: { type: String },
     overallScore: { type: Number, required: true, min: 0, max: 100 },
     scoreBand: { type: String, required: true },
+    candidateClassification: { type: Object },
+    ruleLedger: { type: [Object], default: [] },
     categoryScores: {
       keywordsSkills: { type: Object, required: true },
       resumeStructure: { type: Object, required: true },

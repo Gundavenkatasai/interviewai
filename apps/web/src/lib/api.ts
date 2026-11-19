@@ -1733,12 +1733,41 @@ export interface IResumeExtractionResult {
 }
 
 // ─── ATS Resume Scanner Data Structures ───
+export interface IATSRuleResult {
+  ruleId: string;
+  name: string;
+  category: string;
+  status: "PASSED" | "FAILED" | "NOT_APPLICABLE" | "WARNING";
+  earnedPoints: number;
+  maxPoints: number;
+  evidence: string;
+  recommendation?: string;
+}
+
+export interface ICandidateClassificationData {
+  experienceLevel: "FRESHER" | "INTERNSHIP_ONLY" | "EXPERIENCED" | "MIXED" | "UNKNOWN";
+  verifiedEmploymentCount: number;
+  verifiedInternshipCount: number;
+  projectCount: number;
+  educationCount: number;
+  statedYearsOfExperience: number;
+  classificationConfidence: "HIGH" | "MEDIUM" | "LOW";
+  classificationEvidence: string;
+  appliedScoringPolicy: string;
+}
+
 export interface IAtsCategoryScoreDetail {
   score: number;
   maxScore: number;
   percentage: number;
   summary: string;
   issuesCount: number;
+  candidateType?: string;
+  appliedPolicy?: string;
+  professionalEmploymentScore?: number | "N/A";
+  projectScore?: number;
+  internshipScore?: number | "N/A";
+  ruleResults?: IATSRuleResult[];
 }
 
 export interface IATSIssueItem {
@@ -1815,6 +1844,8 @@ export interface IResumeAnalysis {
   beforeScore?: number;
   afterScore?: number;
   scoringVersion: string;
+  candidateClassification?: ICandidateClassificationData;
+  ruleLedger?: IATSRuleResult[];
   createdAt: string;
   updatedAt: string;
 }
