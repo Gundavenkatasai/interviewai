@@ -28,6 +28,7 @@ import storyRoutes from "./modules/story-bank/story.routes";
 import debriefRoutes from "./modules/interview-debrief/debrief.routes";
 import { websocketRoutes } from "./websocket/handlers";
 import { importedDocxRoutes } from "./modules/resume/imported-docx/imported-docx.routes";
+import { atsRoutes } from "./modules/ats/ats.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -260,6 +261,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(userApplicationsRoutes, { prefix: "/api/user" });
   app.register(userApplicationsRoutes, { prefix: "/api/applications" });
   app.register(importedDocxRoutes, { prefix: "/api/resume/imported-docx" });
+  app.register(atsRoutes, { prefix: "/api/ats" });
   app.register(websocketRoutes);
 
   return app;

@@ -1461,6 +1461,68 @@ export class ApiClient {
     if (!res.ok) throw new Error("Failed to download optimized resume");
     return res.blob();
   }
+
+  // ================= DEDICATED ATS RESUME SCANNER ENGINE =================
+  static async uploadAtsResume(formData: FormData): Promise<{
+    success: boolean;
+    fileName: string;
+    fileSize: number;
+    fileType: string;
+    text: string;
+    profileData: any;
+    isScanned: boolean;
+    warnings: string[];
+    confidence: "high" | "medium" | "low";
+    confidenceMessage?: string;
+  }> {
+    return this.request<any>("/api/ats/upload", {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  static async analyzeAts(payload: {
+    fileName: string;
+    fileSize?: number;
+    fileType?: string;
+    text: string;
+    profileData?: any;
+    mode?: "GENERAL" | "JOB_SPECIFIC";
+    targetRole?: string;
+    jobId?: string;
+    jdText?: string;
+    previousAnalysisId?: string;
+  }): Promise<{ success: boolean; analysis: IResumeAnalysis }> {
+    return this.request<any>("/api/ats/analyze", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  static async getAtsAnalysis(id: string): Promise<{ success: boolean; analysis: IResumeAnalysis }> {
+    return this.request<any>(`/api/ats/analysis/${id}`);
+  }
+
+  static async getAtsHistory(): Promise<{ success: boolean; history: Array<Partial<IResumeAnalysis>> }> {
+    return this.request<any>("/api/ats/history");
+  }
+
+  static async getAtsImprovements(id: string): Promise<{ success: boolean; improvements: any[] }> {
+    return this.request<any>(`/api/ats/analysis/${id}/improve`, {
+      method: "POST",
+    });
+  }
+
+  static async improveAtsSection(id: string, section: string, currentText: string, instruction?: string): Promise<{ success: boolean; improvedText: string }> {
+    return this.request<any>(`/api/ats/analysis/${id}/improve-section`, {
+      method: "POST",
+      body: JSON.stringify({ section, currentText, instruction }),
+    });
+  }
+
+  static async downloadAtsReport(id: string): Promise<Blob> {
+    return this.requestBlob(`/api/ats/analysis/${id}/download`);
+  }
 }
 
 export interface ATSCheckPayload {
@@ -1669,6 +1731,94 @@ export interface IResumeExtractionResult {
   warnings: string[];
   isScanned: boolean;
 }
+
+// ─── ATS Resume Scanner Data Structures ───
+export interface IAtsCategoryScoreDetail {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  summary: string;
+  issuesCount: number;
+}
+
+export interface IATSIssueItem {
+  issueId: string;
+  category: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  title: string;
+  description: string;
+  evidence: string;
+  affectedSection: string;
+  recommendation: string;
+  pointsImpact: number;
+  beforeExample?: string;
+  afterExample?: string;
+}
+
+export interface IKeywordAnalysis {
+  mode: "GENERAL" | "JOB_SPECIFIC";
+  targetRole: string;
+  jdMatchScore?: number;
+  requiredKeywords: string[];
+  matchedKeywords: string[];
+  missingKeywords: string[];
+  partiallyMatchedKeywords?: string[];
+  stuffedKeywords?: Array<{ term: string; count: number }>;
+}
+
+export interface ISectionAnalysisItem {
+  sectionName: string;
+  status: "EXCELLENT" | "GOOD" | "NEEDS_IMPROVEMENT" | "MISSING";
+  whatIsGood: string;
+  whatIsWrong: string;
+  recommendation: string;
+}
+
+export interface IImprovementRoadmapItem {
+  priority: number;
+  title: string;
+  category: string;
+  description: string;
+  action: string;
+}
+
+export interface IResumeAnalysis {
+  _id: string;
+  userId: string;
+  resumeId?: string;
+  jobId?: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  analysisMode: "GENERAL" | "JOB_SPECIFIC";
+  targetRole: string;
+  jobDescriptionText?: string;
+  overallScore: number;
+  scoreBand: "Excellent" | "Very Good" | "Good" | "Needs Improvement" | "Weak" | "Poor";
+  categoryScores: {
+    keywordsSkills: IAtsCategoryScoreDetail;
+    resumeStructure: IAtsCategoryScoreDetail;
+    experienceProjects: IAtsCategoryScoreDetail;
+    formattingReadability: IAtsCategoryScoreDetail;
+    educationCertifications: IAtsCategoryScoreDetail;
+    contactInfo: IAtsCategoryScoreDetail;
+    grammarClarity: IAtsCategoryScoreDetail;
+  };
+  strengths: string[];
+  issues: IATSIssueItem[];
+  keywordAnalysis: IKeywordAnalysis;
+  sectionAnalysis: ISectionAnalysisItem[];
+  improvementRoadmap: IImprovementRoadmapItem[];
+  extractedResumeData: any;
+  rawText: string;
+  previousAnalysisId?: string;
+  beforeScore?: number;
+  afterScore?: number;
+  scoringVersion: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 
 
